@@ -1,26 +1,118 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   Tape — Personal Trading Journal
+   Design tokens (ledger aesthetic)
+   Light mode shown; dark mode inverts via @media (prefers-color-scheme)
+   ============================================================ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  /* Surfaces */
+  --ink: #1d1b16;         /* primary text on paper */
+  --paper: #f6f3eb;        /* page background */
+  --panel: #efece1;        /* raised surface: table hover, panels */
+  --line: #d8d2c2;         /* hairline borders */
+  --line-strong: #c4bca9;
+  --text: #35312a;
+  --text-muted: #8a8374;
+
+  /* Semantics (muted, never neon) */
+  --gain: #5f7a6a;         /* muted sage green */
+  --loss: #a85c4a;         /* muted rust/clay */
+  --accent: #a8893a;       /* muted gold */
+  --accent-weak: rgba(168, 137, 58, 0.14);
+
+  /* Ledger table striping */
+  --stripe: rgba(0, 0, 0, 0.02);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --ink: #e8e4d8;
+    --paper: #14120e;
+    --panel: #1d1a14;
+    --line: #2e2a20;
+    --line-strong: #403b2d;
+    --text: #d6d1c4;
+    --text-muted: #8a8374;
+    --gain: #8aa58f;
+    --loss: #c9877a;
+    --accent: #cfb062;
+    --accent-weak: rgba(207, 176, 98, 0.14);
+    --stripe: rgba(255, 255, 255, 0.02);
   }
 }
 
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-line-strong: var(--text-muted);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-accent: var(--accent);
+
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-serif: var(--font-newsreader);
+}
+
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hairline {
+  border: 1px solid var(--line);
+}
+
+.hairline-t {
+  border-top: 1px solid var(--line);
+}
+
+.hairline-b {
+  border-bottom: 1px solid var(--line);
+}
+
+/* Numbers: always mono + right aligned in tables */
+.num {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gain { color: var(--gain); }
+.loss { color: var(--loss); }
+
+.brand {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-style: italic;
+}
+
+.gain-bg { background: var(--gain); }
+.accent-btn {
+  background: var(--accent);
+  color: #1a160c;
+}
+.accent-btn:hover {
+  filter: brightness(1.05);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.btn-ghost:hover {
+  border-color: var(--text-muted);
 }

@@ -1,0 +1,113 @@
+// ============================================================
+// Domain types matching the SQL schema in supabase/schema.sql
+// ============================================================
+
+export type Direction = "long" | "short";
+export type TradeStatus = "open" | "closed";
+export type TagCategory = "strategy" | "setup" | "mistake" | "emotion";
+
+export interface Account {
+  id: string;
+  user_id: string;
+  name: string;
+  broker: string | null;
+  starting_balance: number;
+  current_balance: number;
+  created_at: string;
+}
+
+export interface Trade {
+  id: string;
+  account_id: string;
+  symbol: string;
+  direction: Direction;
+  entry_price: number;
+  exit_price: number | null; // null while open
+  size: number;
+  stop_price: number | null;
+  fees: number;
+  entry_time: string;
+  exit_time: string | null;
+  status: TradeStatus;
+  created_at: string;
+}
+
+/** A trade joined with its tags & notes for display in the UI. */
+export interface TradeWithExtras extends Trade {
+  tags: Tag[];
+  notes?: TradeNotes | null;
+  // Computed fields (not stored) — added by calculations lib.
+  pnl_dollars?: number;
+  pnl_pct?: number;
+  r_multiple?: number | null;
+  account_name?: string;
+}
+
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  category: TagCategory | null;
+}
+
+export interface TradeNotes {
+  trade_id: string;
+  pre_trade_thesis: string | null;
+  post_trade_review: string | null;
+  discipline_score: number | null;
+  screenshot_url: string | null;
+}
+
+export interface RiskSettings {
+  account_id: string;
+  max_daily_loss: number | null;
+  max_position_risk_pct: number | null;
+  max_open_positions: number | null;
+}
+
+export interface WatchlistItem {
+  id: string;
+  user_id: string;
+  symbol: string;
+  notes: string | null;
+  alert_price: number | null;
+  added_at: string;
+}
+
+/** Shape used when creating/updating a trade from the form. */
+export interface TradeInput {
+  account_id: string;
+  symbol: string;
+  direction: Direction;
+  size: number;
+  entry_price: number;
+  exit_price?: number | null;
+  stop_price?: number | null;
+  fees?: number;
+  entry_time: string;
+  exit_time?: string | null;
+  tags?: string[]; // tag ids or names (create-on-the-fly)
+  pre_trade_thesis?: string;
+  post_trade_review?: string;
+  discipline_score?: number | null;
+  clearNotes?: boolean;
+  screenshot_url?: string | null;
+}
+
+/** Aggregated analytics for a set of closed trades. */
+export interface AnalyticsSummary {
+  tradeCount: number;
+  winners: number;
+  losers: number;
+  winRate: number | null;
+  profitFactor: number | null;
+  averageR: number | null;
+  expectancy: number | null;
+  grossProfit: number;
+  grossLoss: number;
+  netPnl: number;
+  // Per-tag breakdown.
+  byTag: Record<string, { count: number; winRate: number | null; netPnl: number }>;
+  // Equity curve: cumulative realized P&L over time (closed trades only).
+  equityCurve: { date: string; cumulative: number }[];
+}
