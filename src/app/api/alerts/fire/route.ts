@@ -60,7 +60,13 @@ export async function POST(request: Request) {
     notify_desktop: true,
   };
 
-  const channels = { inApp: false, discord: false, desktop: false };
+  const channels: {
+    inApp: boolean;
+    discord: boolean;
+    desktop: boolean;
+    errors?: { discord?: string; desktop?: string };
+  } = { inApp: false, discord: false, desktop: false };
+  const errors: { discord?: string; desktop?: string } = {};
 
   // 1) Always create the in-app notification (bell + /notifications page).
   const { error: notifError } = await supabase.from("notifications").insert({
@@ -75,48 +81,56 @@ export async function POST(request: Request) {
 
   // 2) Discord webhook (best-effort).
   if (s.notify_discord && s.discord_webhook_url) {
-    channels.discord = await sendDiscord(s.discord_webhook_url, title, message, link);
+    const r = await sendDiscord(s.discord_webhook_url, title, message, link);
+    channels.discord = r.ok;
+    if (!r.ok) errors.discord = `webhook configured but send failed: ${r.detail ?? "unknown"}`;
   } else if (!s.notify_discord) {
-    // disabled
+    errors.discord = "notify_discord disabled";
   } else if (!s.discord_webhook_url) {
-    // not configured
+    errors.discord = "no webhook URL in user_settings";
   }
 
   // 3) Desktop toast (best-effort).
   if (s.notify_desktop) {
     channels.desktop = await sendDesktop(title, message);
+    if (!channels.desktop) errors.desktop = "powershell toast failed";
   }
 
-  return NextResponse.json({ ok: true, channels });
+  // Always return ok so the client isn't broken, but include channel status so
+  // the caller can log/diagnose if a channel didn't fire.
+  const res: {
+    ok: true;
+    channels: { inApp: boolean; discord: boolean; desktop: boolean };
+    errors?: { discord?: string; desktop?: string };
+  } = { ok: true, channels };
+  if (Object.keys(errors).length > 0) res.errors = errors;
+  return NextResponse.json(res);
 }
 
-/** POST a Discord embed/message to a webhook URL. Returns success boolean. */
+/** POST a Discord message to a webhook URL. Returns status-details on failure. */
 async function sendDiscord(
   webhookUrl: string,
   title: string,
   message: string,
   link: string | null
-): Promise<boolean> {
+): Promise<{ ok: boolean; detail?: string }> {
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // Plain content message — this matches the format proven to work in the
+      // settings "Test Discord" flow. Some webservers/webhooks reject embeds.
       body: JSON.stringify({
         username: "Tape",
-        embeds: [
-          {
-            title,
-            description: message,
-            color: 0xa8893a, // muted gold, matches theme accent
-            url: link ?? undefined,
-            timestamp: new Date().toISOString(),
-          },
-        ],
+        content: `🔔 **${title}**\n${message}${link ? `\n<${link}>` : ""}`,
       }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (!res.ok) {
+      return { ok: false, detail: `Discord HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, detail: (err as Error).message };
   }
 }
 
