@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { WatchlistItem } from "@/lib/types";
 import { CoinDetailModal } from "./coin-detail-modal";
 
@@ -120,6 +120,8 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
+  // Coin icons keyed by symbol (e.g., "BTC_USDT" -> icon URL).
+  const [icons, setIcons] = useState<Record<string, string>>({});
   const [note, setNote] = useState<string | null>(null);
   const [details, setDetails] = useState<{
     symbol: string;
@@ -224,6 +226,42 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbolsToTrack.join(","), refreshIntervalSec]);
+
+  // Fetch coin icons for all tracked symbols.
+  useEffect(() => {
+    if (symbolsToTrack.length === 0) return;
+    let cancelled = false;
+
+    async function fetchIcons() {
+      try {
+        const results = await Promise.all(
+          symbolsToTrack.map(async (sym) => {
+            const res = await fetch(`/api/mexc/futures?symbol=${encodeURIComponent(sym)}`);
+            if (!res.ok) return { symbol: sym, iconUrl: null };
+            const data = await res.json();
+            return { symbol: sym, iconUrl: data.detail?.baseCoinIconUrl ?? null };
+          })
+        );
+        if (!cancelled) {
+          const map: Record<string, string> = {};
+          for (const r of results) {
+            if (r.iconUrl) map[r.symbol] = r.iconUrl;
+          }
+          setIcons(map);
+        }
+      } catch {
+        // keep last known icons on failure
+      }
+    }
+
+    fetchIcons();
+    // Refresh icons less frequently (every 5 minutes) since they rarely change.
+    const id = setInterval(fetchIcons, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [symbolsToTrack]);
 
   // Accepts either a concrete array or an updater function.
   const setItemsAndOrder = (
@@ -342,19 +380,22 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return compact(v);
   }
 
-  // Format an ISO timestamp as a compact "MMM d · HH:MM" string, local time.
-  function fmtDateTime(iso: string | null | undefined): string {
+  // Render an ISO timestamp as full-numeric date on top, time below (local time).
+  function fmtDateTime(iso: string | null | undefined): ReactNode {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-    const time = d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    const date = d
-      .toLocaleDateString("en-US", { month: "short", day: "numeric" })
-      .replace(",", "");
-    return `${date} · ${time}`;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const date = `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`;
+    const time = `${pad(((d.getHours() + 11) % 12) + 1)}:${pad(
+      d.getMinutes()
+    )} ${d.getHours() >= 12 ? "PM" : "AM"}`;
+    return (
+      <div className="flex flex-col items-center leading-tight">
+        <span className="num">{date}</span>
+        <span className="num text-[10px] text-muted">{time}</span>
+      </div>
+    );
   }
 
   return (
@@ -481,6 +522,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
                 <th className="px-2 py-2.5 w-8"></th>
+                <th className="px-2 py-2.5 w-10"></th>
                 <th className="px-3 py-2.5">Coin</th>
                 <th className="px-3 py-2.5 text-right">24h %</th>
                 <th className="px-3 py-2.5 text-right">Volume (24h)</th>
@@ -516,6 +558,15 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     <td className="px-2 py-2.5 cursor-grab text-muted select-none" title="Drag to reorder">
                       <span className="inline-block cursor-grab">⋮⋮</span>
                     </td>
+                    <td className="px-2 py-2.5 text-center">
+                      {icons[sym] && (
+                        <img
+                          src={icons[sym]}
+                          alt={cleanSymbol(sym)}
+                          className="h-5 w-5 rounded-full object-contain inline-block"
+                        />
+                      )}
+                    </td>
                     <td className="px-3 py-2.5">
                       <button
                         type="button"
@@ -547,12 +598,12 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     <td className="px-3 py-2.5 num text-muted">
                       {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap">
+                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                       {i.trigger_price != null
                         ? fmtDateTime(i.trigger_created_at)
                         : "—"}
                     </td>
-                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap">
+                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                       {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-xs">
