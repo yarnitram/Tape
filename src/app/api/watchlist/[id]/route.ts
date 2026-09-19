@@ -65,6 +65,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
     updates.alert_fired_at = null;
   }
 
+  // Fire the alert: mark it as triggered (used by the polling watcher).
+  if (b.alert_fired === true) {
+    updates.alert_fired = true;
+    updates.alert_fired_at =
+      b.alert_fired_at != null && String(b.alert_fired_at) !== ""
+        ? String(b.alert_fired_at)
+        : new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from("watchlist_items")
     .update(updates)

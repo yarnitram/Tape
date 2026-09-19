@@ -125,21 +125,67 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
     setSavedMsg(null);
     setError(null);
     try {
+      // --- Infer trigger_direction from current price if triggerPrice is set ---
+      let triggerDirection: "above" | "below" | null = null;
+      let firedImmediately = false;
+      const triggerPriceNum = triggerPrice ? parseFloat(triggerPrice) : null;
+      const lastPrice = ticker?.lastPrice ?? null;
+
+      if (triggerPriceNum !== null && lastPrice !== null) {
+        if (lastPrice > triggerPriceNum) {
+          // Current price is ABOVE trigger → we expect it to FALL DOWN to trigger
+          triggerDirection = "below";
+        } else if (lastPrice < triggerPriceNum) {
+          // Current price is BELOW trigger → we expect it to RISE UP to trigger
+          triggerDirection = "above";
+        } else {
+          // Price is exactly at trigger → fire immediately
+          triggerDirection = "above"; // default; could use 24h trend to decide
+          firedImmediately = true;
+        }
+      }
+
+      const fireTime = firedImmediately ? new Date().toISOString() : null;
+
       const res = await fetch(`/api/watchlist/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trigger_price: triggerPrice,
+          trigger_price: triggerPriceNum,
+          trigger_direction: triggerDirection,
           order_type: orderType || null,
           entry_price: entry,
           stop_loss: stopLoss,
           take_profit: takeProfit,
-          rearm: true,
+          // If we fired immediately, mark it fired and don't rearm.
+          // Otherwise, rearm to clear any old fired state.
+          alert_fired: firedImmediately,
+          alert_fired_at: fireTime ?? undefined,
+          rearm: triggerPriceNum !== null && !firedImmediately,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Save failed");
+
+      // Create a notification immediately when the price is already at the trigger.
+      if (firedImmediately && triggerPriceNum !== null) {
+        await fetch(`/api/notifications`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "watchlist_trigger",
+            title: `${cleanSymbol(symbol)} hit your trigger`,
+            message: `Last ${lastPrice} reached your ${triggerPriceNum} trigger.`,
+            link: "/watchlist",
+          }),
+        }).catch(() => {});
+      }
+
       setSavedMsg(
-        triggerPrice ? "Alert saved — you'll be notified when the price hits it." : "Alert cleared."
+        !triggerPrice
+          ? "Alert cleared."
+          : firedImmediately
+          ? "🚨 Price already at trigger — alert fired!"
+          : "Alert saved — you'll be notified when the price hits it."
       );
       onSaved?.();
     } catch (err) {

@@ -213,6 +213,54 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           if (symbolsToTrack.includes(t.symbol)) map[t.symbol] = t;
         }
         setLive(map);
+
+        // ---- Check armed price triggers and fire alerts ----
+        // Use `items` (state) for trigger config and the freshly fetched `map`
+        // for current prices. Firing is client-side on the watchlist page poll.
+        const toFire = items.filter((i) => {
+          if (i.alert_fired) return false;
+          if (i.trigger_price == null || i.trigger_direction == null) return false;
+          const t = map[i.symbol.toUpperCase()];
+          if (!t) return false;
+          const tp = i.trigger_price;
+          if (i.trigger_direction === "above" && t.lastPrice >= tp) return true;
+          if (i.trigger_direction === "below" && t.lastPrice <= tp) return true;
+          return false;
+        });
+
+        for (const item of toFire) {
+          const nowIso = new Date().toISOString();
+          const sym = item.symbol.toUpperCase();
+          const triggerPrice = item.trigger_price as number;
+          const lastPrice = map[sym]?.lastPrice ?? 0;
+          try {
+            // 1) Persist fired state so it doesn't re-fire.
+            await fetch(`/api/watchlist/${item.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ alert_fired: true, alert_fired_at: nowIso }),
+            }).catch(() => {});
+            // 2) Create a notification through the notification system.
+            await fetch(`/api/notifications`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "watchlist_trigger",
+                title: `${cleanSymbol(sym)} hit your trigger`,
+                message: `Last ${fmtPx(lastPrice)} reached your ${fmtPx(triggerPrice)} trigger.`,
+                link: "/watchlist",
+              }),
+            }).catch(() => {});
+          } catch {
+            // ignore per-item failures; other alerts still process
+          }
+          // 3) Reflect fired state in local rows immediately (avoid re-firing).
+          setItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id ? { ...x, alert_fired: true, alert_fired_at: nowIso } : x
+            )
+          );
+        }
       } catch {
         // keep last known data on failure
       }
@@ -225,7 +273,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbolsToTrack.join(","), refreshIntervalSec]);
+  }, [symbolsToTrack.join(","), items, refreshIntervalSec]);
 
   // Fetch coin icons for all tracked symbols.
   useEffect(() => {
