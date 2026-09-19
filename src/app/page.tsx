@@ -9,5 +9,5 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  redirect(user ? "/journal" : "/login");
+  redirect(user ? "/watchlist" : "/login");
 }

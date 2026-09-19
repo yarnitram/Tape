@@ -6,10 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { NotificationBell } from "@/components/ui/notification-bell";
 
 const LINKS = [
+  { href: "/watchlist", label: "Watchlist" },
   { href: "/journal", label: "Journal" },
   { href: "/analytics", label: "Analytics" },
-  { href: "/risk", label: "Risk" },
-  { href: "/watchlist", label: "Watchlist" },
   { href: "/notifications", label: "Notifications" },
   { href: "/settings", label: "Settings" },
 ];
@@ -32,7 +31,7 @@ export function AppNav() {
   return (
     <header className="hairline-b bg-paper/95 sticky top-0 z-20 backdrop-blur">
       <div className="mx-auto max-w-6xl px-6 h-14 flex items-center gap-8">
-        <Link href="/journal" className="brand text-2xl shrink-0">
+        <Link href="/watchlist" className="brand text-2xl shrink-0">
           Tape
         </Link>
 

@@ -1,23 +1,26 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import type { Account, Tag, TradeWithExtras } from "@/lib/types";
+import type { Account, RiskSettings, Tag, TradeWithExtras } from "@/lib/types";
 import { TradeTable } from "./trade-table";
 import { TradeFormModal } from "./trade-form-modal";
 import { TradeDetailModal } from "./trade-detail-modal";
 import { ExportBar } from "./export-bar";
+import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
 
 interface Props {
   accounts: Account[];
   activeAccount: Account | null;
   initialTrades: TradeWithExtras[];
   initialTags: Tag[];
+  riskSettings: RiskSettings | null;
 }
 
 export function TradeJournal({
   activeAccount,
   initialTrades,
   initialTags,
+  riskSettings,
 }: Props) {
   const [trades, setTrades] = useState<TradeWithExtras[]>(initialTrades);
   const [tags, setTags] = useState<Tag[]>(initialTags);
@@ -149,6 +152,12 @@ export function TradeJournal({
           + New trade
         </button>
       </div>
+
+      <AnalyticsDashboard
+        trades={trades}
+        riskSettings={riskSettings}
+        accountName={activeAccount?.name ?? "No account"}
+      />
 
       <ExportBar
         trades={trades}
