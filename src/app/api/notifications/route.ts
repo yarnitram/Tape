@@ -151,3 +151,45 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ notification: data }, { status: 201 });
 }
+
+/** DELETE /api/notifications — delete one or more notifications. */
+export async function DELETE(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const b = body as Record<string, unknown>;
+  const ids = Array.isArray(b.ids) ? (b.ids as string[]).filter(Boolean) : [];
+
+  if (b.ids !== undefined && ids.length === 0) {
+    return NextResponse.json({ error: "ids array required" }, { status: 400 });
+  }
+
+  let query = supabase
+    .from("notifications")
+    .delete()
+    .eq("user_id", user.id);
+
+  if (ids.length > 0) {
+    query = query.in("id", ids);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

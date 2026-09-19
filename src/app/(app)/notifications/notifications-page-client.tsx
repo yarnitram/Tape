@@ -33,6 +33,7 @@ export function NotificationsPageClient({
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(initialNotifications.length >= PAGE_SIZE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const selectAllRef = useRef<HTMLInputElement>(null);
 
@@ -126,6 +127,42 @@ export function NotificationsPageClient({
       });
     } catch {
       // Silently fail
+    }
+  }, []);
+
+  // Delete one or more notifications.
+  const deleteNotifications = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setDeletingIds((prev) => new Set([...prev, ...ids]));
+    try {
+      await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+
+      // Remove from local state + update counts optimistically.
+      setNotifications((prev) => {
+        const idSet = new Set(ids);
+        const removed = prev.filter((n) => idSet.has(n.id));
+        const removedUnread = removed.filter((n) => !n.read).length;
+        setUnreadCount((u) => Math.max(0, u - removedUnread));
+        setTotal((t) => Math.max(0, t - removed.length));
+        return prev.filter((n) => !idSet.has(n.id));
+      });
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    } catch {
+      // Silently fail
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
     }
   }, []);
 
@@ -250,6 +287,17 @@ export function NotificationsPageClient({
             </button>
             <button
               type="button"
+              onClick={() => {
+                if (window.confirm(`Delete ${selectedIds.size} notification(s)?`)) {
+                  deleteNotifications(Array.from(selectedIds));
+                }
+              }}
+              className="px-3 py-1.5 text-sm rounded border border-line text-loss hover:bg-loss/10 disabled:opacity-50"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
               onClick={() => setSelectedIds(new Set())}
               className="btn-ghost px-3 py-1.5 text-sm"
             >
@@ -367,6 +415,23 @@ export function NotificationsPageClient({
                           </span>
                         )}
                       </div>
+                    </button>
+
+                    {/* Per-row delete */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm("Delete this notification?")) {
+                          deleteNotifications([notification.id]);
+                        }
+                      }}
+                      disabled={deletingIds.has(notification.id)}
+                      className="flex-shrink-0 mt-1 text-xs text-muted hover:text-loss disabled:opacity-50"
+                      aria-label="Delete notification"
+                      title="Delete notification"
+                    >
+                      ✕
                     </button>
                   </li>
                 );
