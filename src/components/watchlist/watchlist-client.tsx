@@ -575,7 +575,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           No saved coins match “{filter}”. Try a different search.
         </div>
       ) : (
-        <div className="hairline overflow-x-auto bg-panel/40">
+        <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
           <table className="w-full text-sm border-collapse min-w-[1080px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
@@ -640,12 +640,20 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         </span>
                       </button>
                     </td>
-                    <td
-                      className={`px-3 py-2.5 num ${
-                        t ? changeClass(t.riseFallRate) : ""
-                      }`}
-                    >
-                      {t ? fmtPct(t.riseFallRate) : "…"}
+                    <td className="px-3 py-2.5 num">
+                      {t ? (
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
+                            t.riseFallRate >= 0
+                              ? "bg-gain/10 text-gain"
+                              : "bg-loss/10 text-loss"
+                          }`}
+                        >
+                          {fmtPct(t.riseFallRate)}
+                        </span>
+                      ) : (
+                        "…"
+                      )}
                     </td>
                     <td className="px-3 py-2.5 num">
                       {t ? fmtUsd(t.amount24) : "…"}
@@ -666,11 +674,11 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     </td>
                     <td className="px-3 py-2.5 text-xs">
                       {i.alert_fired ? (
-                        <span className="text-loss font-medium">
+                        <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
                           ● Triggered
                         </span>
                       ) : i.trigger_price != null ? (
-                        <span className="text-accent font-medium">
+                        <span className="inline-flex items-center rounded-md bg-gain/10 px-2 py-0.5 text-xs font-semibold font-mono text-gain">
                           ● Ongoing
                         </span>
                       ) : (
