@@ -82,7 +82,12 @@ export interface WatchlistItem {
   alert_fired_at: string | null;
   // When the price-trigger was set (armed); cleared when the trigger is cleared.
   trigger_created_at: string | null;
+  // Intended order type when the trigger fires (added by migration 006).
+  order_type: OrderType | null;
 }
+
+/** The order type the user intends to place (aligns with MEXC order types). */
+export type OrderType = "limit" | "trigger_limit" | "market";
 
 /** Shape used when creating/updating a trade from the form. */
 export interface TradeInput {

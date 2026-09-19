@@ -34,9 +34,17 @@ export async function PATCH(request: Request, { params }: Ctx) {
       ? b.trigger_direction
       : null;
 
+  const orderType =
+    b.order_type === "limit" ||
+    b.order_type === "trigger_limit" ||
+    b.order_type === "market"
+      ? b.order_type
+      : null;
+
   const updates: Record<string, unknown> = {
     trigger_price: numOrNull(b.trigger_price),
     trigger_direction: direction,
+    order_type: orderType,
     entry_price: numOrNull(b.entry_price),
     stop_loss: numOrNull(b.stop_loss),
     take_profit: numOrNull(b.take_profit),

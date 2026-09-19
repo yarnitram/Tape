@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { WatchlistItem } from "@/lib/types";
+import type { WatchlistItem, OrderType } from "@/lib/types";
 import { ModalShell } from "@/components/ui/modal-shell";
 
 interface Props {
@@ -47,6 +47,13 @@ function toStr(v: number | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
+// Selectable order types shown in the modal; aligned with the DB constraint.
+const ORDER_TYPE_OPTIONS: { value: OrderType; label: string }[] = [
+  { value: "limit", label: "Limit" },
+  { value: "trigger_limit", label: "Trigger Limit" },
+  { value: "market", label: "Market" },
+];
+
 export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
   const [ticker, setTicker] = useState<Ticker | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -59,6 +66,9 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
   const [entry, setEntry] = useState(toStr(item?.entry_price));
   const [stopLoss, setStopLoss] = useState(toStr(item?.stop_loss));
   const [takeProfit, setTakeProfit] = useState(toStr(item?.take_profit));
+  const [orderType, setOrderType] = useState<OrderType | "">(
+    item?.order_type ?? ""
+  );
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
@@ -120,6 +130,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           trigger_price: triggerPrice,
+          order_type: orderType || null,
           entry_price: entry,
           stop_loss: stopLoss,
           take_profit: takeProfit,
@@ -231,6 +242,23 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
               <div className="text-xs text-muted uppercase tracking-wide mb-3">
                 If triggered, this is my trade
               </div>
+              <label className="flex flex-col gap-1 text-xs text-muted mb-3">
+                Order type
+                <select
+                  className={`${inputCls} cursor-pointer`}
+                  value={orderType}
+                  onChange={(e) =>
+                    setOrderType(e.target.value as OrderType | "")
+                  }
+                >
+                  <option value="">— Choose —</option>
+                  {ORDER_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="grid grid-cols-3 gap-3">
                 <label className="flex flex-col gap-1 text-xs text-muted">
                   Entry
