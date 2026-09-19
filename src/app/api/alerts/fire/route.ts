@@ -115,6 +115,11 @@ async function sendDiscord(
   link: string | null
 ): Promise<{ ok: boolean; detail?: string }> {
   try {
+    // Discord auto-links absolute http(s) URLs. Relative in-app paths (e.g.
+    // "/watchlist") have no meaning in Discord, so drop them to avoid a raw
+    // "</watchlist>" rendering.
+    const linkPart =
+      link && /^https?:\/\//i.test(link) ? `\n**View in app:** ${link}` : "";
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -122,7 +127,7 @@ async function sendDiscord(
       // settings "Test Discord" flow. Some webservers/webhooks reject embeds.
       body: JSON.stringify({
         username: "Tape",
-        content: `🔔 **${title}**\n${message}${link ? `\n<${link}>` : ""}`,
+        content: `🔔 **${title}**\n${message}${linkPart}`,
       }),
     });
     if (!res.ok) {
