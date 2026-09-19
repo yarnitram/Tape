@@ -166,9 +166,10 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
       });
       if (!res.ok) throw new Error((await res.json()).error || "Save failed");
 
-      // Create a notification immediately when the price is already at the trigger.
+      // Dispatch across all channels immediately when the price is already at
+      // the trigger (in-app notification + Discord + desktop).
       if (firedImmediately && triggerPriceNum !== null) {
-        await fetch(`/api/notifications`, {
+        await fetch(`/api/alerts/fire`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

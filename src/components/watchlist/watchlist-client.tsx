@@ -234,14 +234,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           const triggerPrice = item.trigger_price as number;
           const lastPrice = map[sym]?.lastPrice ?? 0;
           try {
-            // 1) Persist fired state so it doesn't re-fire.
+            // Persist fired state so it doesn't re-fire.
             await fetch(`/api/watchlist/${item.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ alert_fired: true, alert_fired_at: nowIso }),
             }).catch(() => {});
-            // 2) Create a notification through the notification system.
-            await fetch(`/api/notifications`, {
+            // Dispatch across all channels: in-app notification (bell +
+            // /notifications) + Discord webhook + desktop toast, based on the
+            // user's settings.
+            await fetch(`/api/alerts/fire`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -254,7 +256,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           } catch {
             // ignore per-item failures; other alerts still process
           }
-          // 3) Reflect fired state in local rows immediately (avoid re-firing).
+          // Reflect fired state in local rows immediately (avoid re-firing).
           setItems((prev) =>
             prev.map((x) =>
               x.id === item.id ? { ...x, alert_fired: true, alert_fired_at: nowIso } : x
