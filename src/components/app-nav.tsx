@@ -8,7 +8,6 @@ import { NotificationBell } from "@/components/ui/notification-bell";
 const LINKS = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/journal", label: "Journal" },
-  { href: "/analytics", label: "Analytics" },
   { href: "/notifications", label: "Notifications" },
   { href: "/settings", label: "Settings" },
 ];
