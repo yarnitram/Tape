@@ -127,6 +127,11 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     symbol: string;
     item: WatchlistItem | null;
   } | null>(null);
+  // Id of the row currently awaiting delete confirmation (or null).
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  // Pagination state. pageSize is one of 10/20/50/100, or Infinity for "All".
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(20);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragIdRef = useRef<string | null>(null);
 
@@ -176,6 +181,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       i.symbol.toUpperCase().includes(q)
     );
   }, [sortedItems, filter]);
+
+  // ---- Pagination ----
+  const total = filteredItems.length;
+  const hasPaging = Number.isFinite(pageSize);
+  const pageCount = hasPaging ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+  const safePage = hasPaging ? Math.min(page, pageCount - 1) : 0;
+  const pageItems = useMemo(() => {
+    if (!hasPaging) return filteredItems;
+    return filteredItems.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  }, [filteredItems, pageSize, safePage, hasPaging]);
 
   // Apply any previously saved row order, but ONLY after hydration so the
   // server and client render the same initial rows (avoids hydration
@@ -354,11 +369,23 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
   async function addCoin(symbol: string) {
     setNote(null);
+    const sym = symbol.toUpperCase();
+    setQuery("");
+    setResults(null);
+
+    // If the coin is already saved, don't add a duplicate — just open the
+    // existing item so the user can review/update its alert & trade plan.
+    const existing = items.find((i) => i.symbol.toUpperCase() === sym);
+    if (existing) {
+      setDetails({ symbol: existing.symbol.toUpperCase(), item: existing });
+      return;
+    }
+
     try {
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
+        body: JSON.stringify({ symbol: sym }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -366,9 +393,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       }
       const { item } = await res.json();
       setItemsAndOrder([...items, item]);
-      setQuery("");
-      setResults(null);
-      setNote(`Added ${cleanSymbol(symbol)} to watchlist.`);
+      setNote(`Added ${cleanSymbol(sym)} to watchlist.`);
       // Open the detail modal right away so the user can set the price
       // trigger and trade plan without hunting for the Modify button.
       setDetails({ symbol: item.symbol.toUpperCase(), item });
@@ -380,6 +405,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   async function removeCoin(id: string) {
     await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
     setItemsAndOrder(items.filter((i) => i.id !== id));
+    setConfirmRemove(null);
   }
 
   // Reload the saved list after an alert/trade-plan save so the row reflects
@@ -520,7 +546,10 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             <input
               className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent w-44"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(0);
+              }}
               placeholder="Filter saved coins…"
             />
           </label>
@@ -547,21 +576,24 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               ))}
             </select>
           </label>
-          {sortConfigKey(sort) !== sortConfigKey(DEFAULT_SORT) && (
-            <span className="text-xs text-muted">
-              Showing in sorted order ·{" "}
-              <button
-                type="button"
-                className="text-accent hover:underline cursor-pointer"
-                onClick={() => {
-                  setSort(DEFAULT_SORT);
-                  saveSort(DEFAULT_SORT);
-                }}
-              >
-                Reset to drag order
-              </button>
-            </span>
-          )}
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <span>Rows per page</span>
+            <select
+              className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
+              value={hasPaging ? String(pageSize) : "all"}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPageSize(v === "all" ? Number.POSITIVE_INFINITY : Number(v));
+                setPage(0);
+              }}
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="all">All</option>
+            </select>
+          </label>
           </div>
         </div>
       )}
@@ -575,7 +607,8 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           No saved coins match “{filter}”. Try a different search.
         </div>
       ) : (
-        <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
+        <>
+          <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
           <table className="w-full text-sm border-collapse min-w-[1080px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
@@ -593,7 +626,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((i) => {
+              {pageItems.map((i) => {
                 const sym = i.symbol.toUpperCase();
                 const t = live[sym];
                 return (
@@ -690,21 +723,45 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                       onClick={(e) => e.stopPropagation()}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setDetails({ symbol: sym, item: i })}
-                        className="text-accent hover:underline text-xs mr-3 cursor-pointer"
-                        title="View details"
-                      >
-                        Modify
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeCoin(i.id)}
-                        className="text-loss hover:underline text-xs cursor-pointer"
-                      >
-                        Remove
-                      </button>
+                      {confirmRemove === i.id ? (
+                        <span className="inline-flex items-center gap-2 text-xs">
+                          <span className="text-muted">
+                            Remove {cleanSymbol(sym)}?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeCoin(i.id)}
+                            className="text-loss font-semibold cursor-pointer"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemove(null)}
+                            className="text-muted hover:text-text cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setDetails({ symbol: sym, item: i })}
+                            className="text-accent hover:underline text-xs mr-3 cursor-pointer"
+                            title="View details"
+                          >
+                            Modify
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemove(i.id)}
+                            className="text-loss hover:underline text-xs cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );
@@ -712,6 +769,30 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             </tbody>
           </table>
         </div>
+        {hasPaging && (
+          <div className="flex items-center justify-center gap-4 text-xs text-muted mt-3">
+            <button
+              type="button"
+              disabled={safePage === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            <span className="num">
+              Page {safePage + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       <p className="text-xs text-muted">
