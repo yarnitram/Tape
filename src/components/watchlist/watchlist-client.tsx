@@ -115,6 +115,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     typeof window !== "undefined" ? loadSort() : DEFAULT_SORT
   );
 
+  // Case-insensitive filter for filtering the saved coins by symbol.
+  const [filter, setFilter] = useState("");
+
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -161,6 +164,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       }
     });
   }, [items, sort, live]);
+
+  // Rows after applying the client-side filter (search). Composes with sort:
+  // filter first, then the result still goes through sortedItems' ordering.
+  const filteredItems = useMemo(() => {
+    const q = filter.trim().toUpperCase();
+    if (!q) return sortedItems;
+    return sortedItems.filter((i) =>
+      i.symbol.toUpperCase().includes(q)
+    );
+  }, [sortedItems, filter]);
 
   // Apply any previously saved row order, but ONLY after hydration so the
   // server and client render the same initial rows (avoids hydration
@@ -404,6 +417,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       {items.length > 0 && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <label className="flex items-center gap-2 text-xs text-muted">
+            <span>Search</span>
+            <input
+              className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent w-44"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter saved coins…"
+            />
+          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-muted">
             <span>Sort by</span>
             <select
               className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
@@ -440,12 +463,17 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               </button>
             </span>
           )}
+          </div>
         </div>
       )}
 
       {items.length === 0 ? (
         <div className="hairline text-muted p-10 text-center text-sm">
           No coins saved yet. Search a MEXC futures coin above to add it.
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="hairline text-muted p-10 text-center text-sm">
+          No saved coins match “{filter}”. Try a different search.
         </div>
       ) : (
         <div className="hairline overflow-x-auto bg-panel/40">
@@ -465,7 +493,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               </tr>
             </thead>
             <tbody>
-              {sortedItems.map((i) => {
+              {filteredItems.map((i) => {
                 const sym = i.symbol.toUpperCase();
                 const t = live[sym];
                 return (
