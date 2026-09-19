@@ -80,6 +80,8 @@ export interface WatchlistItem {
   take_profit: number | null;
   alert_fired: boolean;
   alert_fired_at: string | null;
+  // When the price-trigger was set (armed); cleared when the trigger is cleared.
+  trigger_created_at: string | null;
 }
 
 /** Shape used when creating/updating a trade from the form. */

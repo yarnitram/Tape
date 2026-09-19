@@ -42,6 +42,13 @@ export async function PATCH(request: Request, { params }: Ctx) {
     take_profit: numOrNull(b.take_profit),
   };
 
+  // Stamp when the trigger was armed. If a trigger price is provided, record
+  // the current time as "trigger created"; if it's being cleared, drop it.
+  if (b.trigger_price !== undefined) {
+    updates.trigger_created_at =
+      numOrNull(b.trigger_price) == null ? null : new Date().toISOString();
+  }
+
   if (b.notes !== undefined) updates.notes = b.notes?.toString() || null;
 
   // Re-arm: clear the fired flag so the watcher can notify again.

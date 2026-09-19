@@ -326,6 +326,21 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return compact(v);
   }
 
+  // Format an ISO timestamp as a compact "MMM d · HH:MM" string, local time.
+  function fmtDateTime(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const date = d
+      .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      .replace(",", "");
+    return `${date} · ${time}`;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -431,7 +446,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         </div>
       ) : (
         <div className="hairline overflow-x-auto bg-panel/40">
-          <table className="w-full text-sm border-collapse min-w-[880px]">
+          <table className="w-full text-sm border-collapse min-w-[1080px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
                 <th className="px-2 py-2.5 w-8"></th>
@@ -440,6 +455,8 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 <th className="px-3 py-2.5 text-right">Volume (24h)</th>
                 <th className="px-3 py-2.5 text-right">Last Price</th>
                 <th className="px-3 py-2.5 text-right">Trigger</th>
+                <th className="px-3 py-2.5">Trigger added</th>
+                <th className="px-3 py-2.5">Fired at</th>
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
@@ -498,6 +515,14 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     </td>
                     <td className="px-3 py-2.5 num text-muted">
                       {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap">
+                      {i.trigger_price != null
+                        ? fmtDateTime(i.trigger_created_at)
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap">
+                      {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-xs">
                       {i.alert_fired ? (
