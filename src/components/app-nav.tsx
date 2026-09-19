@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { NotificationBell } from "@/components/ui/notification-bell";
 
 const LINKS = [
   { href: "/journal", label: "Journal" },
   { href: "/analytics", label: "Analytics" },
   { href: "/risk", label: "Risk" },
   { href: "/watchlist", label: "Watchlist" },
+  { href: "/notifications", label: "Notifications" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -49,6 +51,8 @@ export function AppNav() {
             </Link>
           ))}
         </nav>
+
+        <NotificationBell />
 
         <button
           type="button"

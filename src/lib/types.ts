@@ -89,6 +89,21 @@ export interface WatchlistItem {
 /** The order type the user intends to place (aligns with MEXC order types). */
 export type OrderType = "limit" | "trigger_limit" | "market";
 
+/** Notification types. */
+export type NotificationType = "trade_alert" | "risk_warning" | "system" | "watchlist_trigger";
+
+/** A user notification. */
+export interface Notification {
+  id: string;
+  user_id?: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link: string | null;
+  read: boolean;
+  created_at: string;
+}
+
 /** Shape used when creating/updating a trade from the form. */
 export interface TradeInput {
   account_id: string;
