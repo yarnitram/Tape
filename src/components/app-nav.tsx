@@ -52,15 +52,17 @@ export function AppNav() {
           ))}
         </nav>
 
-        <NotificationBell />
+        <div className="ml-auto flex items-center gap-3 h-full">
+          <NotificationBell />
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="ml-auto text-sm text-muted hover:text-loss cursor-pointer"
-        >
-          Sign out
-        </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="text-sm text-muted hover:text-loss cursor-pointer"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
     </header>
   );

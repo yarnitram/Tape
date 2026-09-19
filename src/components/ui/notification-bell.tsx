@@ -4,56 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Notification, NotificationType } from "@/lib/types";
+import type { Notification } from "@/lib/types";
+import {
+  formatTimeAgo,
+  notificationIcon,
+  notificationColor,
+} from "@/lib/notification-utils";
 
 interface NotificationBellProps {
   initialUnreadCount?: number;
 }
 
 const POLL_INTERVAL = 30_000; // 30 seconds
-
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60_000);
-  const diffHours = Math.floor(diffMs / 3_600_000);
-  const diffDays = Math.floor(diffMs / 86_400_000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function getNotificationIcon(type: NotificationType): string {
-  switch (type) {
-    case "trade_alert":
-      return "📈";
-    case "risk_warning":
-      return "⚠️";
-    case "watchlist_trigger":
-      return "🔔";
-    case "system":
-    default:
-      return "📢";
-  }
-}
-
-function getNotificationColor(type: NotificationType): string {
-  switch (type) {
-    case "trade_alert":
-      return "text-gain";
-    case "risk_warning":
-      return "text-loss";
-    case "watchlist_trigger":
-      return "text-accent";
-    case "system":
-    default:
-      return "text-muted";
-  }
-}
 
 export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellProps) {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
@@ -140,6 +102,15 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
     }
   }
 
+  // Open the dropdown; if there are unread notifications, mark them all as
+  // read first (clears the badge) before showing the panel.
+  function handleToggle() {
+    if (unreadCount > 0) {
+      handleMarkAllRead();
+    }
+    setIsOpen((prev) => !prev);
+  }
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -176,7 +147,7 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className="relative p-2 text-muted hover:text-text transition-colors rounded-lg hover:bg-panel"
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
         aria-expanded={isOpen}
@@ -243,10 +214,10 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
                     >
                       <div className="flex items-start gap-3">
                         <span
-                          className={`flex-shrink-0 mt-0.5 ${getNotificationColor(notification.type)}`}
+                          className={`flex-shrink-0 mt-0.5 ${notificationColor(notification.type)}`}
                           aria-hidden="true"
                         >
-                          {getNotificationIcon(notification.type)}
+                          {notificationIcon(notification.type)}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">

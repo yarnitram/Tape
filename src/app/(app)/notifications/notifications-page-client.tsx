@@ -1,80 +1,32 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Notification, NotificationType } from "@/lib/types";
+import {
+  formatFullDate,
+  notificationIcon,
+  notificationColor,
+  notificationBg,
+  notificationTypeLabel,
+} from "@/lib/notification-utils";
 
 interface NotificationsPageClientProps {
   initialNotifications: Notification[];
   initialUnreadCount: number;
+  initialTotal: number;
 }
 
 const PAGE_SIZE = 20;
 
-function formatTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60_000);
-  const diffHours = Math.floor(diffMs / 3_600_000);
-  const diffDays = Math.floor(diffMs / 86_400_000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function getNotificationIcon(type: NotificationType): string {
-  switch (type) {
-    case "trade_alert":
-      return "📈";
-    case "risk_warning":
-      return "⚠️";
-    case "watchlist_trigger":
-      return "🔔";
-    case "system":
-    default:
-      return "📢";
-  }
-}
-
-function getNotificationColor(type: NotificationType): string {
-  switch (type) {
-    case "trade_alert":
-      return "text-gain";
-    case "risk_warning":
-      return "text-loss";
-    case "watchlist_trigger":
-      return "text-accent";
-    case "system":
-    default:
-      return "text-muted";
-  }
-}
-
-function getNotificationBg(type: NotificationType): string {
-  switch (type) {
-    case "trade_alert":
-      return "bg-green-500/10";
-    case "risk_warning":
-      return "bg-red-500/10";
-    case "watchlist_trigger":
-      return "bg-yellow-500/10";
-    case "system":
-    default:
-      return "bg-gray-500/10";
-  }
-}
-
 export function NotificationsPageClient({
   initialNotifications,
   initialUnreadCount,
+  initialTotal,
 }: NotificationsPageClientProps) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -101,9 +53,7 @@ export function NotificationsPageClient({
     setLoadingMore(true);
 
     try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-      });
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (filter === "unread") params.set("unread", "true");
       if (cursor) params.set("cursor", cursor);
 
@@ -127,9 +77,7 @@ export function NotificationsPageClient({
     setCursor(null);
 
     try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-      });
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (filter === "unread") params.set("unread", "true");
 
       const res = await fetch(`/api/notifications?${params}`);
@@ -148,7 +96,6 @@ export function NotificationsPageClient({
   }, [filter]);
 
   // Refetch when filter changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleFilterChange = useCallback(
     (newFilter: "all" | "unread") => {
       setFilter(newFilter);
@@ -157,26 +104,28 @@ export function NotificationsPageClient({
     [fetchNotifications]
   );
 
-  // Mark selected as read
-  const handleMarkSelectedRead = async () => {
-    if (selectedIds.size === 0) return;
-
+  // Mark a specific set of notifications as read.
+  const markAsRead = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
     try {
       await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        body: JSON.stringify({ ids }),
       });
-
       setNotifications((prev) =>
-        prev.map((n) => (selectedIds.has(n.id) ? { ...n, read: true } : n))
+        prev.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n))
       );
-      setUnreadCount((prev) => Math.max(0, prev - selectedIds.size));
-      setSelectedIds(new Set());
+      setUnreadCount((prev) => Math.max(0, prev - ids.length));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
     } catch {
       // Silently fail
     }
-  };
+  }, []);
 
   // Mark all as read
   const handleMarkAllRead = async () => {
@@ -186,7 +135,6 @@ export function NotificationsPageClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ all: true }),
       });
-
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
       setSelectedIds(new Set());
@@ -195,30 +143,26 @@ export function NotificationsPageClient({
     }
   };
 
-  // Handle individual notification click
-  const handleNotificationClick = (notification: Notification) => {
+  // Handle individual notification click: navigate to link + mark this one read.
+  function handleNotificationClick(notification: Notification) {
     if (!notification.read) {
-      const newSelected = new Set(selectedIds);
-      newSelected.add(notification.id);
-      setSelectedIds(newSelected);
-      // Trigger mark as read for this one
-      handleMarkSelectedRead();
+      markAsRead([notification.id]);
     }
     if (notification.link) {
       router.push(notification.link);
       router.refresh();
     }
-  };
+  }
 
-  // Toggle selection
-  const toggleSelect = (id: string) => {
+  // Toggle selection (checkbox) - does NOT navigate.
+  function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }
 
   // Select all visible
   const handleSelectAll = () => {
@@ -237,8 +181,8 @@ export function NotificationsPageClient({
           <h1 className="text-2xl font-semibold brand">Notifications</h1>
           <p className="text-muted text-sm mt-1">
             {unreadCount > 0
-              ? `${unreadCount} unread of ${notifications.length} total`
-              : `All caught up — ${notifications.length} total`}
+              ? `${unreadCount} unread · ${total} total`
+              : `${total} total · all caught up`}
           </p>
         </div>
 
@@ -256,7 +200,7 @@ export function NotificationsPageClient({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-1 bg-panel rounded-lg p-1" role="tablist">
+      <div className="flex gap-1 bg-panel rounded-lg p-1 w-fit" role="tablist">
         <button
           role="tab"
           aria-selected={filter === "all"}
@@ -297,7 +241,7 @@ export function NotificationsPageClient({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleMarkSelectedRead}
+              onClick={() => markAsRead(Array.from(selectedIds))}
               className="accent-btn px-3 py-1.5 text-sm rounded"
             >
               Mark as read
@@ -318,73 +262,113 @@ export function NotificationsPageClient({
         {loading ? (
           <div className="px-6 py-12 text-center text-muted">Loading…</div>
         ) : notifications.length === 0 ? (
-          <div className="px-6 py-12 text-center text-muted">
-            {filter === "unread" ? "No unread notifications 🎉" : "No notifications yet"}
+          <div className="px-6 py-14 text-center text-muted">
+            <div className="text-4xl mb-3">🔕</div>
+            <p className="text-base font-medium text-text">
+              {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+            </p>
+            <p className="text-sm mt-1">
+              {filter === "unread"
+                ? "You're all caught up."
+                : "Alerts and activity will show up here."}
+            </p>
           </div>
         ) : (
           <>
-            {/* Select all checkbox header (only for unread filter) */}
-            {filter === "unread" && unreadNotifications.length > 0 && (
+            {/* Selection / select-all bar */}
+            {notifications.length > 0 && (
               <div className="px-4 py-3 hairline-b flex items-center gap-3 bg-paper/50">
                 <input
                   ref={selectAllRef}
                   type="checkbox"
-                  checked={selectedIds.size === unreadNotifications.length && unreadNotifications.length > 0}
+                  checked={selectedIds.size === notifications.length && notifications.length > 0}
                   onChange={handleSelectAll}
                   className="w-4 h-4 accent-accent"
                   aria-label="Select all visible"
                 />
                 <span className="text-sm text-muted">
-                  Select all {unreadNotifications.length} unread
+                  Select all {notifications.length} visible
                 </span>
               </div>
             )}
 
             <ul role="list" className="divide-y divide-line">
-              {notifications.map((notification) => (
-                <li key={notification.id}>
-                  <label
-                    className={`flex items-start gap-4 px-4 py-4 transition-colors cursor-pointer ${
-                      !notification.read ? "bg-accent-weak" : "hover:bg-paper/50"
+              {notifications.map((notification) => {
+                const unread = !notification.read;
+                const selected = selectedIds.has(notification.id);
+                return (
+                  <li
+                    key={notification.id}
+                    className={`flex items-start gap-3 px-4 py-4 transition-colors border-l-2 ${
+                      unread
+                        ? "border-accent bg-accent-weak"
+                        : "border-transparent hover:bg-paper/50"
                     }`}
                   >
-                    {/* Checkbox for selection (only show for unread in unread filter) */}
-                    {filter === "unread" && !notification.read && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(notification.id)}
-                        onChange={() => toggleSelect(notification.id)}
-                        className="mt-1 w-4 h-4 accent-accent flex-shrink-0"
-                        aria-label="Select notification"
-                      />
-                    )}
+                    {/* Selection checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleSelect(notification.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1 w-4 h-4 accent-accent flex-shrink-0"
+                      aria-label="Select notification"
+                    />
 
+                    {/* Icon */}
                     <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg ${getNotificationBg(notification.type)} ${getNotificationColor(notification.type)}`}
+                      className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-lg ${notificationBg(notification.type)} ${notificationColor(notification.type)}`}
                       aria-hidden="true"
                     >
-                      {getNotificationIcon(notification.type)}
+                      {notificationIcon(notification.type)}
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    {/* Body - click navigates + marks read */}
+                    <button
+                      type="button"
+                      onClick={() => handleNotificationClick(notification)}
+                      className="flex-1 min-w-0 text-left cursor-pointer"
+                    >
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className={`text-sm font-medium truncate ${!notification.read ? "font-semibold" : ""}`}>
-                          {notification.title}
-                        </h3>
-                        <time className="flex-shrink-0 text-xs text-muted" dateTime={notification.created_at}>
-                          {formatTimeAgo(notification.created_at)}
+                        <div className="flex items-center gap-2 min-w-0">
+                          {unread && (
+                            <span
+                              className="flex-shrink-0 w-2 h-2 rounded-full bg-accent"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <h3
+                            className={`text-sm truncate ${
+                              unread ? "font-semibold" : "font-medium"
+                            }`}
+                          >
+                            {notification.title}
+                          </h3>
+                        </div>
+                        <time
+                          className="flex-shrink-0 text-xs text-muted"
+                          dateTime={notification.created_at}
+                        >
+                          {formatFullDate(notification.created_at)}
                         </time>
                       </div>
-                      <p className="mt-1 text-sm text-muted line-clamp-2">{notification.message}</p>
-                      {notification.link && (
-                        <p className="mt-2 text-xs text-accent hover:underline cursor-pointer">
-                          Click to view →
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                </li>
-              ))}
+                      <p className="mt-1 text-sm text-muted line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-3">
+                        <span className="text-[10px] uppercase tracking-wide text-muted">
+                          {notificationTypeLabel(notification.type)}
+                        </span>
+                        {notification.link && (
+                          <span className="text-xs text-accent hover:underline">
+                            View →
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
 
             {/* Load More */}
@@ -394,7 +378,7 @@ export function NotificationsPageClient({
                   type="button"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="w-full py-2 text-sm text-accent hover:underline disabled:opacity-50"
+                  className="w-full py-2 text-sm btn-ghost rounded disabled:opacity-50"
                 >
                   {loadingMore ? "Loading…" : "Load more"}
                 </button>
@@ -403,14 +387,6 @@ export function NotificationsPageClient({
           </>
         )}
       </div>
-
-      {/* Empty state for unread filter when all read */}
-      {filter === "unread" && !loading && notifications.length > 0 && unreadNotifications.length === 0 && (
-        <div className="text-center py-12 text-muted">
-          <p className="text-lg font-medium mb-1">All caught up! 🎉</p>
-          <p className="text-sm">No unread notifications.</p>
-        </div>
-      )}
     </div>
   );
 }

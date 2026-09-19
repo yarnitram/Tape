@@ -34,10 +34,17 @@ export default async function NotificationsPage() {
     .eq("user_id", user.id)
     .eq("read", false);
 
+  // Fetch the true total across all pages for an accurate header count.
+  const { count: total } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
   return (
     <NotificationsPageClient
       initialNotifications={notifications ?? []}
       initialUnreadCount={unreadCount ?? 0}
+      initialTotal={total ?? 0}
     />
   );
 }
