@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# alert watcher runtime logs
+.watcher-*.log
+
+# supabase local artifacts
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

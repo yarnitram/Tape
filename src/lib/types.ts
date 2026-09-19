@@ -72,6 +72,14 @@ export interface WatchlistItem {
   notes: string | null;
   alert_price: number | null;
   added_at: string;
+  // Trade-alert fields (added by migration 002).
+  trigger_price: number | null;
+  trigger_direction: "above" | "below" | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  alert_fired: boolean;
+  alert_fired_at: string | null;
 }
 
 /** Shape used when creating/updating a trade from the form. */

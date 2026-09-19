@@ -1,0 +1,196 @@
+#!/usr/bin/env node
+/**
+ * Tape — Alert Watcher (always-on)
+ * =================================
+ * Polls the MEXC futures API, checks every saved watchlist coin against its
+ * price trigger, and notifies the user (Discord + desktop) when a trigger
+ * fires, including the saved trade plan (entry / stop-loss / take-profit).
+ *
+ * Reads Supabase config from `.env.local` (service-role key).
+ * Run:  node scripts/alert-watcher.mjs
+ *       node scripts/alert-watcher.mjs --interval 10
+ */
+import { readFileSync, existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ------------------------------------------------------------------ config
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
+const args = process.argv.slice(2);
+const intervalIdx = args.indexOf("--interval");
+const POLL_MS = (Number(args[intervalIdx + 1]) || 10) * 1000;
+
+// Load .env.local
+const env = loadDotEnv(path.join(ROOT, ".env.local"));
+const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+
+const MEXC_TICKER = "https://contract.mexc.com/api/v1/contract/ticker";
+
+// ------------------------------------------------------------------ helpers
+function loadDotEnv(file) {
+  const out = {};
+  try {
+    if (!existsSync(file)) return out;
+    for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+      const m = line.match(/^\s*([\w.]+)\s*=\s*(.*)\s*$/);
+      if (m) out[m[1]] = m[2].replace(/^"|"$/g, "");
+    }
+  } catch {}
+  return out;
+}
+
+async function supabase(pathname, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}${pathname}`, {
+    ...opts,
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) throw new Error(`Supabase ${pathname} → ${res.status}`);
+  return res.json();
+}
+
+async function getLatestPrices() {
+  const res = await fetch(MEXC_TICKER, {
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`MEXC ticker → ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error("MEXC ticker failed");
+  const map = {};
+  for (const t of json.data) if (t.lastPrice > 0) map[t.symbol] = t.lastPrice;
+  return map;
+}
+
+function fireDiscord(webhook, content) {
+  return fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "Tape", content }),
+  });
+}
+
+function desktopNotify(title, body) {
+  const ps = [
+    "Add-Type -AssemblyName System.Windows.Forms;",
+    "$n=New-Object System.Windows.Forms.NotifyIcon;",
+    "$n.Icon=[System.Drawing.SystemIcons]::Information;",
+    `$n.BalloonTipTitle=[char]34+${JSON.stringify(title)}+[char]34;`,
+    `$n.BalloonTipText=[char]34+${JSON.stringify(body)}+[char]34;`,
+    "$n.Visible=$true;",
+    "$n.ShowBalloonTip(8000);",
+    "Start-Sleep -Milliseconds 200;",
+    "$n.Dispose();",
+  ].join(" ");
+  return new Promise((resolve) => {
+    const child = spawn("powershell", ["-NoProfile", "-Command", ps], {
+      windowsHide: true,
+    });
+    child.on("close", resolve);
+    child.on("error", resolve);
+  });
+}
+
+// ------------------------------------------------------------------ main
+function stamp() {
+  return new Date().toLocaleTimeString();
+}
+
+async function checkAll() {
+  const [watchlist, settingsByUser] = await Promise.all([
+    supabase(
+      "/rest/v1/watchlist_items?select=id,user_id,symbol,trigger_price,entry_price,stop_loss,take_profit,alert_fired"
+    ),
+    (async () => {
+      const rows = await supabase(
+        "/rest/v1/user_settings?select=user_id,discord_webhook_url,notify_discord,notify_desktop"
+      );
+      const map = {};
+      for (const r of rows) map[r.user_id] = r;
+      return map;
+    })(),
+  ]);
+
+  const activeItems = watchlist.filter(
+    (i) => i.trigger_price != null && !i.alert_fired
+  );
+  if (activeItems.length === 0) return;
+
+  const prices = await getLatestPrices();
+
+  for (const item of activeItems) {
+    const price = prices[item.symbol];
+    if (price == null) continue;
+    const trigger = Number(item.trigger_price);
+    const hit = price >= trigger || price <= trigger; // above OR below
+
+    if (!hit) continue;
+
+    console.log(
+      `[${stamp()}] TRIGGER ${item.symbol} last=${price} trigger=${trigger}`
+    );
+
+    // Build notification content with the trade plan.
+    const plan = [];
+    if (item.entry_price != null) plan.push(`**Entry:** ${item.entry_price}`);
+    if (item.stop_loss != null) plan.push(`**Stop:** ${item.stop_loss}`);
+    if (item.take_profit != null) plan.push(`**Target:** ${item.take_profit}`);
+    const planText = plan.length
+      ? `\nTrade plan — ${plan.join(" · ")}`
+      : "";
+
+    const settings = settingsByUser[item.user_id];
+
+    // Discord
+    if (settings?.notify_discord !== false && settings?.discord_webhook_url) {
+      await fireDiscord(
+        settings.discord_webhook_url,
+        `📈 **${item.symbol}** hit **$${price}** (trigger $${trigger})${planText}`
+      ).catch((e) => console.error("Discord error:", e.message));
+    }
+
+    // Desktop
+    if (settings?.notify_desktop !== false) {
+      await desktopNotify(
+        `${item.symbol} alert`,
+        `Price $${price} hit trigger $${trigger}.${plan.length ? `\n${plan.join(" · ")}` : ""}`
+      ).catch(() => {});
+    }
+
+    // Mark fired so we don't spam.
+    const iso = new Date().toISOString();
+    // Prefer PATCH if the table exposes it via PostgREST single-row.
+    try {
+      await supabase(
+        `/rest/v1/watchlist_items?id=eq.${item.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ alert_fired: true, alert_fired_at: iso }),
+          headers: { Prefer: "return=minimal" },
+        }
+      );
+    } catch (e) {
+      console.error("Mark-fired error:", e.message);
+    }
+  }
+}
+
+console.log(
+  `Tape alert watcher started (poll every ${POLL_MS / 1000}s). Ctrl+C to stop.`
+);
+
+async function loop() {
+  try {
+    await checkAll();
+  } catch (e) {
+    console.error(`[${stamp()}] watcher error:`, e.message);
+  }
+  setTimeout(loop, POLL_MS);
+}
+loop();

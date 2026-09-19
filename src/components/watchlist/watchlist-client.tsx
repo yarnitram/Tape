@@ -1,154 +1,440 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WatchlistItem } from "@/lib/types";
+import { CoinDetailModal } from "./coin-detail-modal";
 
 interface Props {
   initialItems: WatchlistItem[];
+  refreshIntervalSec?: number;
 }
 
-export function WatchlistClient({ initialItems }: Props) {
-  const [items, setItems] = useState<WatchlistItem[]>(initialItems);
-  const [symbol, setSymbol] = useState("");
-  const [notes, setNotes] = useState("");
-  const [alertPrice, setAlertPrice] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+interface Ticker {
+  symbol: string;
+  lastPrice: number;
+  bid1: number;
+  ask1: number;
+  volume24: number;
+  amount24: number;
+  holdVol: number;
+  lower24Price: number;
+  high24Price: number;
+  riseFallRate: number;
+  indexPrice: number;
+  fundingRate: number;
+}
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!symbol.trim()) return;
-    setError(null);
-    setAdding(true);
+const ORDER_KEY = "tape:watchlist-order";
+
+/** Transform a symbol like "BTC_USDT" into a readable coin label "BTC". */
+function cleanSymbol(s: string): string {
+  return s.replace(/_USDT$/i, "");
+}
+
+function loadOrder(): string[] | null {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveOrder(ids: string[]) {
+  try {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props) {
+  // NOTE: initialize with the server-provided order only. Applying any saved
+  // localStorage order must happen AFTER hydration (see effect below),
+  // otherwise the server and client render different row orders and React
+  // throws a hydration mismatch error.
+  const [items, setItems] = useState<WatchlistItem[]>(initialItems);
+
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Ticker[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Live tickers keyed by symbol for all saved coins.
+  const [live, setLive] = useState<Record<string, Ticker>>({});
+  const [note, setNote] = useState<string | null>(null);
+  const [details, setDetails] = useState<{
+    symbol: string;
+    item: WatchlistItem | null;
+  } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+
+  const symbolsToTrack = useMemo(
+    () => items.map((i) => i.symbol.toUpperCase()),
+    [items]
+  );
+
+  // Apply any previously saved row order, but ONLY after hydration so the
+  // server and client render the same initial rows (avoids hydration
+  // mismatch). setTimeout defers the state update out of the effect body.
+  useEffect(() => {
+    const order = loadOrder();
+    if (!order || order.length === 0) return;
+    const t = setTimeout(() => {
+      setItems((prev) => {
+        const byId = new Map(prev.map((i) => [i.id, i]));
+        const ordered = order
+          .map((id) => byId.get(id))
+          .filter((x): x is WatchlistItem => !!x);
+        const missing = prev.filter((i) => !order.includes(i.id));
+        return [...ordered, ...missing];
+      });
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (symbolsToTrack.length === 0) return;
+    let cancelled = false;
+    const intervalMs = Math.max(
+      1000,
+      (Number(refreshIntervalSec) || 10) * 1000
+    );
+
+    async function refresh() {
+      try {
+        const data = await fetch(`/api/mexc/futures`).then((r) => r.json());
+        if (cancelled || !data.tickers) return;
+        const map: Record<string, Ticker> = {};
+        for (const t of data.tickers as Ticker[]) {
+          if (symbolsToTrack.includes(t.symbol)) map[t.symbol] = t;
+        }
+        setLive(map);
+      } catch {
+        // keep last known data on failure
+      }
+    }
+
+    refresh();
+    const id = setInterval(refresh, intervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolsToTrack.join(","), refreshIntervalSec]);
+
+  // Accepts either a concrete array or an updater function.
+  const setItemsAndOrder = (
+    next: WatchlistItem[] | ((prev: WatchlistItem[]) => WatchlistItem[])
+  ) => {
+    setItems((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      // Persist order to localStorage once we know the result.
+      queueMicrotask(() => saveOrder(resolved.map((i) => i.id)));
+      return resolved;
+    });
+  };
+
+  async function doSearch(q: string) {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setResults(null);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const res = await fetch(`/api/mexc/futures?q=${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Search failed");
+      setResults(data.tickers ?? []);
+    } catch (err) {
+      setSearchError((err as Error).message);
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function handleQuery(e: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(e.target.value), 300);
+  }
+
+  async function addCoin(symbol: string) {
+    setNote(null);
     try {
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol,
-          notes: notes || null,
-          alert_price: alertPrice || null,
-        }),
+        body: JSON.stringify({ symbol }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || "Failed to add");
       }
       const { item } = await res.json();
-      setItems((prev) => [...prev, item]);
-      setSymbol("");
-      setNotes("");
-      setAlertPrice("");
+      setItemsAndOrder([...items, item]);
+      setQuery("");
+      setResults(null);
+      setNote(`Added ${cleanSymbol(symbol)} to watchlist.`);
     } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setAdding(false);
+      setSearchError((err as Error).message);
     }
   }
 
-  async function handleRemove(id: string) {
+  async function removeCoin(id: string) {
     await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItemsAndOrder(items.filter((i) => i.id !== id));
   }
 
+  // Reload the saved list after an alert/trade-plan save so the row reflects
+  // the updated trigger state.
+  async function reloadItems() {
+    try {
+      const res = await fetch(`/api/watchlist`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setItemsAndOrder((data.items ?? []) as WatchlistItem[]);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // ---- Drag & drop reorder (front-end only) ----
+  const reorderDrop = (targetId: string) => {
+    const fromId = dragIdRef.current;
+    if (!fromId || fromId === targetId) return;
+    setItemsAndOrder((prev) => {
+      const from = prev.findIndex((i) => i.id === fromId);
+      const to = prev.findIndex((i) => i.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      const insertAt = from < to ? to : to;
+      next.splice(insertAt, 0, moved);
+      return next;
+    });
+  };
+
+  // ---- Render helpers ----
   const inputCls =
     "hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent";
 
+  function changeClass(v: number): string {
+    return v >= 0 ? "text-gain" : "text-loss";
+  }
+  function fmtPct(f: number): string {
+    return `${f >= 0 ? "+" : ""}${(f * 100).toFixed(2)}%`;
+  }
+  function fmtPx(p: number): string {
+    if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 1 });
+    if (p >= 1) return p.toLocaleString("en-US", { maximumFractionDigits: 3 });
+    return p.toLocaleString("en-US", { maximumFractionDigits: 6 });
+  }
+  function fmtUsd(v: number): string {
+    return compact(v);
+  }
+
   return (
-    <div className="max-w-3xl flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold mb-1">Watchlist</h1>
-        <p className="text-sm text-muted">
-          Instruments you&apos;re keeping an eye on ({items.length}).
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold mb-1">Futures watchlist</h1>
+          <p className="text-sm text-muted">
+            MEXC USDT-perpetual coins · live data · {items.length} saved
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 relative">
+          <span className="text-xs text-muted">Search MEXC futures</span>
+          <input
+            className={`${inputCls} w-64`}
+            value={query}
+            onChange={handleQuery}
+            placeholder="e.g. BTC, SOL, DOGE…"
+          />
+          {searching && (
+            <span className="absolute -bottom-4 text-xs text-muted">
+              searching…
+            </span>
+          )}
+
+          {results !== null && query.trim() !== "" && !searching && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-30 max-h-72 overflow-auto bg-panel border border-line shadow-lg">
+              {results.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-muted">
+                  {searchError || "No matches"}
+                </div>
+              ) : (
+                results.slice(0, 25).map((t) => (
+                  <button
+                    key={t.symbol}
+                    type="button"
+                    onClick={() => addCoin(t.symbol)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-paper cursor-pointer"
+                  >
+                    <span className="font-medium">{cleanSymbol(t.symbol)}</span>
+                    <span className="num text-xs text-muted">
+                      {fmtPx(t.lastPrice)}{" "}
+                      <span className={changeClass(t.riseFallRate)}>
+                        {fmtPct(t.riseFallRate)}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted">Symbol</span>
-          <input
-            className={`${inputCls} w-32`}
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            placeholder="SPY"
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-1 flex-1 min-w-40">
-          <span className="text-xs text-muted">Notes</span>
-          <input
-            className={inputCls}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="optional"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted">Alert price</span>
-          <input
-            type="number"
-            step="0.01"
-            className={`${inputCls} w-32`}
-            value={alertPrice}
-            onChange={(e) => setAlertPrice(e.target.value)}
-            placeholder="optional"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={adding || !symbol.trim()}
-          className="px-4 py-1.5 text-xs accent-btn font-semibold cursor-pointer disabled:opacity-60"
-        >
-          {adding ? "Adding…" : "+ Add"}
-        </button>
-      </form>
-
-      {error && <div className="text-sm text-loss">{error}</div>}
+      {note && <div className="text-sm text-gain">{note}</div>}
+      {searchError && !query && (
+        <div className="text-sm text-loss">{searchError}</div>
+      )}
 
       {items.length === 0 ? (
-        <div className="hairline text-muted p-8 text-center text-sm">
-          Your watchlist is empty — add a symbol above.
+        <div className="hairline text-muted p-10 text-center text-sm">
+          No coins saved yet. Search a MEXC futures coin above to add it.
         </div>
       ) : (
         <div className="hairline overflow-x-auto bg-panel/40">
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-sm border-collapse min-w-[880px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
-                <th className="px-3 py-2.5">Symbol</th>
-                <th className="px-3 py-2.5">Notes</th>
-                <th className="px-3 py-2.5 text-right">Alert price</th>
-                <th className="px-3 py-2.5 w-10"></th>
+                <th className="px-2 py-2.5 w-8"></th>
+                <th className="px-3 py-2.5">Coin</th>
+                <th className="px-3 py-2.5 text-right">24h %</th>
+                <th className="px-3 py-2.5 text-right">Volume (24h)</th>
+                <th className="px-3 py-2.5 text-right">Last Price</th>
+                <th className="px-3 py-2.5 text-right">Trigger</th>
+                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5 w-16"></th>
               </tr>
             </thead>
             <tbody>
-              {items.map((i) => (
-                <tr key={i.id} className="hairline-b hover:bg-panel">
-                  <td className="px-3 py-2.5 font-medium">{i.symbol}</td>
-                  <td className="px-3 py-2.5 text-muted">
-                    {i.notes || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 num">
-                    {i.alert_price != null
-                      ? i.alert_price.toLocaleString("en-US", {
-                          maximumFractionDigits: 4,
-                        })
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(i.id)}
-                      className="text-loss hover:underline text-xs cursor-pointer"
+              {items.map((i) => {
+                const sym = i.symbol.toUpperCase();
+                const t = live[sym];
+                return (
+                  <tr
+                    key={i.id}
+                    draggable
+                    onDragStart={() => {
+                      dragIdRef.current = i.id;
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      reorderDrop(i.id);
+                    }}
+                    onDragEnd={() => {
+                      dragIdRef.current = null;
+                    }}
+                    className="hairline-b hover:bg-paper transition-colors"
+                  >
+                    <td className="px-2 py-2.5 cursor-grab text-muted select-none" title="Drag to reorder">
+                      <span className="inline-block cursor-grab">⋮⋮</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setDetails({ symbol: sym, item: i })}
+                        className="text-left group"
+                        title={`View ${cleanSymbol(sym)} details`}
+                      >
+                        <span className="font-medium group-hover:text-accent group-hover:underline">
+                          {cleanSymbol(sym)}
+                        </span>
+                        <span className="text-xs text-muted ml-1 block">
+                          {sym.replace("_USDT", "")}
+                        </span>
+                      </button>
+                    </td>
+                    <td
+                      className={`px-3 py-2.5 num ${
+                        t ? changeClass(t.riseFallRate) : ""
+                      }`}
                     >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {t ? fmtPct(t.riseFallRate) : "…"}
+                    </td>
+                    <td className="px-3 py-2.5 num">
+                      {t ? fmtUsd(t.amount24) : "…"}
+                    </td>
+                    <td className="px-3 py-2.5 num">
+                      {t ? fmtPx(t.lastPrice) : "…"}
+                    </td>
+                    <td className="px-3 py-2.5 num text-muted">
+                      {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {i.alert_fired ? (
+                        <span className="text-loss font-medium">
+                          ● Triggered
+                        </span>
+                      ) : i.trigger_price != null ? (
+                        <span className="text-accent font-medium">
+                          ● Ongoing
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-right whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setDetails({ symbol: sym, item: i })}
+                        className="text-accent hover:underline text-xs mr-3 cursor-pointer"
+                        title="View details"
+                      >
+                        Modify
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCoin(i.id)}
+                        className="text-loss hover:underline text-xs cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      <p className="text-xs text-muted">
+        Live data refreshes every {refreshIntervalSec}s from the MEXC contract
+        (futures) API. Drag{" "}
+        <span className="inline-block">⋮⋮</span> to reorder rows (order is
+        saved locally in your browser, not the database).
+      </p>
+
+      {details && (
+        <CoinDetailModal
+          symbol={details.symbol}
+          item={details.item}
+          onClose={() => setDetails(null)}
+          onSaved={reloadItems}
+        />
+      )}
     </div>
   );
+}
+
+function compact(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }

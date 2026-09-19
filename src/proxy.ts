@@ -14,7 +14,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/journal") ||
     pathname.startsWith("/analytics") ||
     pathname.startsWith("/risk") ||
-    pathname.startsWith("/watchlist");
+    pathname.startsWith("/watchlist") ||
+    pathname.startsWith("/settings");
 
   const isAuthRoute = pathname.startsWith("/login");
 
@@ -47,6 +48,7 @@ export const config = {
     "/analytics/:path*",
     "/risk/:path*",
     "/watchlist/:path*",
+    "/settings",
     "/login",
   ],
 };

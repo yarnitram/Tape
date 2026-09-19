@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/analytics", label: "Analytics" },
   { href: "/risk", label: "Risk" },
   { href: "/watchlist", label: "Watchlist" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function AppNav() {

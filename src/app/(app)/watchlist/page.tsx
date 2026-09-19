@@ -17,7 +17,26 @@ export default async function WatchlistPage() {
         .order("added_at", { ascending: true })
     : { data: [] };
 
+  // Read the user's preferred refresh interval (seconds) so the client can
+  // poll the MEXC API at the configured cadence.
+  let refreshIntervalSec = 10;
+  if (user) {
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("refresh_interval_sec")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const n = Number(
+      (settings as { refresh_interval_sec?: number | null } | null)
+        ?.refresh_interval_sec ?? 10
+    );
+    if (Number.isFinite(n) && n >= 3) refreshIntervalSec = n;
+  }
+
   return (
-    <WatchlistClient initialItems={(data ?? []) as WatchlistItem[]} />
+    <WatchlistClient
+      initialItems={(data ?? []) as WatchlistItem[]}
+      refreshIntervalSec={refreshIntervalSec}
+    />
   );
 }
