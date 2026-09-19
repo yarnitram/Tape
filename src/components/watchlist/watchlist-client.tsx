@@ -380,20 +380,28 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return compact(v);
   }
 
-  // Render an ISO timestamp as full-numeric date on top, time below (local time).
+  // Render an ISO timestamp as full-numeric date on top, time below (SGT / GMT+8).
   function fmtDateTime(iso: string | null | undefined): ReactNode {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const date = `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`;
-    const time = `${pad(((d.getHours() + 11) % 12) + 1)}:${pad(
-      d.getMinutes()
-    )} ${d.getHours() >= 12 ? "PM" : "AM"}`;
+    // Format in Singapore time (GMT+8).
+    const sgTime = d.toLocaleTimeString("en-SG", {
+      timeZone: "Asia/Singapore",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const sgDate = d.toLocaleDateString("en-SG", {
+      timeZone: "Asia/Singapore",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
     return (
       <div className="flex flex-col items-center leading-tight">
-        <span className="num">{date}</span>
-        <span className="num text-[10px] text-muted">{time}</span>
+        <span className="num">{sgDate}</span>
+        <span className="num text-[10px] text-muted">{sgTime}</span>
       </div>
     );
   }
