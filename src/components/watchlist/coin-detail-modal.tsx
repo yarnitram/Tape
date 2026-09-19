@@ -139,7 +139,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
   }
 
   const stat = (label: string, value: React.ReactNode, cls = "") => (
-    <div className="flex flex-col gap-0.5 items-end">
+    <div className="flex flex-col gap-0.5 items-start">
       <span className="text-xs text-muted">{label}</span>
       <span className={`num font-medium ${cls}`}>{value}</span>
     </div>
