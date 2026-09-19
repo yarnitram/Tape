@@ -25,6 +25,56 @@ interface Ticker {
 }
 
 const ORDER_KEY = "tape:watchlist-order";
+const SORT_KEY = "tape:watchlist-sort";
+
+type SortField = "coin" | "change" | "volume" | "price" | "trigger";
+interface SortConfig {
+  field: SortField;
+  dir: "asc" | "desc";
+}
+
+const DEFAULT_SORT: SortConfig = { field: "coin", dir: "asc" };
+
+const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
+  { value: { field: "coin", dir: "asc" }, label: "Coin (A–Z)" },
+  { value: { field: "coin", dir: "desc" }, label: "Coin (Z–A)" },
+  { value: { field: "change", dir: "desc" }, label: "24h % (high → low)" },
+  { value: { field: "change", dir: "asc" }, label: "24h % (low → high)" },
+  { value: { field: "volume", dir: "desc" }, label: "Volume (high → low)" },
+  { value: { field: "volume", dir: "asc" }, label: "Volume (low → high)" },
+  { value: { field: "price", dir: "desc" }, label: "Last price (high → low)" },
+  { value: { field: "price", dir: "asc" }, label: "Last price (low → high)" },
+  { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
+  { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
+];
+
+function sortConfigKey(c: SortConfig): string {
+  return `${c.field}:${c.dir}`;
+}
+
+function loadSort(): SortConfig {
+  try {
+    const raw = localStorage.getItem(SORT_KEY);
+    if (!raw) return DEFAULT_SORT;
+    const parsed = JSON.parse(raw) as SortConfig;
+    if (
+      SORT_OPTIONS.some((o) => sortConfigKey(o.value) === sortConfigKey(parsed))
+    ) {
+      return parsed;
+    }
+    return DEFAULT_SORT;
+  } catch {
+    return DEFAULT_SORT;
+  }
+}
+
+function saveSort(c: SortConfig) {
+  try {
+    localStorage.setItem(SORT_KEY, JSON.stringify(c));
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Transform a symbol like "BTC_USDT" into a readable coin label "BTC". */
 function cleanSymbol(s: string): string {
@@ -60,6 +110,11 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
+  // Sort configuration, initialized from an existing localStorage value.
+  const [sort, setSort] = useState<SortConfig>(
+    typeof window !== "undefined" ? loadSort() : DEFAULT_SORT
+  );
+
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -74,6 +129,38 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     () => items.map((i) => i.symbol.toUpperCase()),
     [items]
   );
+
+  // Rows in display order: actively sorted if the user picked a non-default
+  // option, otherwise the stored drag-and-drop order.
+  const sortedItems = useMemo(() => {
+    const active =
+      sortConfigKey(sort) !== sortConfigKey(DEFAULT_SORT);
+    if (!active) return items;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const aSym = a.symbol.toUpperCase();
+      const bSym = b.symbol.toUpperCase();
+      const aT = live[aSym];
+      const bT = live[bSym];
+      switch (sort.field) {
+        case "coin":
+          return aSym.localeCompare(bSym) * dir;
+        case "change":
+          return ((aT?.riseFallRate ?? 0) - (bT?.riseFallRate ?? 0)) * dir;
+        case "volume":
+          return ((aT?.amount24 ?? 0) - (bT?.amount24 ?? 0)) * dir;
+        case "price":
+          return ((aT?.lastPrice ?? 0) - (bT?.lastPrice ?? 0)) * dir;
+        case "trigger": {
+          const aV = a.trigger_price ?? Number.NEGATIVE_INFINITY;
+          const bV = b.trigger_price ?? Number.NEGATIVE_INFINITY;
+          return (aV - bV) * dir;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [items, sort, live]);
 
   // Apply any previously saved row order, but ONLY after hydration so the
   // server and client render the same initial rows (avoids hydration
@@ -296,6 +383,48 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         <div className="text-sm text-loss">{searchError}</div>
       )}
 
+      {items.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <span>Sort by</span>
+            <select
+              className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
+              value={sortConfigKey(sort)}
+              onChange={(e) => {
+                const next = SORT_OPTIONS.find(
+                  (o) => sortConfigKey(o.value) === e.target.value
+                );
+                if (next) {
+                  setSort(next.value);
+                  saveSort(next.value);
+                }
+              }}
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={sortConfigKey(o.value)} value={sortConfigKey(o.value)}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {sortConfigKey(sort) !== sortConfigKey(DEFAULT_SORT) && (
+            <span className="text-xs text-muted">
+              Showing in sorted order ·{" "}
+              <button
+                type="button"
+                className="text-accent hover:underline cursor-pointer"
+                onClick={() => {
+                  setSort(DEFAULT_SORT);
+                  saveSort(DEFAULT_SORT);
+                }}
+              >
+                Reset to drag order
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="hairline text-muted p-10 text-center text-sm">
           No coins saved yet. Search a MEXC futures coin above to add it.
@@ -316,7 +445,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               </tr>
             </thead>
             <tbody>
-              {items.map((i) => {
+              {sortedItems.map((i) => {
                 const sym = i.symbol.toUpperCase();
                 const t = live[sym];
                 return (
@@ -414,9 +543,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
       <p className="text-xs text-muted">
         Live data refreshes every {refreshIntervalSec}s from the MEXC contract
-        (futures) API. Drag{" "}
-        <span className="inline-block">⋮⋮</span> to reorder rows (order is
-        saved locally in your browser, not the database).
+        (futures) API. Drag <span className="inline-block">⋮⋮</span> to reorder
+        rows (default order is saved locally), or use the sort picker to view by
+        24h %, volume, price, or trigger.
       </p>
 
       {details && (
