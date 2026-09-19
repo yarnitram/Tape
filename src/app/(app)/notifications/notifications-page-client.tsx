@@ -71,14 +71,14 @@ export function NotificationsPageClient({
     }
   }, [cursor, filter, loadingMore, hasMore]);
 
-  // Fetch notifications with current filter (reset)
-  const fetchNotifications = useCallback(async () => {
+  // Fetch notifications for a given filter (reset pagination).
+  const fetchNotifications = useCallback(async (targetFilter: "all" | "unread") => {
     setLoading(true);
     setCursor(null);
 
     try {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (filter === "unread") params.set("unread", "true");
+      if (targetFilter === "unread") params.set("unread", "true");
 
       const res = await fetch(`/api/notifications?${params}`);
       if (res.ok) {
@@ -93,13 +93,15 @@ export function NotificationsPageClient({
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, []);
 
-  // Refetch when filter changes
+  // Refetch on tab change. Pass the new filter explicitly so the API call uses
+  // the freshly-selected tab, not the stale closure value (fixes "All" showing
+  // 0 after switching from "Unread").
   const handleFilterChange = useCallback(
     (newFilter: "all" | "unread") => {
       setFilter(newFilter);
-      fetchNotifications();
+      fetchNotifications(newFilter);
     },
     [fetchNotifications]
   );
