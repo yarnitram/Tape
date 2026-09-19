@@ -36,7 +36,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${newsreader.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-paper text-text">
-        {children}
+        <div className="flex-1 flex flex-col w-full">{children}</div>
+        <footer className="hairline-t py-6 text-center text-xs text-muted">
+          Tape — personal trading journal
+        </footer>
       </body>
     </html>
   );

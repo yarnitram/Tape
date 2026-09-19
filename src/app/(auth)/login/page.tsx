@@ -13,7 +13,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="min-h-full flex items-center justify-center px-6 py-16">
+    <main className="flex-1 flex items-center justify-center px-6 py-16">
       <LoginForm />
     </main>
   );

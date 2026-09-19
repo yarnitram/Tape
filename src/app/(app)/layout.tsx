@@ -20,14 +20,11 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="flex flex-col flex-1 w-full">
       <AppNav />
       <main className="mx-auto w-full max-w-6xl px-6 py-8 flex-1">
         {children}
       </main>
-      <footer className="hairline-t py-6 text-center text-xs text-muted">
-        Tape — personal trading journal
-      </footer>
     </div>
   );
 }

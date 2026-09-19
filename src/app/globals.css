@@ -2,45 +2,28 @@
 
 /* ============================================================
    Tape — Personal Trading Journal
-   Design tokens (ledger aesthetic)
-   Light mode shown; dark mode inverts via @media (prefers-color-scheme)
+   Design tokens (Specif dark terminal aesthetic)
+   Dark-only, mirrors specif/tailwind.config.ts + app/globals.css
    ============================================================ */
 
 :root {
   /* Surfaces */
-  --ink: #1d1b16;         /* primary text on paper */
-  --paper: #f6f3eb;        /* page background */
-  --panel: #efece1;        /* raised surface: table hover, panels */
-  --line: #d8d2c2;         /* hairline borders */
-  --line-strong: #c4bca9;
-  --text: #35312a;
-  --text-muted: #8a8374;
+  --ink: #e2e8f0;         /* primary text on paper */
+  --paper: #080b11;        /* page background (base) */
+  --panel: #0f172a;        /* raised surface: table hover, panels (surface) */
+  --line: #1e293b;         /* hairline borders (borderline) */
+  --line-strong: #334155;
+  --text: #e2e8f0;
+  --text-muted: #64748b;
 
-  /* Semantics (muted, never neon) */
-  --gain: #5f7a6a;         /* muted sage green */
-  --loss: #a85c4a;         /* muted rust/clay */
-  --accent: #a8893a;       /* muted gold */
-  --accent-weak: rgba(168, 137, 58, 0.14);
+  /* Semantics (Specif terminal) */
+  --gain: #10b981;         /* emerald gains */
+  --loss: #f43f5e;         /* rose losses */
+  --accent: #10b981;       /* emerald accent */
+  --accent-weak: rgba(16, 185, 129, 0.14);
 
-  /* Ledger table striping */
-  --stripe: rgba(0, 0, 0, 0.02);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e8e4d8;
-    --paper: #14120e;
-    --panel: #1d1a14;
-    --line: #2e2a20;
-    --line-strong: #403b2d;
-    --text: #d6d1c4;
-    --text-muted: #8a8374;
-    --gain: #8aa58f;
-    --loss: #c9877a;
-    --accent: #cfb062;
-    --accent-weak: rgba(207, 176, 98, 0.14);
-    --stripe: rgba(255, 255, 255, 0.02);
-  }
+  /* Table striping on dark */
+  --stripe: rgba(255, 255, 255, 0.02);
 }
 
 @theme inline {
@@ -61,7 +44,7 @@
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
@@ -69,6 +52,24 @@ body {
   color: var(--text);
   font-family: var(--font-plex-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Slim scrollbars (matches specif) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+/* Emerald selection (matches specif) */
+::selection {
+  background: rgba(16, 185, 129, 0.3);
 }
 
 .hairline {
@@ -102,7 +103,7 @@ body {
 .gain-bg { background: var(--gain); }
 .accent-btn {
   background: var(--accent);
-  color: #1a160c;
+  color: #08080b;
 }
 .accent-btn:hover {
   filter: brightness(1.05);
