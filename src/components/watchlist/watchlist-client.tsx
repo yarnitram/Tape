@@ -268,6 +268,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       setQuery("");
       setResults(null);
       setNote(`Added ${cleanSymbol(symbol)} to watchlist.`);
+      // Open the detail modal right away so the user can set the price
+      // trigger and trade plan without hunting for the Modify button.
+      setDetails({ symbol: item.symbol.toUpperCase(), item });
     } catch (err) {
       setSearchError((err as Error).message);
     }
