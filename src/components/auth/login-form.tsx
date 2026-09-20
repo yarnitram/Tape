@@ -9,7 +9,7 @@ type Mode = "signin" | "signup";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/journal";
+  const next = searchParams.get("next") || "/watchlist";
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
