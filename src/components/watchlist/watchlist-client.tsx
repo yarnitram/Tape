@@ -477,13 +477,26 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   }
 
   // Reload the saved list after an alert/trade-plan save so the row reflects
-  // the updated trigger state.
+  // the updated trigger state. IMPORTANT: preserve the user's current row
+  // order (their dragged manual order) — replacing with the server's
+  // added_at order would both visually reset the list AND overwrite the
+  // saved manual order in localStorage.
   async function reloadItems() {
     try {
       const res = await fetch(`/api/watchlist`);
       if (!res.ok) return;
       const data = await res.json();
-      setItemsAndOrder((data.items ?? []) as WatchlistItem[]);
+      const fresh = (data.items ?? []) as WatchlistItem[];
+      setItemsAndOrder((prev) => {
+        const prevOrder = prev.map((i) => i.id);
+        const byId = new Map(fresh.map((i) => [i.id, i]));
+        const ordered = prevOrder
+          .map((id) => byId.get(id))
+          .filter((x): x is WatchlistItem => !!x);
+        // Rows that are new since the last render go at the end.
+        const missing = fresh.filter((i) => !prevOrder.includes(i.id));
+        return [...ordered, ...missing];
+      });
     } catch {
       /* ignore */
     }
@@ -516,14 +529,18 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     e.dataTransfer.setData("text/plain", id);
     e.dataTransfer.effectAllowed = "move";
     dragIdRef.current = id;
-    setDraggingId(id);
+    // Defer the visual state change: a synchronous setState during dragstart
+    // re-renders the row while the browser is initialising the drag, which
+    // can cancel the drag and leave the grab cursor "stuck".
+    requestAnimationFrame(() => setDraggingId(id));
   }
 
   function handleDragOver(e: React.DragEvent, id: string) {
     if (!isManualSort || dragIdRef.current == null) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    setDragOverId(id);
+    // Only update on actual target changes — dragover fires continuously.
+    setDragOverId((prev) => (prev === id ? prev : id));
   }
 
   function handleDrop(e: React.DragEvent, id: string) {
