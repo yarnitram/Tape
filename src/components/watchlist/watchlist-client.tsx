@@ -305,25 +305,33 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           const triggerPrice = item.trigger_price as number;
           const lastPrice = map[sym]?.lastPrice ?? 0;
           try {
-            // Persist fired state so it doesn't re-fire.
-            await fetch(`/api/watchlist/${item.id}`, {
+            // Claim the fire atomically: the API only updates rows still
+            // marked unfired. If another tab / watcher won the race it
+            // returns claimed:false and we skip the notification.
+            const res = await fetch(`/api/watchlist/${item.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ alert_fired: true, alert_fired_at: nowIso }),
-            }).catch(() => {});
+            });
+            const claimed = await res
+              .json()
+              .then((j) => j?.claimed !== false)
+              .catch(() => false);
             // Dispatch across all channels: in-app notification (bell +
             // /notifications) + Discord webhook + desktop toast, based on the
-            // user's settings.
-            await fetch(`/api/alerts/fire`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "watchlist_trigger",
-                title: `${cleanSymbol(sym)} hit your trigger`,
-                message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
-                link: "/watchlist",
-              }),
-            }).catch(() => {});
+            // user's settings — only when we own the claim.
+            if (claimed) {
+              await fetch(`/api/alerts/fire`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "watchlist_trigger",
+                  title: `${cleanSymbol(sym)} hit your trigger`,
+                  message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
+                  link: "/watchlist",
+                }),
+              }).catch(() => {});
+            }
           } catch {
             // ignore per-item failures; other alerts still process
           }

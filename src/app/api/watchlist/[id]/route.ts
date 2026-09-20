@@ -66,7 +66,11 @@ export async function PATCH(request: Request, { params }: Ctx) {
   }
 
   // Fire the alert: mark it as triggered (used by the polling watcher).
-  if (b.alert_fired === true) {
+  // RACE-SAFETY: when firing, only claim rows whose alert_fired is still
+  // false. `claimed` tells the caller whether THIS request won the claim —
+  // the loser skips dispatching notifications so duplicates never go out.
+  const firing = b.alert_fired === true;
+  if (firing) {
     updates.alert_fired = true;
     updates.alert_fired_at =
       b.alert_fired_at != null && String(b.alert_fired_at) !== ""
@@ -74,13 +78,13 @@ export async function PATCH(request: Request, { params }: Ctx) {
         : new Date().toISOString();
   }
 
-  const { error } = await supabase
-    .from("watchlist_items")
-    .update(updates)
-    .eq("id", id);
+  let query = supabase.from("watchlist_items").update(updates).eq("id", id);
+  if (firing) query = query.eq("alert_fired", false);
+
+  const { data, error } = await query.select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, claimed: !firing || (data?.length ?? 0) > 0 });
 }
 
 /** DELETE /api/watchlist/[id] — remove a watchlist item. */

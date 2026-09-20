@@ -105,7 +105,7 @@ function stamp() {
 async function checkAll() {
   const [watchlist, settingsByUser] = await Promise.all([
     supabase(
-      "/rest/v1/watchlist_items?select=id,user_id,symbol,trigger_price,entry_price,stop_loss,take_profit,alert_fired"
+      "/rest/v1/watchlist_items?select=id,user_id,symbol,trigger_price,trigger_direction,entry_price,stop_loss,take_profit,alert_fired"
     ),
     (async () => {
       const rows = await supabase(
@@ -128,9 +128,37 @@ async function checkAll() {
     const price = prices[item.symbol];
     if (price == null) continue;
     const trigger = Number(item.trigger_price);
-    const hit = price >= trigger || price <= trigger; // above OR below
-
+    // Direction-aware crossing check. The modal always infers a direction at
+    // save time; rows without one are skipped (consistent with the in-app
+    // poller) instead of firing on every poll.
+    const hit =
+      item.trigger_direction === "below"
+        ? price <= trigger
+        : item.trigger_direction === "above"
+          ? price >= trigger
+          : false;
     if (!hit) continue;
+
+    // Claim the fire atomically: only update rows whose alert_fired is still
+    // false. An empty response means another watcher (browser poller or a
+    // second instance) already fired it — skip the notification entirely.
+    let claimed = [];
+    try {
+      claimed = await supabase(
+        `/rest/v1/watchlist_items?id=eq.${item.id}&alert_fired=eq.false`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            alert_fired: true,
+            alert_fired_at: new Date().toISOString(),
+          }),
+          headers: { Prefer: "return=representation" },
+        }
+      );
+    } catch (e) {
+      console.error("Claim-fired error:", e.message);
+    }
+    if (!Array.isArray(claimed) || claimed.length === 0) continue;
 
     console.log(
       `[${stamp()}] TRIGGER ${item.symbol} last=${price} trigger=${trigger}`
@@ -163,21 +191,7 @@ async function checkAll() {
       ).catch(() => {});
     }
 
-    // Mark fired so we don't spam.
-    const iso = new Date().toISOString();
-    // Prefer PATCH if the table exposes it via PostgREST single-row.
-    try {
-      await supabase(
-        `/rest/v1/watchlist_items?id=eq.${item.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ alert_fired: true, alert_fired_at: iso }),
-          headers: { Prefer: "return=minimal" },
-        }
-      );
-    } catch (e) {
-      console.error("Mark-fired error:", e.message);
-    }
+    // Mark-fired already handled atomically above (claim step); nothing to do.
   }
 }
 

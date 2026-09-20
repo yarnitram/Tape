@@ -147,6 +147,24 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
 
       const fireTime = firedImmediately ? new Date().toISOString() : null;
 
+      // Only re-arm when the trigger itself changed. Re-saving with the same
+      // trigger (e.g. tweaking EP/SL/TP or notes) must NOT re-fire an alert
+      // that already fired — that was the source of duplicate notifications.
+      const prevTrigger =
+        item.trigger_price ?? item.alert_price ?? null;
+      const triggerChanged =
+        triggerPriceNum !== null && triggerPriceNum !== prevTrigger;
+
+      // Setting a NEW trigger on an already-fired alert: clear the old fired
+      // state first so the immediate-fire claim below can succeed.
+      if (firedImmediately && triggerChanged) {
+        await fetch(`/api/watchlist/${item.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rearm: true }),
+        }).catch(() => {});
+      }
+
       const res = await fetch(`/api/watchlist/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -158,17 +176,19 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
           stop_loss: stopLoss,
           take_profit: takeProfit,
           // If we fired immediately, mark it fired and don't rearm.
-          // Otherwise, rearm to clear any old fired state.
+          // Otherwise, rearm only when the trigger was actually changed.
           alert_fired: firedImmediately,
           alert_fired_at: fireTime ?? undefined,
-          rearm: triggerPriceNum !== null && !firedImmediately,
+          rearm: triggerChanged && !firedImmediately,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Save failed");
+      const saveResult = await res.json().catch(() => null);
 
       // Dispatch across all channels immediately when the price is already at
-      // the trigger (in-app notification + Discord + desktop).
-      if (firedImmediately && triggerPriceNum !== null) {
+      // the trigger (in-app notification + Discord + desktop). The PATCH
+      // above claims the fire atomically — skip if another watcher won it.
+      if (firedImmediately && triggerPriceNum !== null && saveResult?.claimed !== false) {
         await fetch(`/api/alerts/fire`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
