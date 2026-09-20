@@ -45,7 +45,7 @@ interface SortConfig {
 const DEFAULT_SORT: SortConfig = { field: "status", dir: "asc" };
 
 const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
-  { value: { field: "status", dir: "asc" }, label: "Status (Triggered → Ongoing → None)" },
+  { value: { field: "status", dir: "asc" }, label: "Status" },
   { value: { field: "coin", dir: "asc" }, label: "Coin (A–Z)" },
   { value: { field: "coin", dir: "desc" }, label: "Coin (Z–A)" },
   { value: { field: "change", dir: "desc" }, label: "24h % (high → low)" },
@@ -177,6 +177,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
   // Rows in display order. "manual" keeps the stored drag-and-drop order;
   // every other option (including the default Status sort) actively sorts.
+  const isManualSort = sort.field === "manual";
   const sortedItems = useMemo(() => {
     if (sort.field === "manual") return items;
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -735,7 +736,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 return (
                   <tr
                     key={i.id}
-                    draggable
+                    draggable={isManualSort}
                     onDragStart={() => {
                       dragIdRef.current = i.id;
                     }}
@@ -749,8 +750,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     }}
                     className="hairline-b hover:bg-paper transition-colors"
                   >
-                    <td className="px-2 py-2.5 cursor-grab text-muted select-none" title="Drag to reorder">
-                      <span className="inline-block cursor-grab">⋮⋮</span>
+                    <td
+                      className={`px-2 py-2.5 w-8 select-none ${
+                        isManualSort ? "cursor-grab text-muted" : ""
+                      }`}
+                      {...(isManualSort ? { title: "Drag to reorder" } : {})}
+                      aria-hidden={!isManualSort}
+                    >
+                      {isManualSort && (
+                        <span className="inline-block cursor-grab">⋮⋮</span>
+                      )}
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       {icons[sym] && (
@@ -906,9 +915,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       <p className="text-xs text-muted">
         Live data refreshes every {refreshIntervalSec}s from the MEXC contract
         (futures) API. Rows default to Status sort (Triggered → Ongoing →
-        None). Drag <span className="inline-block">⋮⋮</span> to build a custom
-        order (saved locally — pick “Manual (drag order)” in the sort picker to
-        use it), or sort by 24h %, volume, price, or trigger.
+        None). Drag handles appear in “Manual (drag order)” sort — drag{" "}
+        <span className="inline-block">⋮⋮</span> there to build a custom order
+        (saved locally), or sort by 24h %, volume, price, or trigger.
       </p>
 
       {details && (
