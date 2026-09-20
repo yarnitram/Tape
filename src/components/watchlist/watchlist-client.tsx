@@ -164,6 +164,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   } | null>(null);
   // Id of the row currently awaiting delete confirmation (or null).
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  // Drag-and-drop visual state: which row is being dragged / hovered over.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   // Pagination state. pageSize is one of 10/20/50/100, or Infinity for "All".
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
@@ -486,8 +489,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     }
   }
 
-  // ---- Drag & drop reorder (front-end only) ----
+  // ---- Drag & drop reorder (front-end only, Manual sort) ----
   const reorderDrop = (targetId: string) => {
+    if (!isManualSort) return;
     const fromId = dragIdRef.current;
     if (!fromId || fromId === targetId) return;
     setItemsAndOrder((prev) => {
@@ -496,11 +500,43 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       if (from < 0 || to < 0) return prev;
       const next = [...prev];
       const [moved] = next.splice(from, 1);
-      const insertAt = from < to ? to : to;
-      next.splice(insertAt, 0, moved);
+      // After removal, indices above `from` shift left by one; inserting at
+      // `to` lands the row at the target's slot from either direction.
+      next.splice(to, 0, moved);
       return next;
     });
   };
+
+  function handleDragStart(e: React.DragEvent, id: string) {
+    if (!isManualSort) {
+      e.preventDefault();
+      return;
+    }
+    // Firefox refuses to start a drag unless data is set.
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+    dragIdRef.current = id;
+    setDraggingId(id);
+  }
+
+  function handleDragOver(e: React.DragEvent, id: string) {
+    if (!isManualSort || dragIdRef.current == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverId(id);
+  }
+
+  function handleDrop(e: React.DragEvent, id: string) {
+    if (!isManualSort) return;
+    e.preventDefault();
+    reorderDrop(id);
+  }
+
+  function handleDragEnd() {
+    dragIdRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+  }
 
   // ---- Render helpers ----
   const inputCls =
@@ -736,19 +772,17 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 return (
                   <tr
                     key={i.id}
-                    draggable={isManualSort}
-                    onDragStart={() => {
-                      dragIdRef.current = i.id;
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      reorderDrop(i.id);
-                    }}
-                    onDragEnd={() => {
-                      dragIdRef.current = null;
-                    }}
-                    className="hairline-b hover:bg-paper transition-colors"
+                    onDragStart={(e) => handleDragStart(e, i.id)}
+                    onDragOver={(e) => handleDragOver(e, i.id)}
+                    onDrop={(e) => handleDrop(e, i.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`hairline-b hover:bg-paper transition-colors ${
+                      draggingId === i.id ? "opacity-40" : ""
+                    } ${
+                      dragOverId === i.id && draggingId && draggingId !== i.id
+                        ? "border-t-2 border-t-accent"
+                        : ""
+                    }`}
                   >
                     <td
                       className={`px-2 py-2.5 w-8 select-none ${
@@ -758,7 +792,14 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                       aria-hidden={!isManualSort}
                     >
                       {isManualSort && (
-                        <span className="inline-block cursor-grab">⋮⋮</span>
+                        <span
+                          className="inline-block cursor-grab"
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, i.id)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          ⋮⋮
+                        </span>
                       )}
                     </td>
                     <td className="px-2 py-2.5 text-center">
@@ -766,6 +807,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         <img
                           src={icons[sym]}
                           alt={cleanSymbol(sym)}
+                          draggable={false}
                           className="h-5 w-5 rounded-full object-contain inline-block"
                         />
                       )}
