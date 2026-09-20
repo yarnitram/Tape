@@ -1,16 +1,26 @@
+import type { User } from "@supabase/supabase-js";
 import type { ServerSupabase } from "./supabase/server";
 import type { Account, RiskSettings, Tag, TradeWithExtras } from "./types";
 import { enrichTrade } from "./calculations";
 
 /**
  * Fetch the user's accounts (auto-creates a default account on first use).
+ *
+ * Pass an already-fetched `user` to the caller's page when available to avoid
+ * paying a second `auth.getUser()` round-trip on top of the proxy + layout
+ * auth checks. Omitting it falls back to fetching the user here for
+ * backwards compatibility.
  */
 export async function getAccounts(
-  supabase: ServerSupabase
+  supabase: ServerSupabase,
+  user?: User | null
 ): Promise<Account[]> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (!user) {
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  }
   if (!user) return [];
 
   const accountsRes = await supabase

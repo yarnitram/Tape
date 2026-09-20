@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   } | null);
 
   // Risk settings (now hosted on the Settings page).
-  const accounts = await getAccounts(supabase);
+  const accounts = await getAccounts(supabase, user);
   const activeAccount = accounts[0] ?? null;
   const riskSettings = activeAccount
     ? await getRiskSettings(supabase, activeAccount.id)
