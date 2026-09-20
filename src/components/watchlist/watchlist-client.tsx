@@ -29,15 +29,23 @@ const ORDER_KEY = "tape:watchlist-order";
 const SORT_KEY = "tape:watchlist-sort";
 const DETAILS_COLS_KEY = "tape:watchlist-details-cols";
 
-type SortField = "coin" | "change" | "volume" | "price" | "trigger";
+type SortField =
+  | "status"
+  | "coin"
+  | "change"
+  | "volume"
+  | "price"
+  | "trigger"
+  | "manual";
 interface SortConfig {
   field: SortField;
   dir: "asc" | "desc";
 }
 
-const DEFAULT_SORT: SortConfig = { field: "coin", dir: "asc" };
+const DEFAULT_SORT: SortConfig = { field: "status", dir: "asc" };
 
 const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
+  { value: { field: "status", dir: "asc" }, label: "Status (Triggered → Ongoing → None)" },
   { value: { field: "coin", dir: "asc" }, label: "Coin (A–Z)" },
   { value: { field: "coin", dir: "desc" }, label: "Coin (Z–A)" },
   { value: { field: "change", dir: "desc" }, label: "24h % (high → low)" },
@@ -48,6 +56,7 @@ const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
   { value: { field: "price", dir: "asc" }, label: "Last price (low → high)" },
   { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
   { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
+  { value: { field: "manual", dir: "asc" }, label: "Manual (drag order)" },
 ];
 
 function sortConfigKey(c: SortConfig): string {
@@ -166,12 +175,10 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     [items]
   );
 
-  // Rows in display order: actively sorted if the user picked a non-default
-  // option, otherwise the stored drag-and-drop order.
+  // Rows in display order. "manual" keeps the stored drag-and-drop order;
+  // every other option (including the default Status sort) actively sorts.
   const sortedItems = useMemo(() => {
-    const active =
-      sortConfigKey(sort) !== sortConfigKey(DEFAULT_SORT);
-    if (!active) return items;
+    if (sort.field === "manual") return items;
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...items].sort((a, b) => {
       const aSym = a.symbol.toUpperCase();
@@ -179,6 +186,13 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       const aT = live[aSym];
       const bT = live[bSym];
       switch (sort.field) {
+        case "status": {
+          // Triggered → Ongoing (trigger set, not fired) → None.
+          const rank = (x: WatchlistItem) =>
+            x.alert_fired ? 0 : x.trigger_price != null ? 1 : 2;
+          const byStatus = rank(a) - rank(b);
+          return byStatus !== 0 ? byStatus : aSym.localeCompare(bSym);
+        }
         case "coin":
           return aSym.localeCompare(bSym) * dir;
         case "change":
@@ -306,7 +320,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               body: JSON.stringify({
                 type: "watchlist_trigger",
                 title: `${cleanSymbol(sym)} hit your trigger`,
-                message: `Last ${fmtPx(lastPrice)} reached your ${fmtPx(triggerPrice)} trigger.`,
+                message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
                 link: "/watchlist",
               }),
             }).catch(() => {});
@@ -494,13 +508,17 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     if (p >= 1) return p.toLocaleString("en-US", { maximumFractionDigits: 3 });
     return p.toLocaleString("en-US", { maximumFractionDigits: 6 });
   }
+  // Plan values (trigger / EP / SL / TP) keep more precision: up to 7 decimals.
+  function fmtPlanPx(p: number): string {
+    return p.toLocaleString("en-US", { maximumFractionDigits: 7 });
+  }
   function fmtUsd(v: number): string {
     return compact(v);
   }
 
   // Render one EP/SL/TP value, or a muted "—" when unset.
   function fmtPlanVal(v: number | null | undefined): ReactNode {
-    return v != null ? fmtPx(v) : <span className="text-muted">—</span>;
+    return v != null ? fmtPlanPx(v) : <span className="text-muted">—</span>;
   }
 
   const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -770,7 +788,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                       {t ? fmtPx(t.lastPrice) : "…"}
                     </td>
                     <td className="px-3 py-2.5 num text-muted">
-                      {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
+                      {i.trigger_price != null ? fmtPlanPx(i.trigger_price) : "—"}
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
@@ -877,9 +895,10 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
       <p className="text-xs text-muted">
         Live data refreshes every {refreshIntervalSec}s from the MEXC contract
-        (futures) API. Drag <span className="inline-block">⋮⋮</span> to reorder
-        rows (default order is saved locally), or use the sort picker to view by
-        24h %, volume, price, or trigger.
+        (futures) API. Rows default to Status sort (Triggered → Ongoing →
+        None). Drag <span className="inline-block">⋮⋮</span> to build a custom
+        order (saved locally — pick “Manual (drag order)” in the sort picker to
+        use it), or sort by 24h %, volume, price, or trigger.
       </p>
 
       {details && (
