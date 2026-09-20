@@ -77,7 +77,7 @@ create table if not exists watchlist_items (
   user_id uuid references auth.users not null,
   symbol text not null,
   notes text,
-  alert_price numeric(14,4),
+  alert_price numeric(18,7),
   added_at timestamptz default now()
 );
 
