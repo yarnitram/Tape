@@ -508,9 +508,11 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     if (p >= 1) return p.toLocaleString("en-US", { maximumFractionDigits: 3 });
     return p.toLocaleString("en-US", { maximumFractionDigits: 6 });
   }
-  // Plan values (trigger / EP / SL / TP) keep more precision: up to 7 decimals.
+  // Plan values (trigger / EP / SL / TP) keep more precision: up to 7 decimals,
+  // with any trailing zeros after the decimal point trimmed (0.5000000 → 0.5).
   function fmtPlanPx(p: number): string {
-    return p.toLocaleString("en-US", { maximumFractionDigits: 7 });
+    const s = p.toLocaleString("en-US", { maximumFractionDigits: 7 });
+    return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
   }
   function fmtUsd(v: number): string {
     return compact(v);
