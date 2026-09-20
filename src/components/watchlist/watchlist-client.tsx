@@ -686,7 +686,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 <th className="px-3 py-2.5 text-right">Volume (24h)</th>
                 <th className="px-3 py-2.5 text-right">Last Price</th>
                 <th className="px-3 py-2.5 text-right">Trigger</th>
-                <th className="px-3 py-2.5 text-right">EP / SL / TP</th>
+                <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
                 {showDetails && (
                   <th className="px-3 py-2.5 text-right">Order type</th>
                 )}
@@ -696,7 +696,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     <th className="px-3 py-2.5">Fired at</th>
                   </>
                 )}
-                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5 text-center">Status</th>
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
             </thead>
@@ -773,18 +773,18 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                       {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
                     </td>
                     <td className="px-3 py-2.5">
-                      <div className="flex flex-col gap-0.5 text-right font-mono tabular-nums leading-tight">
+                      <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
                         <span className="whitespace-nowrap">
                           <span className="text-[10px] text-muted">EP: </span>
-                          <span className="num">{fmtPlanVal(i.entry_price)}</span>
+                          <span>{fmtPlanVal(i.entry_price)}</span>
                         </span>
                         <span className="whitespace-nowrap">
                           <span className="text-[10px] text-muted">SL: </span>
-                          <span className="num">{fmtPlanVal(i.stop_loss)}</span>
+                          <span>{fmtPlanVal(i.stop_loss)}</span>
                         </span>
                         <span className="whitespace-nowrap">
                           <span className="text-[10px] text-muted">TP: </span>
-                          <span className="num">{fmtPlanVal(i.take_profit)}</span>
+                          <span>{fmtPlanVal(i.take_profit)}</span>
                         </span>
                       </div>
                     </td>
@@ -809,7 +809,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-xs">
+                    <td className="px-3 py-2.5 text-xs text-center">
                       {i.alert_fired ? (
                         <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
                           ● Triggered
