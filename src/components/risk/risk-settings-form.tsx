@@ -58,6 +58,7 @@ export function RiskSettingsForm({ account, settings }: Props) {
 
   return (
     <div className="max-w-xl">
+      <p className="eyebrow mb-1">Guardrails</p>
       <h1 className="text-2xl font-semibold mb-1">Risk settings</h1>
       <p className="text-sm text-muted mb-6">
         {account?.name ?? "No account"} — limits used by the analytics daily-loss

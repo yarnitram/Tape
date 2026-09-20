@@ -168,7 +168,7 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
           />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-5 bg-loss text-[10px] font-medium text-white rounded-full flex items-center justify-center px-1.5 animate-pulse">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-5 bg-loss text-[10px] font-medium text-panel rounded-full flex items-center justify-center px-1.5 animate-pulse">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}

@@ -2,34 +2,74 @@
 
 /* ============================================================
    Tape — Personal Trading Journal
-   Design tokens (Specif dark terminal aesthetic)
-   Dark-only, mirrors specif/tailwind.config.ts + app/globals.css
+   Design tokens — indigo/violet aesthetic, light + dark modes.
+   All colors are CSS variables; Tailwind utilities map to them
+   via @theme inline. Mode is controlled by a `.dark` class on
+   <html> (set before first paint by an inline script in layout).
    ============================================================ */
 
 :root {
-  /* Surfaces */
-  --ink: #e2e8f0;         /* primary text on paper */
-  --paper: #080b11;        /* page background (base) */
-  --panel: #0f172a;        /* raised surface: table hover, panels (surface) */
-  --panel-soft: #0b1220;
-  --line: #1e293b;         /* hairline borders (borderline) */
-  --line-strong: #334155;
-  --text: #e2e8f0;
-  --text-muted: #64748b;
-  --text-subtle: #94a3b8;
-  --warning: #f59e0b;
+  color-scheme: light;
+
+  /* Surfaces (light) */
+  --ink: #1e1b2e;          /* primary text */
+  --paper: #f6f6fb;        /* page background */
+  --panel: #ffffff;        /* raised surface */
+  --panel-soft: #f0eff7;
+  --line: #e3e2ef;         /* hairline borders */
+  --line-strong: #c9c7de;
+  --text: #1e1b2e;
+  --text-muted: #6c6987;
+  --text-subtle: #8e8ba9;
+  --warning: #b45309;
+  --info: #0369a1;
+
+  /* Semantics */
+  --gain: #059669;
+  --loss: #e11d48;
+  --accent: #6d28d9;       /* violet */
+  --accent-soft: #7c3aed;
+  --accent-contrast: #ffffff;
+  --accent-weak: rgba(109, 40, 217, 0.10);
+  --warning-weak: rgba(180, 83, 9, 0.12);
+  --info-weak: rgba(3, 105, 161, 0.10);
+
+  /* Table striping */
+  --stripe: rgba(30, 27, 46, 0.02);
+
+  /* Ambient page glow */
+  --glow: rgba(124, 58, 237, 0.06);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces (dark) */
+  --ink: #e9e7f6;
+  --paper: #0a0913;        /* near-black with violet tint */
+  --panel: #15121f;
+  --panel-soft: #100e1a;
+  --line: #272239;
+  --line-strong: #403a61;
+  --text: #e9e7f6;
+  --text-muted: #8b87a8;
+  --text-subtle: #a5a1c2;
+  --warning: #fbbf24;
   --info: #38bdf8;
 
-  /* Semantics (Specif terminal) */
-  --gain: #10b981;         /* emerald gains */
-  --loss: #f43f5e;         /* rose losses */
-  --accent: #10b981;       /* emerald accent */
-  --accent-weak: rgba(16, 185, 129, 0.14);
-  --warning-weak: rgba(245, 158, 11, 0.14);
+  /* Semantics */
+  --gain: #34d399;
+  --loss: #fb7185;
+  --accent: #a78bfa;       /* bright violet */
+  --accent-soft: #8b5cf6;
+  --accent-contrast: #0a0913;
+  --accent-weak: rgba(139, 92, 246, 0.16);
+  --warning-weak: rgba(251, 191, 36, 0.14);
   --info-weak: rgba(56, 189, 248, 0.14);
 
-  /* Table striping on dark */
-  --stripe: rgba(255, 255, 255, 0.02);
+  --stripe: rgba(255, 255, 255, 0.025);
+
+  --glow: rgba(139, 92, 246, 0.07);
 }
 
 @theme inline {
@@ -38,7 +78,7 @@
   --color-panel: var(--panel);
   --color-panel-soft: var(--panel-soft);
   --color-line: var(--line);
-  --color-line-strong: var(--text-muted);
+  --color-line-strong: var(--line-strong);
   --color-text: var(--text);
   --color-muted: var(--text-muted);
   --color-subtle: var(--text-subtle);
@@ -47,14 +87,12 @@
   --color-warning: var(--warning);
   --color-info: var(--info);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
 
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
   --font-serif: var(--font-newsreader);
-}
-
-html {
-  color-scheme: dark;
 }
 
 body {
@@ -62,10 +100,12 @@ body {
   color: var(--text);
   font-family: var(--font-plex-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background-image: linear-gradient(180deg, rgba(16, 185, 129, 0.035), transparent 18rem);
+  background-image: radial-gradient(60rem 22rem at 50% -6rem, var(--glow), transparent);
+  background-repeat: no-repeat;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Slim scrollbars (matches specif) */
+/* Slim scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -74,13 +114,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--line-strong);
   border-radius: 4px;
 }
 
-/* Emerald selection (matches specif) */
+/* Accent selection */
 ::selection {
-  background: rgba(16, 185, 129, 0.3);
+  background: var(--accent-weak);
 }
 
 .hairline {
@@ -143,11 +183,11 @@ textarea:focus-visible {
 
 .gain-bg { background: var(--gain); }
 .accent-btn {
-  background: var(--accent);
-  color: #08080b;
+  background: var(--accent-soft);
+  color: var(--accent-contrast);
 }
 .accent-btn:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.1);
 }
 
 .btn-ghost {
@@ -156,5 +196,10 @@ textarea:focus-visible {
   color: var(--text);
 }
 .btn-ghost:hover {
-  border-color: var(--text-muted);
+  border-color: var(--line-strong);
+}
+
+/* Themed table striping */
+.striped tbody tr:nth-child(even) {
+  background: var(--stripe);
 }

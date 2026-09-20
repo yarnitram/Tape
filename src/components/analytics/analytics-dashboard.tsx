@@ -85,6 +85,7 @@ export function AnalyticsDashboard({
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
+          <p className="eyebrow mb-1">Performance</p>
           <h1 className="text-2xl font-semibold mb-1">Analytics</h1>
           <p className="text-sm text-muted">
             {accountName} · {closed.length} closed trades

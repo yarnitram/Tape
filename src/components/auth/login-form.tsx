@@ -76,10 +76,11 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <h1 className="brand text-4xl mb-1">Tape</h1>
-      <p className="text-muted mb-8">Personal trading journal</p>
+      <div className="surface rounded-xl p-8 shadow-sm">
+        <h1 className="brand text-4xl mb-1">Tape</h1>
+        <p className="text-muted mb-6">Personal trading journal</p>
 
-      <div className="flex gap-0 hairline-b mb-6 w-full">
+        <div className="flex gap-0 hairline-b mb-6 w-full">
         <button
           type="button"
           onClick={() => toggleMode("signin")}
@@ -124,7 +125,7 @@ export function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="hairline bg-panel px-3 py-2 text-sm outline-none focus:border-accent"
+            className="hairline bg-panel-soft px-3 py-2 text-sm outline-none focus:border-accent rounded-md"
             placeholder="you@example.com"
           />
         </label>
@@ -137,7 +138,7 @@ export function LoginForm() {
             minLength={isSignup ? 6 : undefined}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="hairline bg-panel px-3 py-2 text-sm outline-none focus:border-accent"
+            className="hairline bg-panel-soft px-3 py-2 text-sm outline-none focus:border-accent rounded-md"
           />
         </label>
 
@@ -150,11 +151,12 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="accent-btn mt-2 px-4 py-2 text-sm font-semibold cursor-pointer disabled:opacity-60"
+          className="accent-btn mt-2 px-4 py-2 text-sm font-semibold rounded-md cursor-pointer disabled:opacity-60"
         >
           {submitLabel}
         </button>
       </form>
+      </div>
     </div>
   );
 }

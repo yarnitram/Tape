@@ -217,6 +217,7 @@ export function NotificationsPageClient({
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
+          <p className="eyebrow mb-1">Inbox</p>
           <h1 className="text-2xl font-semibold brand">Notifications</h1>
           <p className="text-muted text-sm mt-1">
             {unreadCount > 0
@@ -264,7 +265,7 @@ export function NotificationsPageClient({
         >
           Unread
           {unreadCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-loss text-white rounded-full">
+            <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-loss text-panel rounded-full">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}

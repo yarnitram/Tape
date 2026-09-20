@@ -539,6 +539,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
+          <p className="eyebrow mb-1">Market radar</p>
           <h1 className="text-2xl font-semibold mb-1">Futures watchlist</h1>
           <p className="text-sm text-muted">
             MEXC USDT-perpetual coins · live data · {items.length} saved
@@ -674,7 +675,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         </div>
       ) : (
         <>
-          <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
+          <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
           <table className="w-full text-sm border-collapse min-w-[1240px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
@@ -916,7 +917,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
               <button
                 type="button"
                 onClick={() => removeCoin(pending.id)}
-                className="px-4 py-2 text-sm font-semibold text-white bg-loss cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold bg-loss text-panel rounded-md cursor-pointer"
               >
                 Remove
               </button>

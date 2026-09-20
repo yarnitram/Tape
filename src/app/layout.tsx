@@ -33,12 +33,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${newsreader.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Applies the theme class before first paint to avoid a flash of the
+            wrong mode. Reads the stored preference, else system preference. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("tape-theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-paper text-text">
         <div className="flex-1 flex flex-col w-full">{children}</div>
         <footer className="hairline-t py-6 text-center text-xs text-muted">
-          Tape — personal trading journal
+          <span className="brand">Tape</span> — personal trading journal
         </footer>
       </body>
     </html>

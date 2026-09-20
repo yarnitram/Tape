@@ -112,6 +112,7 @@ export function SettingsForm({ userEmail, initial }: Props) {
   return (
     <div className="max-w-2xl flex flex-col gap-6">
       <div>
+        <p className="eyebrow mb-1">Preferences</p>
         <h1 className="text-2xl font-semibold mb-1">Settings</h1>
         <p className="text-sm text-muted">Signed in as {userEmail}</p>
       </div>

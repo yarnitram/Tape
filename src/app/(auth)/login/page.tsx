@@ -9,12 +9,17 @@ export default async function LoginPage() {
   } = await supabase.auth.getUser();
 
   if (user) {
-    redirect("/watchlist");
+    redirect("/journal");
   }
 
   return (
     <main className="flex-1 flex items-center justify-center px-6 py-16">
-      <LoginForm />
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <span className="eyebrow">Welcome back</span>
+        </div>
+        <LoginForm />
+      </div>
     </main>
   );
 }
