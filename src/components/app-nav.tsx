@@ -9,7 +9,6 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const LINKS = [
   { href: "/watchlist", label: "Watchlist" },
   { href: "/journal", label: "Journal" },
-  { href: "/notifications", label: "Notifications" },
   { href: "/settings", label: "Settings" },
 ];
 
