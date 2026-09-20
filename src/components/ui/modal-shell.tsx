@@ -7,6 +7,8 @@ interface Props {
   onClose: () => void;
   children: React.ReactNode;
   maxWidth?: string;
+  /** Vertically center the dialog instead of aligning it near the top. */
+  center?: boolean;
 }
 
 /** Flat, hairline modal panel with an Escape-to-close overlay. */
@@ -15,6 +17,7 @@ export function ModalShell({
   onClose,
   children,
   maxWidth = "max-w-2xl",
+  center = false,
 }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -25,13 +28,19 @@ export function ModalShell({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-6">
+    <div
+      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 p-6 ${
+        center ? "items-center" : "items-start"
+      }`}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${maxWidth} bg-paper border border-line mt-8`}
+        className={`relative w-full ${maxWidth} bg-paper border border-line ${
+          center ? "my-8" : "mt-8"
+        }`}
       >
         <div className="flex items-center justify-between hairline-b px-5 py-3">
           <h2 className="text-base font-semibold">{title}</h2>

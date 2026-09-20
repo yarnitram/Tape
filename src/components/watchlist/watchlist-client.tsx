@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { WatchlistItem } from "@/lib/types";
 import { CoinDetailModal } from "./coin-detail-modal";
+import { ModalShell } from "@/components/ui/modal-shell";
 
 interface Props {
   initialItems: WatchlistItem[];
@@ -26,6 +27,7 @@ interface Ticker {
 
 const ORDER_KEY = "tape:watchlist-order";
 const SORT_KEY = "tape:watchlist-sort";
+const DETAILS_COLS_KEY = "tape:watchlist-details-cols";
 
 type SortField = "coin" | "change" | "volume" | "price" | "trigger";
 interface SortConfig {
@@ -98,6 +100,23 @@ function saveOrder(ids: string[]) {
   }
 }
 
+function loadShowDetails(): boolean {
+  try {
+    const raw = localStorage.getItem(DETAILS_COLS_KEY);
+    return raw === null ? true : raw === "1";
+  } catch {
+    return true;
+  }
+}
+
+function saveShowDetails(show: boolean) {
+  try {
+    localStorage.setItem(DETAILS_COLS_KEY, show ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
 export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props) {
   // NOTE: initialize with the server-provided order only. Applying any saved
   // localStorage order must happen AFTER hydration (see effect below),
@@ -110,13 +129,20 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Sort configuration, initialized from an existing localStorage value.
-  const [sort, setSort] = useState<SortConfig>(
-    typeof window !== "undefined" ? loadSort() : DEFAULT_SORT
-  );
+  // Sort configuration. NOTE: always initialized to the default so the server
+  // and client render rows in the same order. The saved preference is applied
+  // AFTER hydration in an effect (see the row-order effect), avoiding a
+  // hydration mismatch from a non-default saved sort.
+  const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
 
   // Case-insensitive filter for filtering the saved coins by symbol.
   const [filter, setFilter] = useState("");
+
+  // Whether the optional order-type / trigger-added / fired-at columns show.
+  // NOTE: always initialize to `true` so the server and client render the same
+  // initial columns. The persisted preference is applied AFTER hydration in an
+  // effect below (see the row-order effect), avoiding a hydration mismatch.
+  const [showDetails, setShowDetails] = useState<boolean>(true);
 
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
@@ -208,6 +234,22 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         return [...ordered, ...missing];
       });
     }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Apply the saved column-visibility preference ONLY after hydration, so the
+  // server and client render the same initial columns (avoids a hydration
+  // mismatch when a saved value differs from the initial `true`).
+  useEffect(() => {
+    const t = setTimeout(() => setShowDetails(loadShowDetails()), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Apply the saved sort AFTER hydration so the server and client render the
+  // same initial row order (avoids a hydration mismatch from a non-default
+  // saved sort). `loadSort()` already falls back to the default when invalid.
+  useEffect(() => {
+    const t = setTimeout(() => setSort(loadSort()), 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -456,6 +498,17 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return compact(v);
   }
 
+  // Render one EP/SL/TP value, or a muted "—" when unset.
+  function fmtPlanVal(v: number | null | undefined): ReactNode {
+    return v != null ? fmtPx(v) : <span className="text-muted">—</span>;
+  }
+
+  const ORDER_TYPE_LABELS: Record<string, string> = {
+    limit: "Limit",
+    trigger_limit: "Trigger Limit",
+    market: "Market",
+  };
+
   // Render an ISO timestamp as full-numeric date on top, time below (SGT / GMT+8).
   function fmtDateTime(iso: string | null | undefined): ReactNode {
     if (!iso) return "—";
@@ -554,6 +607,19 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             />
           </label>
           <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none" title="Toggle order details columns">
+            <input
+              type="checkbox"
+              checked={showDetails}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setShowDetails(next);
+                saveShowDetails(next);
+              }}
+              className="accent-accent cursor-pointer"
+            />
+            Toggle
+          </label>
           <label className="flex items-center gap-2 text-xs text-muted">
             <span>Sort by</span>
             <select
@@ -609,7 +675,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       ) : (
         <>
           <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
-          <table className="w-full text-sm border-collapse min-w-[1080px]">
+          <table className="w-full text-sm border-collapse min-w-[1240px]">
             <thead>
               <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
                 <th className="px-2 py-2.5 w-8"></th>
@@ -619,8 +685,16 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 <th className="px-3 py-2.5 text-right">Volume (24h)</th>
                 <th className="px-3 py-2.5 text-right">Last Price</th>
                 <th className="px-3 py-2.5 text-right">Trigger</th>
-                <th className="px-3 py-2.5">Trigger added</th>
-                <th className="px-3 py-2.5">Fired at</th>
+                <th className="px-3 py-2.5 text-right">EP / SL / TP</th>
+                {showDetails && (
+                  <th className="px-3 py-2.5 text-right">Order type</th>
+                )}
+                {showDetails && (
+                  <>
+                    <th className="px-3 py-2.5">Trigger added</th>
+                    <th className="px-3 py-2.5">Fired at</th>
+                  </>
+                )}
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
@@ -697,14 +771,43 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                     <td className="px-3 py-2.5 num text-muted">
                       {i.trigger_price != null ? fmtPx(i.trigger_price) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
-                      {i.trigger_price != null
-                        ? fmtDateTime(i.trigger_created_at)
-                        : "—"}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5 text-right font-mono tabular-nums leading-tight">
+                        <span className="whitespace-nowrap">
+                          <span className="text-[10px] text-muted">EP: </span>
+                          <span className="num">{fmtPlanVal(i.entry_price)}</span>
+                        </span>
+                        <span className="whitespace-nowrap">
+                          <span className="text-[10px] text-muted">SL: </span>
+                          <span className="num">{fmtPlanVal(i.stop_loss)}</span>
+                        </span>
+                        <span className="whitespace-nowrap">
+                          <span className="text-[10px] text-muted">TP: </span>
+                          <span className="num">{fmtPlanVal(i.take_profit)}</span>
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
-                      {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
-                    </td>
+                    {showDetails && (
+                      <td className="px-3 py-2.5 num text-right">
+                        {i.order_type ? (
+                          ORDER_TYPE_LABELS[i.order_type] ?? i.order_type
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                    )}
+                    {showDetails && (
+                      <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
+                        {i.trigger_price != null
+                          ? fmtDateTime(i.trigger_created_at)
+                          : "—"}
+                      </td>
+                    )}
+                    {showDetails && (
+                      <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
+                        {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-xs">
                       {i.alert_fired ? (
                         <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
@@ -723,45 +826,21 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                       onClick={(e) => e.stopPropagation()}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      {confirmRemove === i.id ? (
-                        <span className="inline-flex items-center gap-2 text-xs">
-                          <span className="text-muted">
-                            Remove {cleanSymbol(sym)}?
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeCoin(i.id)}
-                            className="text-loss font-semibold cursor-pointer"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmRemove(null)}
-                            className="text-muted hover:text-text cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setDetails({ symbol: sym, item: i })}
-                            className="text-accent hover:underline text-xs mr-3 cursor-pointer"
-                            title="View details"
-                          >
-                            Modify
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmRemove(i.id)}
-                            className="text-loss hover:underline text-xs cursor-pointer"
-                          >
-                            Remove
-                          </button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDetails({ symbol: sym, item: i })}
+                        className="text-accent hover:underline text-xs mr-3 cursor-pointer"
+                        title="View details"
+                      >
+                        Modify
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemove(i.id)}
+                        className="text-loss hover:underline text-xs cursor-pointer"
+                      >
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 );
@@ -810,6 +889,41 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
           onSaved={reloadItems}
         />
       )}
+
+      {confirmRemove && (() => {
+        const pending = items.find((x) => x.id === confirmRemove);
+        if (!pending) return null;
+        const sym = pending.symbol.toUpperCase();
+        return (
+          <ModalShell
+            title={`Remove ${cleanSymbol(sym)}?`}
+            onClose={() => setConfirmRemove(null)}
+            maxWidth="max-w-sm"
+            center
+          >
+            <p className="text-sm">
+              Remove <span className="font-medium">{cleanSymbol(sym)}</span> from
+              your watchlist? This won&apos;t affect any live alert status.
+            </p>
+            <div className="flex justify-end gap-2 hairline-t pt-4 mt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(null)}
+                className="px-3 py-2 text-sm btn-ghost cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => removeCoin(pending.id)}
+                className="px-4 py-2 text-sm font-semibold text-white bg-loss cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          </ModalShell>
+        );
+      })()}
     </div>
   );
 }
