@@ -137,6 +137,7 @@ export function TradeJournal({
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
+          <p className="eyebrow mb-2">Trade review</p>
           <h1 className="text-2xl font-semibold mb-1">Journal</h1>
           <p className="text-sm text-muted">
             {trades.length} trade{trades.length === 1 ? "" : "s"} ·{" "}
@@ -153,25 +154,42 @@ export function TradeJournal({
         </button>
       </div>
 
-      <AnalyticsDashboard
-        trades={trades}
-        riskSettings={riskSettings}
-        accountName={activeAccount?.name ?? "No account"}
-      />
+      <section aria-labelledby="performance-heading">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="eyebrow">Performance snapshot</p>
+            <h2 id="performance-heading" className="text-lg font-semibold">How the book is behaving</h2>
+          </div>
+          <span className="text-xs text-muted">{loading ? "Refreshing data…" : "Updated from journal"}</span>
+        </div>
+        <AnalyticsDashboard
+          trades={trades}
+          riskSettings={riskSettings}
+          accountName={activeAccount?.name ?? "No account"}
+        />
+      </section>
 
-      <ExportBar
-        trades={trades}
-        selectedIds={selectedIds}
-        symbolOptions={uniqueSymbols}
-      />
+      <section aria-labelledby="ledger-heading">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="eyebrow">Trade ledger</p>
+            <h2 id="ledger-heading" className="text-lg font-semibold">Recent positions</h2>
+          </div>
+          <ExportBar
+            trades={trades}
+            selectedIds={selectedIds}
+            symbolOptions={uniqueSymbols}
+          />
+        </div>
 
-      <TradeTable
-        trades={trades}
-        selectedIds={selectedIds}
-        onToggleSelect={toggleSelect}
-        onToggleAll={toggleAll}
-        onRowClick={setSelected}
-      />
+        <TradeTable
+          trades={trades}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleAll={toggleAll}
+          onRowClick={setSelected}
+        />
+      </section>
 
       {formOpen && (
         <TradeFormModal

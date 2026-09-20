@@ -22,7 +22,7 @@ export default async function AppLayout({
   return (
     <div className="flex flex-col flex-1 w-full">
       <AppNav />
-      <main className="mx-auto w-full max-w-screen-2xl px-6 py-8 flex-1">
+      <main className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 sm:py-8 flex-1">
         {children}
       </main>
     </div>
