@@ -104,8 +104,26 @@ export interface TradeAlert {
   take_profit: number | null;
   order_type: OrderType | null;
   notes: string | null;
+  /** Position margin in USD (added by migration 010). NULL = default $1. */
+  margin_usd: number | null;
+  /** Leverage used for the position (added by migration 010).
+   *  NULL = use the contract's max leverage from MEXC. */
+  leverage: number | null;
   fired_at: string;
   created_at: string;
+}
+
+/**
+ * How a fired alert is traded. There is no stored side column: the watchlist
+ * trigger direction decides it — a coin breaking BELOW its trigger is taken
+ * LONG (buying the dip), and one breaking ABOVE is taken SHORT (fading it).
+ */
+export type TradeSide = "long" | "short";
+
+export function sideForTrigger(
+  direction: "above" | "below" | null | undefined
+): TradeSide {
+  return direction === "above" ? "short" : "long";
 }
 
 /** Notification types. */

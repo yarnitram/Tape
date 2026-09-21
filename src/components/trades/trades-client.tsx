@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { TradeAlert } from "@/lib/types";
+import { sideForTrigger, type TradeAlert, type TradeSide } from "@/lib/types";
+import { ModalShell } from "@/components/ui/modal-shell";
+import { TradeEditModal } from "./trade-edit-modal";
 
 interface Props {
   initialAlerts: TradeAlert[];
@@ -14,6 +16,11 @@ const COLS_KEY = "tape:trades-cols";
 type SortField =
   | "firedAt"
   | "symbol"
+  | "position"
+  | "leverage"
+  | "pnl"
+  | "margin"
+  | "lastPrice"
   | "trigger"
   | "firedPrice"
   | "entry"
@@ -32,6 +39,16 @@ const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
   { value: { field: "firedAt", dir: "asc" }, label: "Fired at (old → new)" },
   { value: { field: "symbol", dir: "asc" }, label: "Coin (A–Z)" },
   { value: { field: "symbol", dir: "desc" }, label: "Coin (Z–A)" },
+  { value: { field: "pnl", dir: "desc" }, label: "Unrealized P&L (high → low)" },
+  { value: { field: "pnl", dir: "asc" }, label: "Unrealized P&L (low → high)" },
+  { value: { field: "position", dir: "desc" }, label: "Position (high → low)" },
+  { value: { field: "position", dir: "asc" }, label: "Position (low → high)" },
+  { value: { field: "margin", dir: "desc" }, label: "Margin (high → low)" },
+  { value: { field: "margin", dir: "asc" }, label: "Margin (low → high)" },
+  { value: { field: "leverage", dir: "desc" }, label: "Leverage (high → low)" },
+  { value: { field: "leverage", dir: "asc" }, label: "Leverage (low → high)" },
+  { value: { field: "lastPrice", dir: "desc" }, label: "Last price (high → low)" },
+  { value: { field: "lastPrice", dir: "asc" }, label: "Last price (low → high)" },
   { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
   { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
   { value: { field: "firedPrice", dir: "desc" }, label: "Fired price (high → low)" },
@@ -77,28 +94,133 @@ function cleanSymbol(s: string): string {
   return s.replace(/_USDT$/i, "");
 }
 
-// Toggleable table columns (Coin and Fired at are always shown).
+/** The only live ticker field we need (see GET /api/mexc/futures). */
+interface Ticker {
+  symbol: string;
+  lastPrice: number;
+}
+
+/** The only contract-detail fields we need (see GET /api/mexc/futures). */
+interface ContractDetail {
+  symbol: string;
+  contractSize: number;
+  maxLeverage: number;
+}
+
+// Every position defaults to $1 of margin...
+const DEFAULT_MARGIN_USD = 1;
+// ...and to the coin's max leverage. This is only used when MEXC's contract
+// detail can't be loaded, so P&L still renders instead of vanishing.
+const FALLBACK_MAX_LEVERAGE = 1;
+
+/** A logged alert plus the live price and position numbers derived from it. */
+interface TradeRow extends TradeAlert {
+  /** Price the position was opened at: the plan's entry, else the fired price. */
+  entryUsed: number | null;
+  marginUsd: number;
+  /** Effective leverage (saved value, or the coin's max when none saved). */
+  leverage: number;
+  /** True when no leverage was saved, i.e. this is the exchange's maximum. */
+  leverageIsMax: boolean;
+  /** Position size in coins (notional ÷ entry). */
+  positionSize: number | null;
+  notional: number;
+  lastPrice: number | null;
+  pnl: number | null;
+  pnlPct: number | null;
+  side: TradeSide;
+}
+
+/**
+ * Size a position and mark it to the live price.
+ *
+ *   notional  = margin × leverage
+ *   position  = notional ÷ entry
+ *   P&L       = side × position × (last − entry)
+ *   P&L %     = side × (last ÷ entry − 1) × leverage   (return on margin)
+ */
+function buildRow(
+  a: TradeAlert,
+  lastPrice: number | null,
+  maxLeverage: number | null
+): TradeRow {
+  // No stored side: breaking below the trigger is taken long, above is short.
+  const side = sideForTrigger(a.trigger_direction);
+  const entryUsed = a.entry_price ?? a.fired_price;
+
+  const marginUsd =
+    a.margin_usd != null && a.margin_usd > 0 ? a.margin_usd : DEFAULT_MARGIN_USD;
+
+  const savedLev = a.leverage != null && a.leverage > 0 ? a.leverage : null;
+  const maxLev = maxLeverage != null && maxLeverage > 0 ? maxLeverage : null;
+  const leverage = savedLev ?? maxLev ?? FALLBACK_MAX_LEVERAGE;
+  const leverageIsMax = savedLev == null;
+
+  const notional = marginUsd * leverage;
+  const sign = side === "long" ? 1 : -1;
+
+  let positionSize: number | null = null;
+  let pnl: number | null = null;
+  let pnlPct: number | null = null;
+  if (entryUsed != null && entryUsed > 0) {
+    positionSize = notional / entryUsed;
+    if (lastPrice != null) {
+      pnl = sign * positionSize * (lastPrice - entryUsed);
+      pnlPct = sign * (lastPrice / entryUsed - 1) * leverage;
+    }
+  }
+
+  return {
+    ...a,
+    entryUsed,
+    marginUsd,
+    leverage,
+    leverageIsMax,
+    positionSize,
+    notional,
+    lastPrice,
+    pnl,
+    pnlPct,
+    side,
+  };
+}
+
+// Toggleable table columns (Coin, Fired at and the action icons are always
+// shown). Direction is deliberately not a column — the trigger direction only
+// decides the side now (below = long, above = short).
 type ColKey =
+  | "position"
+  | "leverage"
+  | "pnl"
+  | "margin"
+  | "lastPrice"
   | "trigger"
   | "firedPrice"
-  | "direction"
   | "plan"
   | "orderType"
   | "notes";
 
 const COLUMNS: { key: ColKey; label: string }[] = [
+  { key: "position", label: "Position" },
+  { key: "leverage", label: "Leverage" },
+  { key: "pnl", label: "Unrealized PNL" },
+  { key: "margin", label: "Margin" },
+  { key: "lastPrice", label: "Last price" },
   { key: "trigger", label: "Trigger" },
   { key: "firedPrice", label: "Fired price" },
-  { key: "direction", label: "Direction" },
   { key: "plan", label: "EP / SL / TP" },
   { key: "orderType", label: "Order type" },
   { key: "notes", label: "Notes" },
 ];
 
 const DEFAULT_COLS: Record<ColKey, boolean> = {
+  position: true,
+  leverage: true,
+  pnl: true,
+  margin: true,
+  lastPrice: true,
   trigger: true,
   firedPrice: true,
-  direction: true,
   plan: true,
   orderType: true,
   notes: true,
@@ -167,6 +289,20 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
 
+  // Live MEXC last price keyed by symbol (e.g. "BTC_USDT" → 64123.5).
+  const [live, setLive] = useState<Record<string, number>>({});
+  // Contract detail keyed by symbol; supplies the default (max) leverage.
+  const [details, setDetails] = useState<Record<string, ContractDetail>>({});
+  // Symbols already requested, so we never ask MEXC twice for the same coin.
+  const requestedRef = useRef<Set<string>>(new Set());
+
+  // Row actions: the trade open in the edit modal, and the one awaiting
+  // delete confirmation.
+  const [editing, setEditing] = useState<TradeAlert | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<TradeAlert | null>(null);
+  // Transient confirmation ("Trade deleted.") shown under the table.
+  const [notice, setNotice] = useState<string | null>(null);
+
   // Apply the saved sort AFTER hydration so the server and client render the
   // same initial row order (avoids a hydration mismatch from a non-default
   // saved sort). `loadSort()` already falls back to the default when invalid.
@@ -197,7 +333,8 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
 
   // Poll for newly fired alerts so the table stays live while the page is
   // open — alerts fire from the watchlist page poller or the always-on
-  // background watcher. The fresh list simply replaces local state.
+  // background watcher. The fresh list simply replaces local state. The same
+  // tick refreshes the live MEXC prices that feed Last price / Unrealized PNL.
   useEffect(() => {
     let cancelled = false;
     const intervalMs = Math.max(
@@ -216,7 +353,26 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       } catch {
         // keep last known data on failure
       }
+
+      // One request returns every USDT perpetual; the route caches the
+      // exchange reply for 5s, so this is cheap on every poll.
+      try {
+        const res = await fetch("/api/mexc/futures");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.tickers)) return;
+        const map: Record<string, number> = {};
+        for (const t of data.tickers as Ticker[]) {
+          if (typeof t.lastPrice === "number") map[t.symbol] = t.lastPrice;
+        }
+        setLive(map);
+      } catch {
+        // prices are cosmetic — keep the previous snapshot
+      }
     }
+
+    // Fetch once on mount, then on the poll interval.
+    refresh();
 
     const id = setInterval(refresh, intervalMs);
     return () => {
@@ -225,10 +381,73 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     };
   }, [refreshIntervalSec]);
 
+  // Distinct coins on the page (sorted so the effect's dependency is stable).
+  const symbols = useMemo(
+    () => Array.from(new Set(alerts.map((a) => a.symbol.toUpperCase()))).sort(),
+    [alerts]
+  );
+
+  // Ask MEXC for each coin's contract detail once per page load: maxLeverage
+  // is the default leverage. Symbols are recorded before fetching, so a failed
+  // request is never retried in a loop; the route caches details for 60s.
+  useEffect(() => {
+    const missing = symbols.filter((s) => !requestedRef.current.has(s));
+    if (missing.length === 0) return;
+    for (const sym of missing) requestedRef.current.add(sym);
+
+    let cancelled = false;
+    (async () => {
+      for (const sym of missing) {
+        try {
+          const res = await fetch(
+            `/api/mexc/futures?symbol=${encodeURIComponent(sym)}`
+          );
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (cancelled || !data.detail) continue;
+          const detail = data.detail as ContractDetail;
+          setDetails((prev) => ({ ...prev, [sym]: detail }));
+        } catch {
+          // Row falls back to whatever leverage is stored on the alert.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symbols]);
+
+  // Clear the action notice after a few seconds.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  // Display rows: stored fields plus the live price and the computed margin /
+  // leverage / position / P&L. Rebuilt when the alerts or prices change.
+  const rows = useMemo(
+    () =>
+      alerts.map((a) => {
+        const sym = a.symbol.toUpperCase();
+        return buildRow(a, live[sym] ?? null, details[sym]?.maxLeverage ?? null);
+      }),
+    [alerts, live, details]
+  );
+
   // Rows in display order: always sorted by the selected sort option.
   const sortedAlerts = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
-    return [...alerts].sort((a, b) => {
+    // Missing values sink to the bottom regardless of direction.
+    const cmpNum = (a: number | null, b: number | null) => {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return (a - b) * dir;
+    };
+
+    return [...rows].sort((a, b) => {
       const aSym = a.symbol.toUpperCase();
       const bSym = b.symbol.toUpperCase();
       switch (sort.field) {
@@ -244,40 +463,30 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         case "symbol":
           return aSym.localeCompare(bSym) * dir;
         case "trigger":
-          return (
-            ((a.trigger_price ?? Number.NEGATIVE_INFINITY) -
-              (b.trigger_price ?? Number.NEGATIVE_INFINITY)) *
-            dir
-          );
+          return cmpNum(a.trigger_price, b.trigger_price);
         case "firedPrice":
-          return (
-            ((a.fired_price ?? Number.NEGATIVE_INFINITY) -
-              (b.fired_price ?? Number.NEGATIVE_INFINITY)) *
-            dir
-          );
+          return cmpNum(a.fired_price, b.fired_price);
         case "entry":
-          return (
-            ((a.entry_price ?? Number.NEGATIVE_INFINITY) -
-              (b.entry_price ?? Number.NEGATIVE_INFINITY)) *
-            dir
-          );
+          return cmpNum(a.entry_price, b.entry_price);
         case "stop":
-          return (
-            ((a.stop_loss ?? Number.NEGATIVE_INFINITY) -
-              (b.stop_loss ?? Number.NEGATIVE_INFINITY)) *
-            dir
-          );
+          return cmpNum(a.stop_loss, b.stop_loss);
         case "target":
-          return (
-            ((a.take_profit ?? Number.NEGATIVE_INFINITY) -
-              (b.take_profit ?? Number.NEGATIVE_INFINITY)) *
-            dir
-          );
+          return cmpNum(a.take_profit, b.take_profit);
+        case "position":
+          return cmpNum(a.positionSize, b.positionSize);
+        case "leverage":
+          return cmpNum(a.leverage, b.leverage);
+        case "margin":
+          return cmpNum(a.marginUsd, b.marginUsd);
+        case "lastPrice":
+          return cmpNum(a.lastPrice, b.lastPrice);
+        case "pnl":
+          return cmpNum(a.pnl, b.pnl);
         default:
           return 0;
       }
     });
-  }, [alerts, sort]);
+  }, [rows, sort]);
 
   // Rows after applying the client-side filter (search). Composes with sort:
   // filter first, then the result still goes through sortedAlerts' ordering.
@@ -307,6 +516,43 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   // Render one price value, or a muted "—" when unset.
   function fmtPxVal(v: number | null | undefined): ReactNode {
     return v != null ? fmtPx(v) : <span className="text-muted">—</span>;
+  }
+
+  // Signed USD amount, e.g. "+$1.11" / "-$0.42". Used for Unrealized PNL.
+  function fmtUsd(v: number | null | undefined, digits = 2): string {
+    if (v == null || !Number.isFinite(v)) return "—";
+    const abs = Math.abs(v).toLocaleString("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    return `${v < 0 ? "-" : "+"}$${abs}`;
+  }
+
+  // Unsigned USD amount, e.g. "$1.00". Used for Margin, which is never negative.
+  function fmtMoney(v: number | null | undefined, digits = 2): string {
+    if (v == null || !Number.isFinite(v)) return "—";
+    return `$${v.toLocaleString("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })}`;
+  }
+
+  // Leverage rendered as "50×" (whole numbers stay clean).
+  function fmtLev(v: number): string {
+    return `${v % 1 === 0 ? v : v.toFixed(2)}×`;
+  }
+
+  // Position size in coins. Extra decimals for cheap coins (15,033 ZAMA) and
+  // for tiny amounts of expensive ones (0.000781 BTC).
+  function fmtSize(v: number | null): string {
+    if (v == null || !Number.isFinite(v)) return "—";
+    if (v === 0) return "0";
+    const abs = Math.abs(v);
+    const decimals = abs >= 1000 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 6 : 8;
+    return v.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: decimals,
+    });
   }
 
   const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -339,6 +585,31 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         <span className="num text-[10px] text-muted">{sgTime}</span>
       </div>
     );
+  }
+
+  // ---- Row actions ----
+
+  /** Delete a logged trade. RLS scopes the write to the signed-in user. */
+  async function deleteTrade(id: string) {
+    setConfirmDelete(null);
+    try {
+      const res = await fetch(`/api/trade-alerts/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Delete failed");
+      }
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+      setNotice("Trade deleted.");
+    } catch (err) {
+      setNotice((err as Error).message);
+    }
+  }
+
+  /** The edit modal saved — merge the values in so the row updates at once. */
+  function onTradeSaved(id: string, patch: Partial<TradeAlert>) {
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    setEditing(null);
+    setNotice("Trade updated.");
   }
 
   return (
@@ -489,18 +760,30 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       ) : (
         <>
           <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
-            <table className="w-full text-sm border-collapse min-w-[1040px]">
+            <table className="w-full text-sm border-collapse min-w-[1680px]">
               <thead>
                 <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
                   <th className="px-3 py-2.5">Coin</th>
+                  {colVisible("position") && (
+                    <th className="px-3 py-2.5 text-right">Position</th>
+                  )}
+                  {colVisible("leverage") && (
+                    <th className="px-3 py-2.5 text-right">Leverage</th>
+                  )}
+                  {colVisible("pnl") && (
+                    <th className="px-3 py-2.5 text-right">Unrealized PNL</th>
+                  )}
+                  {colVisible("margin") && (
+                    <th className="px-3 py-2.5 text-right">Margin</th>
+                  )}
+                  {colVisible("lastPrice") && (
+                    <th className="px-3 py-2.5 text-right">Last price</th>
+                  )}
                   {colVisible("trigger") && (
                     <th className="px-3 py-2.5 text-right">Trigger</th>
                   )}
                   {colVisible("firedPrice") && (
                     <th className="px-3 py-2.5 text-right">Fired price</th>
-                  )}
-                  {colVisible("direction") && (
-                    <th className="px-3 py-2.5 text-center">Direction</th>
                   )}
                   {colVisible("plan") && (
                     <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
@@ -510,6 +793,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                   )}
                   {colVisible("notes") && <th className="px-3 py-2.5">Notes</th>}
                   <th className="px-3 py-2.5">Fired at</th>
+                  <th className="px-3 py-2.5 text-right w-[88px]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -523,6 +807,64 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       <td className="px-3 py-2.5">
                         <span className="font-medium">{cleanSymbol(sym)}</span>
                       </td>
+                      {colVisible("position") && (
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="num">{fmtSize(a.positionSize)}</span>
+                          <span
+                            className={`block text-[10px] uppercase tracking-wide ${
+                              a.side === "long" ? "text-gain" : "text-loss"
+                            }`}
+                          >
+                            {a.side}
+                          </span>
+                        </td>
+                      )}
+                      {colVisible("leverage") && (
+                        <td className="px-3 py-2.5 num text-right whitespace-nowrap">
+                          {fmtLev(a.leverage)}
+                          {a.leverageIsMax && (
+                            <span className="text-muted text-[10px] ml-1">max</span>
+                          )}
+                        </td>
+                      )}
+                      {colVisible("pnl") && (
+                        <td
+                          className={`px-3 py-2.5 num text-right whitespace-nowrap ${
+                            a.pnl == null
+                              ? ""
+                              : a.pnl > 0
+                                ? "text-gain"
+                                : a.pnl < 0
+                                  ? "text-loss"
+                                  : ""
+                          }`}
+                        >
+                          {a.pnl == null ? (
+                            <span className="text-muted">—</span>
+                          ) : (
+                            <>
+                              {fmtUsd(a.pnl)}
+                              <span className="block text-[10px] text-muted">
+                                {a.pnlPct != null
+                                  ? `${a.pnlPct >= 0 ? "+" : ""}${(
+                                      a.pnlPct * 100
+                                    ).toFixed(2)}%`
+                                  : ""}
+                              </span>
+                            </>
+                          )}
+                        </td>
+                      )}
+                      {colVisible("margin") && (
+                        <td className="px-3 py-2.5 num text-right whitespace-nowrap">
+                          {fmtMoney(a.marginUsd)}
+                        </td>
+                      )}
+                      {colVisible("lastPrice") && (
+                        <td className="px-3 py-2.5 num text-right">
+                          {fmtPxVal(a.lastPrice)}
+                        </td>
+                      )}
                       {colVisible("trigger") && (
                         <td className="px-3 py-2.5 num text-right">
                           {fmtPxVal(a.trigger_price)}
@@ -531,23 +873,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       {colVisible("firedPrice") && (
                         <td className="px-3 py-2.5 num text-right">
                           {fmtPxVal(a.fired_price)}
-                        </td>
-                      )}
-                      {colVisible("direction") && (
-                        <td className="px-3 py-2.5 text-center">
-                          {a.trigger_direction ? (
-                            <span
-                              className={
-                                a.trigger_direction === "above"
-                                  ? "text-gain"
-                                  : "text-loss"
-                              }
-                            >
-                              {a.trigger_direction === "above" ? "Above" : "Below"}
-                            </span>
-                          ) : (
-                            <span className="text-muted">—</span>
-                          )}
                         </td>
                       )}
                       {colVisible("plan") && (
@@ -580,6 +905,52 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       <td className="px-3 py-2.5">{fmtDateTime(a.fired_at)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditing(a)}
+                            title="Edit trade"
+                            aria-label={`Edit ${cleanSymbol(sym)} trade`}
+                            className="hairline rounded-md p-1.5 text-muted hover:text-accent hover:border-accent cursor-pointer transition-colors"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDelete(a)}
+                            title="Delete trade"
+                            aria-label={`Delete ${cleanSymbol(sym)} trade`}
+                            className="hairline rounded-md p-1.5 text-muted hover:text-loss hover:border-loss cursor-pointer transition-colors"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M2.5 4.5h11M6.5 4.5V3h3v1.5M4.5 4.5l.6 9h5.8l.6-9M6.8 7v4M9.2 7v4" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -612,13 +983,61 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         </>
       )}
 
+      {notice && <p className="text-xs text-muted">{notice}</p>}
+
       <p className="text-xs text-muted">
         Every fired watchlist alert is logged here automatically with its token
-        data (trigger, fired price, trade plan). Use the Sort by dropdown to
-        reorder rows — or toggle visible columns from the “Columns” button.
-        Alerts fire from the Watchlist page poller or the always-on watcher
-        script.
+        data (trigger, fired price, trade plan). Position and Unrealized PNL are
+        sized from the margin (default $1) and leverage (default: the coin&apos;s
+        maximum), marked against the live MEXC price. Use the pencil icon to
+        edit a trade, the bin icon to delete it, the Sort by dropdown to reorder
+        rows, or the “Columns” button to toggle columns. Alerts fire from the
+        Watchlist page poller or the always-on watcher script.
       </p>
+
+      {editing && (
+        <TradeEditModal
+          alert={editing}
+          maxLeverage={details[editing.symbol.toUpperCase()]?.maxLeverage ?? null}
+          onClose={() => setEditing(null)}
+          onSaved={onTradeSaved}
+        />
+      )}
+
+      {confirmDelete &&
+        (() => {
+          const sym = cleanSymbol(confirmDelete.symbol.toUpperCase());
+          return (
+            <ModalShell
+              title={`Delete ${sym} trade?`}
+              onClose={() => setConfirmDelete(null)}
+              maxWidth="max-w-sm"
+              center
+            >
+              <p className="text-sm">
+                Delete this logged trade for{" "}
+                <span className="font-medium">{sym}</span>? It will be removed
+                from your alert log — this can&apos;t be undone.
+              </p>
+              <div className="flex justify-end gap-2 hairline-t pt-4 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(null)}
+                  className="px-3 py-2 text-sm btn-ghost cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteTrade(confirmDelete.id)}
+                  className="px-4 py-2 text-sm font-semibold bg-loss text-panel rounded-md cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
+            </ModalShell>
+          );
+        })()}
     </div>
   );
 }

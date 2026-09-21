@@ -45,6 +45,8 @@ const REQUIRED_COLUMNS = [
   "take_profit",
   "order_type",
   "notes",
+  "margin_usd",
+  "leverage",
   "fired_at",
   "created_at",
 ];

@@ -98,6 +98,10 @@ create table if not exists trade_alerts (
   take_profit numeric(18,7),
   -- Intended order type when the trigger fired.
   order_type text check (order_type in ('limit','trigger_limit','market')),
+  -- Position sizing for /trades (added by migration 010). NULL = page
+  -- default: $1 margin, and the contract's max leverage from MEXC.
+  margin_usd numeric(18,2),
+  leverage numeric(18,2),
   notes text,
   fired_at timestamptz not null default now(),
   created_at timestamptz default now()
