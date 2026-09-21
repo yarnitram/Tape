@@ -89,6 +89,25 @@ export interface WatchlistItem {
 /** The order type the user intends to place (aligns with MEXC order types). */
 export type OrderType = "limit" | "trigger_limit" | "market";
 
+/** A fired watchlist price-trigger, logged to trade_alerts and shown on /trades. */
+export interface TradeAlert {
+  id: string;
+  user_id: string;
+  watchlist_item_id: string | null;
+  symbol: string;
+  trigger_price: number | null;
+  trigger_direction: "above" | "below" | null;
+  /** Last price when the alert fired. */
+  fired_price: number | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  order_type: OrderType | null;
+  notes: string | null;
+  fired_at: string;
+  created_at: string;
+}
+
 /** Notification types. */
 export type NotificationType = "trade_alert" | "risk_warning" | "system" | "watchlist_trigger";
 

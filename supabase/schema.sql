@@ -81,6 +81,28 @@ create table if not exists watchlist_items (
   added_at timestamptz default now()
 );
 
+-- Trade alerts log: fired watchlist price-triggers, shown on /trades
+create table if not exists trade_alerts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users not null,
+  -- The watchlist row that fired; kept after the item is deleted.
+  watchlist_item_id uuid references watchlist_items on delete set null,
+  symbol text not null,
+  trigger_price numeric(18,7),
+  trigger_direction text check (trigger_direction in ('above','below')),
+  -- Last price when the alert fired.
+  fired_price numeric(18,7),
+  -- Saved trade plan at fire time.
+  entry_price numeric(18,7),
+  stop_loss numeric(18,7),
+  take_profit numeric(18,7),
+  -- Intended order type when the trigger fired.
+  order_type text check (order_type in ('limit','trigger_limit','market')),
+  notes text,
+  fired_at timestamptz not null default now(),
+  created_at timestamptz default now()
+);
+
 -- ------------------------------------------------------------------
 -- Row Level Security
 -- ------------------------------------------------------------------
@@ -92,6 +114,7 @@ alter table trade_tags enable row level security;
 alter table trade_notes enable row level security;
 alter table risk_settings enable row level security;
 alter table watchlist_items enable row level security;
+alter table trade_alerts enable row level security;
 
 -- Owner-scoped policies. A row belongs to the user when:
 --   accounts.user_id = auth.uid()
@@ -101,6 +124,7 @@ alter table watchlist_items enable row level security;
 --   trade_notes through trades
 --   risk_settings through accounts
 --   watchlist_items.user_id = auth.uid()
+--   trade_alerts.user_id = auth.uid()
 
 -- ACCOUNTS
 create policy "accounts_select_own" on accounts
@@ -239,6 +263,17 @@ create policy "watchlist_update_own" on watchlist_items
   for update to authenticated using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create policy "watchlist_delete_own" on watchlist_items
+  for delete to authenticated using (auth.uid() = user_id);
+
+-- TRADE ALERTS (fired watchlist triggers, shown on /trades)
+create policy "trade_alerts_select_own" on trade_alerts
+  for select to authenticated using (auth.uid() = user_id);
+create policy "trade_alerts_insert_own" on trade_alerts
+  for insert to authenticated with check (auth.uid() = user_id);
+create policy "trade_alerts_update_own" on trade_alerts
+  for update to authenticated using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+create policy "trade_alerts_delete_own" on trade_alerts
   for delete to authenticated using (auth.uid() = user_id);
 
 -- ------------------------------------------------------------------

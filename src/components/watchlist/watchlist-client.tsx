@@ -370,6 +370,18 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                   title: `${cleanSymbol(sym)} hit your trigger`,
                   message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
                   link: "/watchlist",
+                  // Token data → logged to trade_alerts, which feeds the
+                  // /trades page table.
+                  symbol: sym,
+                  trigger_price: triggerPrice,
+                  trigger_direction: item.trigger_direction,
+                  fired_price: lastPrice,
+                  entry_price: item.entry_price,
+                  stop_loss: item.stop_loss,
+                  take_profit: item.take_profit,
+                  order_type: item.order_type,
+                  notes: item.notes,
+                  watchlist_item_id: item.id,
                 }),
               }).catch(() => {});
             }
@@ -970,7 +982,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         (futures) API. Rows default to Status sort (Triggered → Ongoing →
         None). Use the Sort by dropdown to reorder by coin, 24h %, volume,
         price, trigger, or change text — or toggle visible columns from the
-        "Columns" button.
+        “Columns” button.
       </p>
 
       {details && (
