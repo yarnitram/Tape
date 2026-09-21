@@ -105,6 +105,8 @@ interface ContractDetail {
   symbol: string;
   contractSize: number;
   maxLeverage: number;
+  /** The coin's logo, shown next to its name. */
+  baseCoinIconUrl: string;
 }
 
 // Every position defaults to $1 of margin. Leverage defaults to the coin's
@@ -798,42 +800,44 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       ) : (
         <>
           <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
-            <table className="w-full text-sm border-collapse min-w-[1680px]">
+            <table className="w-full text-xs border-collapse min-w-[1100px]">
               <thead>
-                <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
-                  <th className="px-3 py-2.5">Coin</th>
+                <tr className="align-top text-left text-xs text-muted uppercase tracking-wide hairline-b">
+                  <th className="px-2 py-1.5 text-left">Coin</th>
                   {colVisible("position") && (
-                    <th className="px-3 py-2.5 text-right">Position</th>
+                    <th className="px-2 py-1.5 text-center">Position</th>
                   )}
                   {colVisible("leverage") && (
-                    <th className="px-3 py-2.5 text-right">Leverage</th>
+                    <th className="px-2 py-1.5 text-center">Leverage</th>
                   )}
                   {colVisible("pnl") && (
-                    <th className="px-3 py-2.5 text-right">Unrealized PNL</th>
+                    <th className="px-2 py-1.5 text-center">Unrealized PNL</th>
                   )}
                   {colVisible("margin") && (
-                    <th className="px-3 py-2.5 text-right">Margin</th>
+                    <th className="px-2 py-1.5 text-center">Margin</th>
                   )}
                   {colVisible("lastPrice") && (
-                    <th className="px-3 py-2.5 text-right">Last price</th>
+                    <th className="px-2 py-1.5 text-center">Last price</th>
                   )}
                   {colVisible("trigger") && (
-                    <th className="px-3 py-2.5 text-right">Trigger</th>
+                    <th className="px-2 py-1.5 text-center">Trigger</th>
                   )}
                   {colVisible("firedPrice") && (
-                    <th className="px-3 py-2.5 text-right">Fired price</th>
+                    <th className="px-2 py-1.5 text-center">Fired price</th>
                   )}
                   {colVisible("plan") && (
-                    <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
+                    <th className="px-2 py-1.5 text-center">EP / SL / TP</th>
                   )}
                   {colVisible("orderType") && (
-                    <th className="px-3 py-2.5 text-right">Order type</th>
+                    <th className="px-2 py-1.5 text-center">Order type</th>
                   )}
-                  {colVisible("notes") && <th className="px-3 py-2.5">Notes</th>}
+                  {colVisible("notes") && (
+                    <th className="px-2 py-1.5 text-center">Notes</th>
+                  )}
                   {colVisible("firedAt") && (
-                    <th className="px-3 py-2.5">Fired at</th>
+                    <th className="px-2 py-1.5 text-center">Fired at</th>
                   )}
-                  <th className="px-3 py-2.5 text-right w-[88px]">Actions</th>
+                  <th className="px-2 py-1.5 text-right w-[64px]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -842,13 +846,23 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                   return (
                     <tr
                       key={a.id}
-                      className="hairline-b hover:bg-paper transition-colors"
+                      className="align-top hairline-b hover:bg-paper transition-colors"
                     >
-                      <td className="px-3 py-2.5">
-                        <span className="font-medium">{cleanSymbol(sym)}</span>
+                      <td className="px-2 py-1.5">
+                        <span className="flex items-center gap-1.5">
+                          {details[sym]?.baseCoinIconUrl && (
+                            <img
+                              src={details[sym].baseCoinIconUrl}
+                              alt={cleanSymbol(sym)}
+                              draggable={false}
+                              className="h-5 w-5 rounded-full object-contain"
+                            />
+                          )}
+                          <span className="font-medium">{cleanSymbol(sym)}</span>
+                        </span>
                       </td>
                       {colVisible("position") && (
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-2 py-1.5 text-center">
                           <span className="num">{fmtSize(a.positionSize)}</span>
                           <span
                             className={`block text-[10px] uppercase tracking-wide ${
@@ -860,7 +874,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("leverage") && (
-                        <td className="px-3 py-2.5 num text-right whitespace-nowrap">
+                        <td className="px-2 py-1.5 num text-center whitespace-nowrap">
                           {fmtLev(a.leverage)}
                           {a.leverageIsMax && (
                             <span className="text-muted text-[10px] ml-1">max</span>
@@ -869,7 +883,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       )}
                       {colVisible("pnl") && (
                         <td
-                          className={`px-3 py-2.5 num text-right whitespace-nowrap ${
+                          className={`px-2 py-1.5 num text-center whitespace-nowrap ${
                             a.pnl == null
                               ? ""
                               : a.pnl > 0
@@ -896,27 +910,27 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("margin") && (
-                        <td className="px-3 py-2.5 num text-right whitespace-nowrap">
+                        <td className="px-2 py-1.5 num text-center whitespace-nowrap">
                           {fmtMoney(a.marginUsd)}
                         </td>
                       )}
                       {colVisible("lastPrice") && (
-                        <td className="px-3 py-2.5 num text-right">
+                        <td className="px-2 py-1.5 num text-center">
                           {fmtPxVal(a.lastPrice)}
                         </td>
                       )}
                       {colVisible("trigger") && (
-                        <td className="px-3 py-2.5 num text-right">
+                        <td className="px-2 py-1.5 num text-center">
                           {fmtPxVal(a.trigger_price)}
                         </td>
                       )}
                       {colVisible("firedPrice") && (
-                        <td className="px-3 py-2.5 num text-right">
+                        <td className="px-2 py-1.5 num text-center">
                           {fmtPxVal(a.fired_price)}
                         </td>
                       )}
                       {colVisible("plan") && (
-                        <td className="px-3 py-2.5">
+                        <td className="px-2 py-1.5">
                           {/* Labelled stack, matching the Watchlist page. */}
                           <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
                             <span className="whitespace-nowrap">
@@ -935,7 +949,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("orderType") && (
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-2 py-1.5 text-center">
                           {a.order_type ? (
                             ORDER_TYPE_LABELS[a.order_type] ?? a.order_type
                           ) : (
@@ -944,7 +958,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("notes") && (
-                        <td className="px-3 py-2.5 max-w-[220px]">
+                        <td className="px-2 py-1.5 max-w-[160px] text-center">
                           {a.notes ? (
                             <span className="block truncate" title={a.notes}>
                               {a.notes}
@@ -955,10 +969,12 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("firedAt") && (
-                        <td className="px-3 py-2.5">{fmtDateTime(a.fired_at)}</td>
+                        <td className="px-2 py-1.5 num text-muted whitespace-nowrap text-center">
+                          {fmtDateTime(a.fired_at)}
+                        </td>
                       )}
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center justify-end gap-0.5">
                           <button
                             type="button"
                             onClick={() => setEditing(a)}
