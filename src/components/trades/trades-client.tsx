@@ -189,8 +189,8 @@ function buildRow(
   };
 }
 
-// Toggleable table columns (Coin, Fired at and the action icons are always
-// shown). Direction is deliberately not a column — the trigger direction only
+// Toggleable table columns (Coin and the action icons are always shown).
+// Direction is deliberately not a column — the trigger direction only
 // decides the side now (below = long, above = short).
 type ColKey =
   | "position"
@@ -202,7 +202,8 @@ type ColKey =
   | "firedPrice"
   | "plan"
   | "orderType"
-  | "notes";
+  | "notes"
+  | "firedAt";
 
 const COLUMNS: { key: ColKey; label: string }[] = [
   { key: "position", label: "Position" },
@@ -215,6 +216,7 @@ const COLUMNS: { key: ColKey; label: string }[] = [
   { key: "plan", label: "EP / SL / TP" },
   { key: "orderType", label: "Order type" },
   { key: "notes", label: "Notes" },
+  { key: "firedAt", label: "Fired at" },
 ];
 
 const DEFAULT_COLS: Record<ColKey, boolean> = {
@@ -228,6 +230,7 @@ const DEFAULT_COLS: Record<ColKey, boolean> = {
   plan: true,
   orderType: true,
   notes: true,
+  firedAt: true,
 };
 
 function loadCols(): Record<ColKey, boolean> {
@@ -827,7 +830,9 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                     <th className="px-3 py-2.5 text-right">Order type</th>
                   )}
                   {colVisible("notes") && <th className="px-3 py-2.5">Notes</th>}
-                  <th className="px-3 py-2.5">Fired at</th>
+                  {colVisible("firedAt") && (
+                    <th className="px-3 py-2.5">Fired at</th>
+                  )}
                   <th className="px-3 py-2.5 text-right w-[88px]">Actions</th>
                 </tr>
               </thead>
@@ -911,12 +916,22 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("plan") && (
-                        <td className="px-3 py-2.5 num text-center whitespace-nowrap">
-                          {fmtPxVal(a.entry_price)}
-                          <span className="text-muted mx-1">/</span>
-                          {fmtPxVal(a.stop_loss)}
-                          <span className="text-muted mx-1">/</span>
-                          {fmtPxVal(a.take_profit)}
+                        <td className="px-3 py-2.5">
+                          {/* Labelled stack, matching the Watchlist page. */}
+                          <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
+                            <span className="whitespace-nowrap">
+                              <span className="text-[10px] text-muted">EP: </span>
+                              {fmtPxVal(a.entry_price)}
+                            </span>
+                            <span className="whitespace-nowrap">
+                              <span className="text-[10px] text-muted">SL: </span>
+                              {fmtPxVal(a.stop_loss)}
+                            </span>
+                            <span className="whitespace-nowrap">
+                              <span className="text-[10px] text-muted">TP: </span>
+                              {fmtPxVal(a.take_profit)}
+                            </span>
+                          </div>
                         </td>
                       )}
                       {colVisible("orderType") && (
@@ -939,7 +954,9 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                           )}
                         </td>
                       )}
-                      <td className="px-3 py-2.5">{fmtDateTime(a.fired_at)}</td>
+                      {colVisible("firedAt") && (
+                        <td className="px-3 py-2.5">{fmtDateTime(a.fired_at)}</td>
+                      )}
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1">
                           <button
