@@ -39,20 +39,20 @@ const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
   { value: { field: "firedAt", dir: "asc" }, label: "Fired at (old → new)" },
   { value: { field: "symbol", dir: "asc" }, label: "Coin (A–Z)" },
   { value: { field: "symbol", dir: "desc" }, label: "Coin (Z–A)" },
-  { value: { field: "pnl", dir: "desc" }, label: "Unrealized P&L (high → low)" },
-  { value: { field: "pnl", dir: "asc" }, label: "Unrealized P&L (low → high)" },
+  { value: { field: "pnl", dir: "desc" }, label: "UPNL (high → low)" },
+  { value: { field: "pnl", dir: "asc" }, label: "UPNL (low → high)" },
   { value: { field: "position", dir: "desc" }, label: "Position (high → low)" },
   { value: { field: "position", dir: "asc" }, label: "Position (low → high)" },
   { value: { field: "margin", dir: "desc" }, label: "Margin (high → low)" },
   { value: { field: "margin", dir: "asc" }, label: "Margin (low → high)" },
   { value: { field: "leverage", dir: "desc" }, label: "Leverage (high → low)" },
   { value: { field: "leverage", dir: "asc" }, label: "Leverage (low → high)" },
-  { value: { field: "lastPrice", dir: "desc" }, label: "Last price (high → low)" },
-  { value: { field: "lastPrice", dir: "asc" }, label: "Last price (low → high)" },
+  { value: { field: "lastPrice", dir: "desc" }, label: "LP (high → low)" },
+  { value: { field: "lastPrice", dir: "asc" }, label: "LP (low → high)" },
   { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
   { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
-  { value: { field: "firedPrice", dir: "desc" }, label: "Fired price (high → low)" },
-  { value: { field: "firedPrice", dir: "asc" }, label: "Fired price (low → high)" },
+  { value: { field: "firedPrice", dir: "desc" }, label: "FP (high → low)" },
+  { value: { field: "firedPrice", dir: "asc" }, label: "FP (low → high)" },
   { value: { field: "entry", dir: "desc" }, label: "Entry (high → low)" },
   { value: { field: "entry", dir: "asc" }, label: "Entry (low → high)" },
   { value: { field: "stop", dir: "desc" }, label: "Stop-loss (high → low)" },
@@ -210,11 +210,11 @@ type ColKey =
 const COLUMNS: { key: ColKey; label: string }[] = [
   { key: "position", label: "Position" },
   { key: "leverage", label: "Leverage" },
-  { key: "pnl", label: "Unrealized PNL" },
+  { key: "pnl", label: "UPNL" },
   { key: "margin", label: "Margin" },
-  { key: "lastPrice", label: "Last price" },
+  { key: "lastPrice", label: "LP" },
   { key: "trigger", label: "Trigger" },
-  { key: "firedPrice", label: "Fired price" },
+  { key: "firedPrice", label: "FP" },
   { key: "plan", label: "EP / SL / TP" },
   { key: "orderType", label: "Order type" },
   { key: "notes", label: "Notes" },
@@ -349,7 +349,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   // Poll for newly fired alerts so the table stays live while the page is
   // open — alerts fire from the watchlist page poller or the always-on
   // background watcher. The fresh list simply replaces local state. The same
-  // tick refreshes the live MEXC prices that feed Last price / Unrealized PNL.
+  // tick refreshes the live MEXC prices that feed LP / UPNL.
   useEffect(() => {
     let cancelled = false;
     const intervalMs = Math.max(
@@ -403,7 +403,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   );
 
   // Ask MEXC for each coin's contract detail once per page load: maxLeverage
-  // is the default leverage, and Position / Unrealized P&L cannot be sized
+  // is the default leverage, and Position / UPNL cannot be sized
   // without it. Results are written unconditionally — a response that arrives
   // after this effect is torn down is still correct (React StrictMode mounts
   // effects twice in dev, which used to drop the answer entirely and leave
@@ -557,7 +557,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     return v != null ? fmtPx(v) : <span className="text-muted">—</span>;
   }
 
-  // Signed USD amount, e.g. "+$1.11" / "-$0.42". Used for Unrealized PNL.
+  // Signed USD amount, e.g. "+$1.11" / "-$0.42". Used for UPNL.
   function fmtUsd(v: number | null | undefined, digits = 2): string {
     if (v == null || !Number.isFinite(v)) return "—";
     const abs = Math.abs(v).toLocaleString("en-US", {
@@ -802,7 +802,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
             <table className="w-full text-xs border-collapse min-w-[1100px]">
               <thead>
-                <tr className="align-top text-left text-xs text-muted uppercase tracking-wide hairline-b">
+                <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
                   <th className="px-2 py-1.5 text-left">Coin</th>
                   {colVisible("position") && (
                     <th className="px-2 py-1.5 text-center">Position</th>
@@ -811,19 +811,19 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                     <th className="px-2 py-1.5 text-center">Leverage</th>
                   )}
                   {colVisible("pnl") && (
-                    <th className="px-2 py-1.5 text-center">Unrealized PNL</th>
+                    <th className="px-2 py-1.5 text-center">UPNL</th>
                   )}
                   {colVisible("margin") && (
                     <th className="px-2 py-1.5 text-center">Margin</th>
                   )}
                   {colVisible("lastPrice") && (
-                    <th className="px-2 py-1.5 text-center">Last price</th>
+                    <th className="px-2 py-1.5 text-center">LP</th>
                   )}
                   {colVisible("trigger") && (
                     <th className="px-2 py-1.5 text-center">Trigger</th>
                   )}
                   {colVisible("firedPrice") && (
-                    <th className="px-2 py-1.5 text-center">Fired price</th>
+                    <th className="px-2 py-1.5 text-center">FP</th>
                   )}
                   {colVisible("plan") && (
                     <th className="px-2 py-1.5 text-center">EP / SL / TP</th>
@@ -846,7 +846,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                   return (
                     <tr
                       key={a.id}
-                      className="align-top hairline-b hover:bg-paper transition-colors"
+                      className="hairline-b hover:bg-paper transition-colors"
                     >
                       <td className="px-2 py-1.5">
                         <span className="flex items-center gap-1.5">
@@ -863,7 +863,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       </td>
                       {colVisible("position") && (
                         <td className="px-2 py-1.5 text-center">
-                          <span className="num">{fmtSize(a.positionSize)}</span>
+                          <span className="font-mono tabular-nums whitespace-nowrap">{fmtSize(a.positionSize)}</span>
                           <span
                             className={`block text-[10px] uppercase tracking-wide ${
                               a.side === "long" ? "text-gain" : "text-loss"
@@ -874,7 +874,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("leverage") && (
-                        <td className="px-2 py-1.5 num text-center whitespace-nowrap">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap">
                           {fmtLev(a.leverage)}
                           {a.leverageIsMax && (
                             <span className="text-muted text-[10px] ml-1">max</span>
@@ -883,7 +883,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       )}
                       {colVisible("pnl") && (
                         <td
-                          className={`px-2 py-1.5 num text-center whitespace-nowrap ${
+                          className={`px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap ${
                             a.pnl == null
                               ? ""
                               : a.pnl > 0
@@ -910,22 +910,22 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("margin") && (
-                        <td className="px-2 py-1.5 num text-center whitespace-nowrap">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap">
                           {fmtMoney(a.marginUsd)}
                         </td>
                       )}
                       {colVisible("lastPrice") && (
-                        <td className="px-2 py-1.5 num text-center">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
                           {fmtPxVal(a.lastPrice)}
                         </td>
                       )}
                       {colVisible("trigger") && (
-                        <td className="px-2 py-1.5 num text-center">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
                           {fmtPxVal(a.trigger_price)}
                         </td>
                       )}
                       {colVisible("firedPrice") && (
-                        <td className="px-2 py-1.5 num text-center">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
                           {fmtPxVal(a.fired_price)}
                         </td>
                       )}
@@ -969,7 +969,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("firedAt") && (
-                        <td className="px-2 py-1.5 num text-muted whitespace-nowrap text-center">
+                        <td className="px-2 py-1.5 font-mono tabular-nums text-muted whitespace-nowrap text-center">
                           {fmtDateTime(a.fired_at)}
                         </td>
                       )}
@@ -1055,7 +1055,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
 
       <p className="text-xs text-muted">
         Every fired watchlist alert is logged here automatically with its token
-        data (trigger, fired price, trade plan). Position and Unrealized PNL are
+        data (trigger, fired price, trade plan). Position and UPNL are
         sized from the margin (default $1) and leverage (default: the coin&apos;s
         maximum), marked against the live MEXC price. Use the pencil icon to
         edit a trade, the bin icon to delete it, the Sort by dropdown to reorder
