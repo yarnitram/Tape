@@ -27,7 +27,9 @@ interface Ticker {
 
 const ORDER_KEY = "tape:watchlist-order";
 const SORT_KEY = "tape:watchlist-sort";
+// Legacy single-toggle key; read during migration only.
 const DETAILS_COLS_KEY = "tape:watchlist-details-cols";
+const COLS_KEY = "tape:watchlist-cols";
 
 type SortField =
   | "status"
@@ -109,18 +111,68 @@ function saveOrder(ids: string[]) {
   }
 }
 
-function loadShowDetails(): boolean {
+// Toggleable table columns (Coin, drag handle and actions are always shown).
+type ColKey =
+  | "change"
+  | "volume"
+  | "price"
+  | "trigger"
+  | "plan"
+  | "orderType"
+  | "triggerAdded"
+  | "firedAt"
+  | "status";
+
+const COLUMNS: { key: ColKey; label: string }[] = [
+  { key: "change", label: "24h %" },
+  { key: "volume", label: "Volume (24h)" },
+  { key: "price", label: "Last Price" },
+  { key: "trigger", label: "Trigger" },
+  { key: "plan", label: "EP / SL / TP" },
+  { key: "orderType", label: "Order type" },
+  { key: "triggerAdded", label: "Trigger added" },
+  { key: "firedAt", label: "Fired at" },
+  { key: "status", label: "Status" },
+];
+
+const DEFAULT_COLS: Record<ColKey, boolean> = {
+  change: true,
+  volume: true,
+  price: true,
+  trigger: true,
+  plan: true,
+  orderType: true,
+  triggerAdded: true,
+  firedAt: true,
+  status: true,
+};
+
+function loadCols(): Record<ColKey, boolean> {
   try {
-    const raw = localStorage.getItem(DETAILS_COLS_KEY);
-    return raw === null ? true : raw === "1";
+    const raw = localStorage.getItem(COLS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Record<ColKey, boolean>>;
+      return { ...DEFAULT_COLS, ...parsed };
+    }
+    // Migrate the old single details toggle: if it hid the details columns,
+    // carry that over; otherwise start with everything visible.
+    if (localStorage.getItem(DETAILS_COLS_KEY) === "0") {
+      return {
+        ...DEFAULT_COLS,
+        orderType: false,
+        triggerAdded: false,
+        firedAt: false,
+      };
+    }
   } catch {
-    return true;
+    /* ignore */
   }
+  return { ...DEFAULT_COLS };
 }
 
-function saveShowDetails(show: boolean) {
+function saveCols(cols: Record<ColKey, boolean>) {
   try {
-    localStorage.setItem(DETAILS_COLS_KEY, show ? "1" : "0");
+    localStorage.setItem(COLS_KEY, JSON.stringify(cols));
   } catch {
     /* ignore */
   }
@@ -147,11 +199,30 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   // Case-insensitive filter for filtering the saved coins by symbol.
   const [filter, setFilter] = useState("");
 
-  // Whether the optional order-type / trigger-added / fired-at columns show.
-  // NOTE: always initialize to `true` so the server and client render the same
-  // initial columns. The persisted preference is applied AFTER hydration in an
-  // effect below (see the row-order effect), avoiding a hydration mismatch.
-  const [showDetails, setShowDetails] = useState<boolean>(true);
+  // Which table columns are visible. NOTE: always initialize to the default
+  // (all visible) so the server and client render the same initial columns.
+  // The persisted preference is applied AFTER hydration in an effect below,
+  // avoiding a hydration mismatch.
+  const [cols, setCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
+  const [colsOpen, setColsOpen] = useState(false);
+  const colsRef = useRef<HTMLDivElement>(null);
+
+  const colVisible = (key: ColKey) => cols[key] !== false;
+
+  function toggleCol(key: ColKey, on: boolean) {
+    setCols((prev) => {
+      const next = { ...prev, [key]: on };
+      saveCols(next);
+      return next;
+    });
+  }
+
+  function showAllCols() {
+    setCols(() => {
+      saveCols({ ...DEFAULT_COLS });
+      return { ...DEFAULT_COLS };
+    });
+  }
 
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
@@ -255,13 +326,25 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return () => clearTimeout(t);
   }, []);
 
-  // Apply the saved column-visibility preference ONLY after hydration, so the
+  // Apply the saved column visibility preference ONLY after hydration, so the
   // server and client render the same initial columns (avoids a hydration
-  // mismatch when a saved value differs from the initial `true`).
+  // mismatch when a saved value differs from the initial default).
   useEffect(() => {
-    const t = setTimeout(() => setShowDetails(loadShowDetails()), 0);
+    const t = setTimeout(() => setCols(loadCols()), 0);
     return () => clearTimeout(t);
   }, []);
+
+  // Close the column picker when clicking outside of it.
+  useEffect(() => {
+    if (!colsOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (colsRef.current && !colsRef.current.contains(e.target as Node)) {
+        setColsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [colsOpen]);
 
   // Apply the saved sort AFTER hydration so the server and client render the
   // same initial row order (avoids a hydration mismatch from a non-default
@@ -690,19 +773,55 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             />
           </label>
           <div className="flex items-center gap-3 flex-wrap">
-          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none" title="Toggle order details columns">
-            <input
-              type="checkbox"
-              checked={showDetails}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setShowDetails(next);
-                saveShowDetails(next);
-              }}
-              className="accent-accent cursor-pointer"
-            />
-            Toggle
-          </label>
+          <div className="relative" ref={colsRef}>
+            <button
+              type="button"
+              onClick={() => setColsOpen((o) => !o)}
+              aria-expanded={colsOpen}
+              aria-haspopup="true"
+              className={`hairline bg-panel px-2 py-1.5 text-xs cursor-pointer rounded-md flex items-center gap-1.5 ${
+                colsOpen ? "border-accent text-accent" : "text-muted hover:text-text"
+              }`}
+            >
+              Columns
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <path d="M2 3.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {colsOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-30 w-52 hairline bg-panel shadow-lg rounded-lg p-2"
+                role="menu"
+              >
+                <div className="flex items-center justify-between px-2 pb-1.5 mb-1 hairline-b">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Show columns
+                  </span>
+                  <button
+                    type="button"
+                    onClick={showAllCols}
+                    className="text-[11px] text-accent hover:underline cursor-pointer"
+                  >
+                    Show all
+                  </button>
+                </div>
+                {COLUMNS.map((c) => (
+                  <label
+                    key={c.key}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs text-text rounded hover:bg-panel-soft cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={colVisible(c.key)}
+                      onChange={(e) => toggleCol(c.key, e.target.checked)}
+                      className="accent-accent cursor-pointer"
+                    />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-xs text-muted">
             <span>Sort by</span>
             <select
@@ -764,21 +883,33 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 <th className="px-2 py-2.5 w-8"></th>
                 <th className="px-2 py-2.5 w-10"></th>
                 <th className="px-3 py-2.5">Coin</th>
-                <th className="px-3 py-2.5 text-right">24h %</th>
-                <th className="px-3 py-2.5 text-right">Volume (24h)</th>
-                <th className="px-3 py-2.5 text-right">Last Price</th>
-                <th className="px-3 py-2.5 text-right">Trigger</th>
-                <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
-                {showDetails && (
+                {colVisible("change") && (
+                  <th className="px-3 py-2.5 text-right">24h %</th>
+                )}
+                {colVisible("volume") && (
+                  <th className="px-3 py-2.5 text-right">Volume (24h)</th>
+                )}
+                {colVisible("price") && (
+                  <th className="px-3 py-2.5 text-right">Last Price</th>
+                )}
+                {colVisible("trigger") && (
+                  <th className="px-3 py-2.5 text-right">Trigger</th>
+                )}
+                {colVisible("plan") && (
+                  <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
+                )}
+                {colVisible("orderType") && (
                   <th className="px-3 py-2.5 text-right">Order type</th>
                 )}
-                {showDetails && (
-                  <>
-                    <th className="px-3 py-2.5">Trigger added</th>
-                    <th className="px-3 py-2.5">Fired at</th>
-                  </>
+                {colVisible("triggerAdded") && (
+                  <th className="px-3 py-2.5">Trigger added</th>
                 )}
-                <th className="px-3 py-2.5 text-center">Status</th>
+                {colVisible("firedAt") && (
+                  <th className="px-3 py-2.5">Fired at</th>
+                )}
+                {colVisible("status") && (
+                  <th className="px-3 py-2.5 text-center">Status</th>
+                )}
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
             </thead>
@@ -844,47 +975,57 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         </span>
                       </button>
                     </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? (
-                        <span
-                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
-                            t.riseFallRate >= 0
-                              ? "bg-gain/10 text-gain"
-                              : "bg-loss/10 text-loss"
-                          }`}
-                        >
-                          {fmtPct(t.riseFallRate)}
-                        </span>
-                      ) : (
-                        "…"
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? fmtUsd(t.amount24) : "…"}
-                    </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? fmtPx(t.lastPrice) : "…"}
-                    </td>
-                    <td className="px-3 py-2.5 num text-muted">
-                      {i.trigger_price != null ? fmtPlanPx(i.trigger_price) : "—"}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">EP: </span>
-                          <span>{fmtPlanVal(i.entry_price)}</span>
-                        </span>
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">SL: </span>
-                          <span>{fmtPlanVal(i.stop_loss)}</span>
-                        </span>
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">TP: </span>
-                          <span>{fmtPlanVal(i.take_profit)}</span>
-                        </span>
-                      </div>
-                    </td>
-                    {showDetails && (
+                    {colVisible("change") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? (
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
+                              t.riseFallRate >= 0
+                                ? "bg-gain/10 text-gain"
+                                : "bg-loss/10 text-loss"
+                            }`}
+                          >
+                            {fmtPct(t.riseFallRate)}
+                          </span>
+                        ) : (
+                          "…"
+                        )}
+                      </td>
+                    )}
+                    {colVisible("volume") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? fmtUsd(t.amount24) : "…"}
+                      </td>
+                    )}
+                    {colVisible("price") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? fmtPx(t.lastPrice) : "…"}
+                      </td>
+                    )}
+                    {colVisible("trigger") && (
+                      <td className="px-3 py-2.5 num text-muted">
+                        {i.trigger_price != null ? fmtPlanPx(i.trigger_price) : "—"}
+                      </td>
+                    )}
+                    {colVisible("plan") && (
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">EP: </span>
+                            <span>{fmtPlanVal(i.entry_price)}</span>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">SL: </span>
+                            <span>{fmtPlanVal(i.stop_loss)}</span>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">TP: </span>
+                            <span>{fmtPlanVal(i.take_profit)}</span>
+                          </span>
+                        </div>
+                      </td>
+                    )}
+                    {colVisible("orderType") && (
                       <td className="px-3 py-2.5 num text-right">
                         {i.order_type ? (
                           ORDER_TYPE_LABELS[i.order_type] ?? i.order_type
@@ -893,31 +1034,33 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         )}
                       </td>
                     )}
-                    {showDetails && (
+                    {colVisible("triggerAdded") && (
                       <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                         {i.trigger_price != null
                           ? fmtDateTime(i.trigger_created_at)
                           : "—"}
                       </td>
                     )}
-                    {showDetails && (
+                    {colVisible("firedAt") && (
                       <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                         {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-xs text-center">
-                      {i.alert_fired ? (
-                        <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
-                          ● Triggered
-                        </span>
-                      ) : i.trigger_price != null ? (
-                        <span className="inline-flex items-center rounded-md bg-gain/10 px-2 py-0.5 text-xs font-semibold font-mono text-gain">
-                          ● Ongoing
-                        </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
+                    {colVisible("status") && (
+                      <td className="px-3 py-2.5 text-xs text-center">
+                        {i.alert_fired ? (
+                          <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
+                            ● Triggered
+                          </span>
+                        ) : i.trigger_price != null ? (
+                          <span className="inline-flex items-center rounded-md bg-gain/10 px-2 py-0.5 text-xs font-semibold font-mono text-gain">
+                            ● Ongoing
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                    )}
                     <td
                       className="px-3 py-2.5 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
