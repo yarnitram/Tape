@@ -107,24 +107,24 @@ interface ContractDetail {
   maxLeverage: number;
 }
 
-// Every position defaults to $1 of margin...
+// Every position defaults to $1 of margin. Leverage defaults to the coin's
+// maximum from MEXC — and when that is unknown, the row shows "—" rather than
+// a fabricated number.
 const DEFAULT_MARGIN_USD = 1;
-// ...and to the coin's max leverage. This is only used when MEXC's contract
-// detail can't be loaded, so P&L still renders instead of vanishing.
-const FALLBACK_MAX_LEVERAGE = 1;
 
 /** A logged alert plus the live price and position numbers derived from it. */
 interface TradeRow extends TradeAlert {
   /** Price the position was opened at: the plan's entry, else the fired price. */
   entryUsed: number | null;
   marginUsd: number;
-  /** Effective leverage (saved value, or the coin's max when none saved). */
-  leverage: number;
-  /** True when no leverage was saved, i.e. this is the exchange's maximum. */
+  /** Effective leverage (saved value, or the coin's max when none saved).
+   *  NULL when neither is known — the sizing columns then render as "—". */
+  leverage: number | null;
+  /** True when this is the exchange's maximum (verified, and none saved). */
   leverageIsMax: boolean;
   /** Position size in coins (notional ÷ entry). */
   positionSize: number | null;
-  notional: number;
+  notional: number | null;
   lastPrice: number | null;
   pnl: number | null;
   pnlPct: number | null;
@@ -153,16 +153,20 @@ function buildRow(
 
   const savedLev = a.leverage != null && a.leverage > 0 ? a.leverage : null;
   const maxLev = maxLeverage != null && maxLeverage > 0 ? maxLeverage : null;
-  const leverage = savedLev ?? maxLev ?? FALLBACK_MAX_LEVERAGE;
-  const leverageIsMax = savedLev == null;
+  const leverage = savedLev ?? maxLev;
+  // Only claim "max" once the exchange's maximum has actually been read.
+  const leverageIsMax = savedLev == null && maxLev != null;
 
-  const notional = marginUsd * leverage;
   const sign = side === "long" ? 1 : -1;
 
+  // Without leverage the position can't be sized, so everything derived from
+  // it stays null (rendered as "—") until the contract detail arrives.
+  let notional: number | null = null;
   let positionSize: number | null = null;
   let pnl: number | null = null;
   let pnlPct: number | null = null;
-  if (entryUsed != null && entryUsed > 0) {
+  if (leverage != null && entryUsed != null && entryUsed > 0) {
+    notional = marginUsd * leverage;
     positionSize = notional / entryUsed;
     if (lastPrice != null) {
       pnl = sign * positionSize * (lastPrice - entryUsed);
@@ -293,8 +297,14 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [live, setLive] = useState<Record<string, number>>({});
   // Contract detail keyed by symbol; supplies the default (max) leverage.
   const [details, setDetails] = useState<Record<string, ContractDetail>>({});
-  // Symbols already requested, so we never ask MEXC twice for the same coin.
-  const requestedRef = useRef<Set<string>>(new Set());
+  // Symbols with a detail request currently running, so a symbol is never
+  // fetched twice at once. Cleared in `finally` so a failure can be retried.
+  const inFlightRef = useRef<Set<string>>(new Set());
+  // Failed attempts per symbol — a broken/unlisted symbol stops after a few
+  // tries instead of retrying forever.
+  const attemptsRef = useRef<Record<string, number>>({});
+  // Bumped when a request fails, nudging this effect to run again.
+  const [retryTick, setRetryTick] = useState(0);
 
   // Row actions: the trade open in the edit modal, and the one awaiting
   // delete confirmation.
@@ -388,35 +398,59 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   );
 
   // Ask MEXC for each coin's contract detail once per page load: maxLeverage
-  // is the default leverage. Symbols are recorded before fetching, so a failed
-  // request is never retried in a loop; the route caches details for 60s.
+  // is the default leverage, and Position / Unrealized P&L cannot be sized
+  // without it. Results are written unconditionally — a response that arrives
+  // after this effect is torn down is still correct (React StrictMode mounts
+  // effects twice in dev, which used to drop the answer entirely and leave
+  // every row on a bogus 1× leverage). Failures retry a few times with
+  // backoff, then give up quietly.
   useEffect(() => {
-    const missing = symbols.filter((s) => !requestedRef.current.has(s));
+    const missing = symbols.filter(
+      (s) => !details[s] && !inFlightRef.current.has(s)
+    );
     if (missing.length === 0) return;
-    for (const sym of missing) requestedRef.current.add(sym);
+    for (const sym of missing) inFlightRef.current.add(sym);
 
-    let cancelled = false;
+    // Stops further requests after unmount; already-arrived results still land.
+    let stopped = false;
     (async () => {
-      for (const sym of missing) {
+      for (let i = 0; i < missing.length; i++) {
+        const sym = missing[i];
+        // Stagger, and back off on retries, so a page with many coins doesn't
+        // fire one burst of requests.
+        const delay = i * 120 + (attemptsRef.current[sym] ?? 0) * 1500;
+        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+        if (stopped) break;
         try {
           const res = await fetch(
             `/api/mexc/futures?symbol=${encodeURIComponent(sym)}`
           );
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (cancelled || !data.detail) continue;
-          const detail = data.detail as ContractDetail;
-          setDetails((prev) => ({ ...prev, [sym]: detail }));
+          const data = res.ok ? await res.json() : null;
+          if (data?.detail) {
+            attemptsRef.current[sym] = 0;
+            const detail = data.detail as ContractDetail;
+            setDetails((prev) => ({ ...prev, [sym]: detail }));
+          } else {
+            throw new Error(`no contract detail (HTTP ${res.status})`);
+          }
         } catch {
-          // Row falls back to whatever leverage is stored on the alert.
+          attemptsRef.current[sym] = (attemptsRef.current[sym] ?? 0) + 1;
+          const done = attemptsRef.current[sym];
+          if (done < 3) {
+            setTimeout(() => {
+              if (!stopped) setRetryTick((t) => t + 1);
+            }, done * 1500);
+          }
+        } finally {
+          inFlightRef.current.delete(sym);
         }
       }
     })();
 
     return () => {
-      cancelled = true;
+      stopped = true;
     };
-  }, [symbols]);
+  }, [symbols, details, retryTick]);
 
   // Clear the action notice after a few seconds.
   useEffect(() => {
@@ -537,8 +571,9 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     })}`;
   }
 
-  // Leverage rendered as "50×" (whole numbers stay clean).
-  function fmtLev(v: number): string {
+  // Leverage rendered as "50×"; "—" when the exchange max isn't known yet.
+  function fmtLev(v: number | null): string {
+    if (v == null || !Number.isFinite(v)) return "—";
     return `${v % 1 === 0 ? v : v.toFixed(2)}×`;
   }
 
