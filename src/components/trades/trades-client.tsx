@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sideForTrigger, type TradeAlert, type TradeSide } from "@/lib/types";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { TradeEditModal } from "./trade-edit-modal";
+import { useLivePrices, formatLastRefreshed } from "./use-live-prices";
 
 interface Props {
   initialAlerts: TradeAlert[];
@@ -92,12 +93,6 @@ function saveSort(c: SortConfig) {
 /** Transform a symbol like "BTC_USDT" into a readable coin label "BTC". */
 function cleanSymbol(s: string): string {
   return s.replace(/_USDT$/i, "");
-}
-
-/** The only live ticker field we need (see GET /api/mexc/futures). */
-interface Ticker {
-  symbol: string;
-  lastPrice: number;
 }
 
 /** The only contract-detail fields we need (see GET /api/mexc/futures). */
@@ -298,17 +293,25 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
 
-  // Live MEXC last price keyed by symbol (e.g. "BTC_USDT" → 64123.5).
-  const [live, setLive] = useState<Record<string, number>>({});
+  // Live MEXC prices keyed by symbol (e.g. "BTC_USDT" → 64123.5).
+  // Wraps the REST polling logic from /api/mexc/futures. Fails gracefully:
+  // prices are cosmetic, so a failed poll keeps the last known snapshot.
+  const {
+    prices: live,
+    loading: pricesLoading,
+    error: pricesError,
+    lastRefreshed,
+    refreshIntervalSec: pricesRefreshInterval,
+  } = useLivePrices(alerts.map((a) => a.symbol.toUpperCase()), refreshIntervalSec);
+
   // Contract detail keyed by symbol; supplies the default (max) leverage.
+  // Position / UPNL cannot be sized without it, so we fetch once per page load.
   const [details, setDetails] = useState<Record<string, ContractDetail>>({});
-  // Symbols with a detail request currently running, so a symbol is never
-  // fetched twice at once. Cleared in `finally` so a failure can be retried.
+  // Mirror of `details` for the fetch effect, which must not list the state
+  // in its deps (see the effect below).
+  const detailsRef = useRef<Record<string, ContractDetail>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
-  // Failed attempts per symbol — a broken/unlisted symbol stops after a few
-  // tries instead of retrying forever.
   const attemptsRef = useRef<Record<string, number>>({});
-  // Bumped when a request fails, nudging this effect to run again.
   const [retryTick, setRetryTick] = useState(0);
 
   // Row actions: the trade open in the edit modal, and the one awaiting
@@ -348,8 +351,9 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
 
   // Poll for newly fired alerts so the table stays live while the page is
   // open — alerts fire from the watchlist page poller or the always-on
-  // background watcher. The fresh list simply replaces local state. The same
-  // tick refreshes the live MEXC prices that feed LP / UPNL.
+  // background watcher. The fresh list simply replaces local state.
+  // Live prices are handled by useLivePrices (above); this effect only refreshes
+  // the alert list, which indirectly updates which symbols the price hook tracks.
   useEffect(() => {
     let cancelled = false;
     const intervalMs = Math.max(
@@ -357,39 +361,23 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       (Number(refreshIntervalSec) || 10) * 1000
     );
 
-    async function refresh() {
+    async function refreshAlerts() {
       try {
         const res = await fetch("/api/trade-alerts");
-        if (!res.ok) return;
+        if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled && Array.isArray(data.alerts)) {
+        if (Array.isArray(data.alerts)) {
           setAlerts(data.alerts as TradeAlert[]);
         }
       } catch {
         // keep last known data on failure
       }
-
-      // One request returns every USDT perpetual; the route caches the
-      // exchange reply for 5s, so this is cheap on every poll.
-      try {
-        const res = await fetch("/api/mexc/futures");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled || !Array.isArray(data.tickers)) return;
-        const map: Record<string, number> = {};
-        for (const t of data.tickers as Ticker[]) {
-          if (typeof t.lastPrice === "number") map[t.symbol] = t.lastPrice;
-        }
-        setLive(map);
-      } catch {
-        // prices are cosmetic — keep the previous snapshot
-      }
     }
 
     // Fetch once on mount, then on the poll interval.
-    refresh();
+    refreshAlerts();
 
-    const id = setInterval(refresh, intervalMs);
+    const id = setInterval(refreshAlerts, intervalMs);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -410,23 +398,40 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   // every row on a bogus 1× leverage). Failures retry a few times with
   // backoff, then give up quietly.
   useEffect(() => {
+    // Read the latest details through a ref rather than depending on the
+    // state directly. Depending on `details` made our own setDetails() tear
+    // this effect down mid-loop, which abandoned every coin still queued
+    // behind the stagger — so only the first coin ever got its logo and its
+    // real max leverage.
+    // Snapshot the ref so the cleanup below closes over a stable value
+    // (react-hooks/exhaustive-deps) — the Set itself is never replaced.
+    const inFlight = inFlightRef.current;
     const missing = symbols.filter(
-      (s) => !details[s] && !inFlightRef.current.has(s)
+      (s) => !detailsRef.current[s] && !inFlight.has(s)
     );
     if (missing.length === 0) return;
-    for (const sym of missing) inFlightRef.current.add(sym);
+    for (const sym of missing) inFlight.add(sym);
 
-    // Stops further requests after unmount; already-arrived results still land.
+    // True only after a genuine teardown (unmount, or the symbol list
+    // changing). Set in the cleanup below.
     let stopped = false;
     (async () => {
       for (let i = 0; i < missing.length; i++) {
         const sym = missing[i];
-        // Stagger, and back off on retries, so a page with many coins doesn't
-        // fire one burst of requests.
-        const delay = i * 120 + (attemptsRef.current[sym] ?? 0) * 1500;
-        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
-        if (stopped) break;
+        // Release the in-flight claim as soon as we decide not to request
+        // this symbol, so a later run can still pick it up.
+        const releaseAndSkip = () => {
+          inFlight.delete(sym);
+        };
         try {
+          // Stagger, and back off on retries, so a page with many coins
+          // doesn't fire one burst of requests.
+          const delay = i * 120 + (attemptsRef.current[sym] ?? 0) * 1500;
+          if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+          if (stopped) {
+            releaseAndSkip();
+            break;
+          }
           const res = await fetch(
             `/api/mexc/futures?symbol=${encodeURIComponent(sym)}`
           );
@@ -447,15 +452,23 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
             }, done * 1500);
           }
         } finally {
-          inFlightRef.current.delete(sym);
+          inFlight.delete(sym);
         }
       }
     })();
 
     return () => {
       stopped = true;
+      // Any symbol this run never resolved must not stay claimed forever.
+      for (const sym of missing) inFlight.delete(sym);
     };
-  }, [symbols, details, retryTick]);
+  }, [symbols, retryTick]);
+
+  // Keep detailsRef in step with `details` so the fetch effect can read the
+  // latest values without depending on the state (which would restart it).
+  useEffect(() => {
+    detailsRef.current = details;
+  }, [details]);
 
   // Clear the action notice after a few seconds.
   useEffect(() => {
@@ -580,19 +593,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   function fmtLev(v: number | null): string {
     if (v == null || !Number.isFinite(v)) return "—";
     return `${v % 1 === 0 ? v : v.toFixed(2)}×`;
-  }
-
-  // Position size in coins. Extra decimals for cheap coins (15,033 ZAMA) and
-  // for tiny amounts of expensive ones (0.000781 BTC).
-  function fmtSize(v: number | null): string {
-    if (v == null || !Number.isFinite(v)) return "—";
-    if (v === 0) return "0";
-    const abs = Math.abs(v);
-    const decimals = abs >= 1000 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 6 : 8;
-    return v.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: decimals,
-    });
   }
 
   const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -800,44 +800,45 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       ) : (
         <>
           <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
-            <table className="w-full text-xs border-collapse min-w-[1100px]">
+            <table className="w-full text-sm border-collapse min-w-[1240px]">
               <thead>
                 <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
+                  <th className="w-9 min-w-9 px-2 py-1.5" aria-hidden="true" />
                   <th className="px-2 py-1.5 text-left">Coin</th>
                   {colVisible("position") && (
-                    <th className="px-2 py-1.5 text-center">Position</th>
+                    <th className="px-2 py-1.5 text-left">Position</th>
                   )}
                   {colVisible("leverage") && (
-                    <th className="px-2 py-1.5 text-center">Leverage</th>
+                    <th className="px-2 py-1.5 text-left">Leverage</th>
                   )}
                   {colVisible("pnl") && (
-                    <th className="px-2 py-1.5 text-center">UPNL</th>
+                    <th className="px-2 py-1.5 text-left">UPNL</th>
                   )}
                   {colVisible("margin") && (
-                    <th className="px-2 py-1.5 text-center">Margin</th>
+                    <th className="px-2 py-1.5 text-left">Margin</th>
                   )}
                   {colVisible("lastPrice") && (
-                    <th className="px-2 py-1.5 text-center">LP</th>
+                    <th className="px-2 py-1.5 text-left">LP</th>
                   )}
                   {colVisible("trigger") && (
-                    <th className="px-2 py-1.5 text-center">Trigger</th>
+                    <th className="px-2 py-1.5 text-left">Trigger</th>
                   )}
                   {colVisible("firedPrice") && (
-                    <th className="px-2 py-1.5 text-center">FP</th>
+                    <th className="px-2 py-1.5 text-left">FP</th>
                   )}
                   {colVisible("plan") && (
-                    <th className="px-2 py-1.5 text-center">EP / SL / TP</th>
+                    <th className="px-2 py-1.5 text-left">EP / SL / TP</th>
                   )}
                   {colVisible("orderType") && (
-                    <th className="px-2 py-1.5 text-center">Order type</th>
+                    <th className="px-2 py-1.5 text-left">Order type</th>
                   )}
                   {colVisible("notes") && (
-                    <th className="px-2 py-1.5 text-center">Notes</th>
+                    <th className="px-2 py-1.5 text-left">Notes</th>
                   )}
                   {colVisible("firedAt") && (
-                    <th className="px-2 py-1.5 text-center">Fired at</th>
+                    <th className="px-2 py-1.5 text-left">Fired at</th>
                   )}
-                  <th className="px-2 py-1.5 text-right w-[64px]">Actions</th>
+                  <th className="w-24 min-w-24 px-2 py-1.5 text-right" aria-hidden="true" />
                 </tr>
               </thead>
               <tbody>
@@ -848,25 +849,41 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       key={a.id}
                       className="hairline-b hover:bg-paper transition-colors"
                     >
-                      <td className="px-2 py-1.5">
-                        <span className="flex items-center gap-1.5">
-                          {details[sym]?.baseCoinIconUrl && (
+                      <td className="px-2 py-2.5">
+                        <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                          {details[sym]?.baseCoinIconUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={details[sym].baseCoinIconUrl}
-                              alt={cleanSymbol(sym)}
+                              alt=""
+                              aria-hidden="true"
                               draggable={false}
-                              className="h-5 w-5 rounded-full object-contain"
+                              width={20}
+                              height={20}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              className="size-5 shrink-0 object-contain"
                             />
+                          ) : (
+                            <span className="flex size-5 items-center justify-center rounded-full bg-panel-soft text-[10px] font-semibold text-muted">
+                              {cleanSymbol(sym).charAt(0).toUpperCase()}
+                            </span>
                           )}
-                          <span className="font-medium">{cleanSymbol(sym)}</span>
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <span className="font-medium">{cleanSymbol(sym)}</span>
+                        <span className="text-xs text-muted ml-1 block">
+                          {sym.replace("_USDT", "")}
                         </span>
                       </td>
                       {colVisible("position") && (
-                        <td className="px-2 py-1.5 text-center">
-                          <span className="font-mono tabular-nums whitespace-nowrap">{fmtSize(a.positionSize)}</span>
+                        <td className="px-2 py-2.5 text-left whitespace-nowrap">
                           <span
-                            className={`block text-[10px] uppercase tracking-wide ${
-                              a.side === "long" ? "text-gain" : "text-loss"
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                              a.side === "long"
+                                ? "bg-gain/10 text-gain"
+                                : "bg-loss/10 text-loss"
                             }`}
                           >
                             {a.side}
@@ -874,7 +891,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("leverage") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
                           {fmtLev(a.leverage)}
                           {a.leverageIsMax && (
                             <span className="text-muted text-[10px] ml-1">max</span>
@@ -882,74 +899,72 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("pnl") && (
-                        <td
-                          className={`px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap ${
-                            a.pnl == null
-                              ? ""
-                              : a.pnl > 0
-                                ? "text-gain"
-                                : a.pnl < 0
-                                  ? "text-loss"
-                                  : ""
-                          }`}
-                        >
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
                           {a.pnl == null ? (
                             <span className="text-muted">—</span>
                           ) : (
                             <>
-                              {fmtUsd(a.pnl)}
-                              <span className="block text-[10px] text-muted">
-                                {a.pnlPct != null
-                                  ? `${a.pnlPct >= 0 ? "+" : ""}${(
-                                      a.pnlPct * 100
-                                    ).toFixed(2)}%`
-                                  : ""}
+                              <span
+                                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
+                                  a.pnl > 0
+                                    ? "bg-gain/10 text-gain"
+                                    : a.pnl < 0
+                                      ? "bg-loss/10 text-loss"
+                                      : "bg-panel-soft text-muted"
+                                }`}
+                              >
+                                {fmtUsd(a.pnl)}
                               </span>
+                              {a.pnlPct != null && (
+                                <span className="block text-[10px] text-muted">
+                                  {a.pnlPct >= 0 ? "+" : ""}
+                                  {(a.pnlPct * 100).toFixed(2)}%
+                                </span>
+                              )}
                             </>
                           )}
                         </td>
                       )}
                       {colVisible("margin") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-center whitespace-nowrap">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
                           {fmtMoney(a.marginUsd)}
                         </td>
                       )}
                       {colVisible("lastPrice") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
                           {fmtPxVal(a.lastPrice)}
                         </td>
                       )}
                       {colVisible("trigger") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
                           {fmtPxVal(a.trigger_price)}
                         </td>
                       )}
                       {colVisible("firedPrice") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-center">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
                           {fmtPxVal(a.fired_price)}
                         </td>
                       )}
                       {colVisible("plan") && (
-                        <td className="px-2 py-1.5">
-                          {/* Labelled stack, matching the Watchlist page. */}
-                          <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
+                        <td className="px-2 py-2.5">
+                          <div className="flex flex-col gap-0.5 text-left font-mono tabular-nums leading-tight">
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-muted">EP: </span>
-                              {fmtPxVal(a.entry_price)}
+                              <span>{fmtPxVal(a.entry_price)}</span>
                             </span>
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-muted">SL: </span>
-                              {fmtPxVal(a.stop_loss)}
+                              <span>{fmtPxVal(a.stop_loss)}</span>
                             </span>
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-muted">TP: </span>
-                              {fmtPxVal(a.take_profit)}
+                              <span>{fmtPxVal(a.take_profit)}</span>
                             </span>
                           </div>
                         </td>
                       )}
                       {colVisible("orderType") && (
-                        <td className="px-2 py-1.5 text-center">
+                        <td className="px-2 py-2.5 text-left">
                           {a.order_type ? (
                             ORDER_TYPE_LABELS[a.order_type] ?? a.order_type
                           ) : (
@@ -958,7 +973,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("notes") && (
-                        <td className="px-2 py-1.5 max-w-[160px] text-center">
+                        <td className="px-2 py-2.5 max-w-[160px] text-left">
                           {a.notes ? (
                             <span className="block truncate" title={a.notes}>
                               {a.notes}
@@ -969,55 +984,30 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                         </td>
                       )}
                       {colVisible("firedAt") && (
-                        <td className="px-2 py-1.5 font-mono tabular-nums text-muted whitespace-nowrap text-center">
+                        <td className="px-2 py-2.5 font-mono tabular-nums text-muted whitespace-nowrap text-left">
                           {fmtDateTime(a.fired_at)}
                         </td>
                       )}
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setEditing(a)}
-                            title="Edit trade"
-                            aria-label={`Edit ${cleanSymbol(sym)} trade`}
-                            className="hairline rounded-md p-1.5 text-muted hover:text-accent hover:border-accent cursor-pointer transition-colors"
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 16 16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDelete(a)}
-                            title="Delete trade"
-                            aria-label={`Delete ${cleanSymbol(sym)} trade`}
-                            className="hairline rounded-md p-1.5 text-muted hover:text-loss hover:border-loss cursor-pointer transition-colors"
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 16 16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M2.5 4.5h11M6.5 4.5V3h3v1.5M4.5 4.5l.6 9h5.8l.6-9M6.8 7v4M9.2 7v4" />
-                            </svg>
-                          </button>
-                        </div>
+                      <td
+                        className="px-2 py-2.5 text-right whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setEditing(a)}
+                          className="text-accent hover:underline text-xs mr-3 cursor-pointer"
+                          title="Edit trade"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(a)}
+                          className="text-loss hover:underline text-xs cursor-pointer"
+                          title="Delete trade"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1057,10 +1047,30 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         Every fired watchlist alert is logged here automatically with its token
         data (trigger, fired price, trade plan). Position and UPNL are
         sized from the margin (default $1) and leverage (default: the coin&apos;s
-        maximum), marked against the live MEXC price. Use the pencil icon to
-        edit a trade, the bin icon to delete it, the Sort by dropdown to reorder
-        rows, or the “Columns” button to toggle columns. Alerts fire from the
-        Watchlist page poller or the always-on watcher script.
+        maximum), marked against the live MEXC price. Use the Edit button to
+        edit a trade, the Delete button to remove it, the Sort by dropdown to
+        reorder rows, or the “Columns” button to toggle columns. Alerts fire
+        from the Watchlist page poller or the always-on watcher script.
+      </p>
+
+      <p className="text-xs text-muted mt-1">
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              pricesLoading
+                ? "bg-panel-soft text-muted"
+                : pricesError
+                  ? "bg-loss/10 text-loss"
+                  : "bg-gain/10 text-gain"
+            }`}
+          >
+            {pricesLoading ? "Loading" : pricesError ? "Offline" : "Live"}
+          </span>
+          <span className="tabular-nums">
+            Prices refresh every {pricesRefreshInterval}s · last update{" "}
+            {formatLastRefreshed(lastRefreshed)}
+          </span>
+        </span>
       </p>
 
       {editing && (

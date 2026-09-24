@@ -45,3 +45,8 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local-only scratch / ad-hoc verification scripts
+/tmp/
+NUL
+*-check.js
