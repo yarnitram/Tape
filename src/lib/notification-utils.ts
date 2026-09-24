@@ -41,6 +41,8 @@ export function notificationIcon(type: NotificationType): string {
       return "⚠️";
     case "watchlist_trigger":
       return "🔔";
+    case "sl_tp_hit":
+      return "🎯";
     case "system":
     default:
       return "📢";
@@ -54,6 +56,8 @@ export function notificationColor(type: NotificationType): string {
     case "risk_warning":
       return "text-loss";
     case "watchlist_trigger":
+      return "text-accent";
+    case "sl_tp_hit":
       return "text-accent";
     case "system":
     default:
@@ -70,6 +74,8 @@ export function notificationBg(type: NotificationType): string {
       return "bg-loss/10";
     case "watchlist_trigger":
       return "bg-accent/10";
+    case "sl_tp_hit":
+      return "bg-accent/10";
     case "system":
     default:
       return "bg-muted/10";
@@ -84,6 +90,8 @@ export function notificationTypeLabel(type: NotificationType): string {
       return "Risk";
     case "watchlist_trigger":
       return "Trigger";
+    case "sl_tp_hit":
+      return "SL / TP";
     case "system":
     default:
       return "System";

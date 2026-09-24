@@ -103,6 +103,10 @@ create table if not exists trade_alerts (
   margin_usd numeric(18,2),
   leverage numeric(18,2),
   notes text,
+  -- Set once the live price crosses each plan level (added by migration 011).
+  -- NULL = not hit yet; a set timestamp means the level never fires again.
+  sl_fired_at timestamptz,
+  tp_fired_at timestamptz,
   fired_at timestamptz not null default now(),
   created_at timestamptz default now()
 );
