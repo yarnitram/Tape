@@ -109,6 +109,12 @@ export interface TradeAlert {
   /** Leverage used for the position (added by migration 010).
    *  NULL = use the contract's max leverage from MEXC. */
   leverage: number | null;
+  /** When the live price first crossed stop_loss (added by migration 011).
+   *  NULL = not hit yet. Once set, the level never fires again. */
+  sl_fired_at: string | null;
+  /** When the live price first crossed take_profit (added by migration 011).
+   *  NULL = not hit yet. Once set, the level never fires again. */
+  tp_fired_at: string | null;
   fired_at: string;
   created_at: string;
 }
@@ -127,7 +133,12 @@ export function sideForTrigger(
 }
 
 /** Notification types. */
-export type NotificationType = "trade_alert" | "risk_warning" | "system" | "watchlist_trigger";
+export type NotificationType =
+  | "trade_alert"
+  | "risk_warning"
+  | "system"
+  | "watchlist_trigger"
+  | "sl_tp_hit";
 
 /** A user notification. */
 export interface Notification {

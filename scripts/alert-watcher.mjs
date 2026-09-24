@@ -218,6 +218,112 @@ async function checkAll() {
 
     // Mark-fired already handled atomically above (claim step); nothing to do.
   }
+
+  await checkSlTp(prices, settingsByUser);
+}
+
+/**
+ * Check every logged trade plan for a stop-loss / take-profit hit.
+ *
+ * Runs alongside the watchlist scan so a hit is caught even when no browser
+ * tab is open — the two share one price snapshot per poll.
+ *
+ * The level is claimed atomically (only while its `*_fired_at` is still null)
+ * before anything is announced, so a level fires at most once no matter how
+ * many pollers are running.
+ */
+async function checkSlTp(prices, settingsByUser) {
+  let rows;
+  try {
+    rows = await supabase(
+      "/rest/v1/trade_alerts?select=id,user_id,symbol,trigger_direction,entry_price,stop_loss,take_profit,margin_usd,leverage,notes,sl_fired_at,tp_fired_at&or=(sl_fired_at.is.null,tp_fired_at.is.null)"
+    );
+  } catch (e) {
+    console.error("SL/TP fetch error:", e.message);
+    return;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  for (const row of rows) {
+    const price = prices[row.symbol];
+    if (price == null) continue;
+
+    for (const level of hitLevels(row, price)) {
+      const column = level === "sl" ? "sl_fired_at" : "tp_fired_at";
+      const levelPrice = level === "sl" ? row.stop_loss : row.take_profit;
+
+      // Claim atomically: the filter still requires the level to be unset, so
+      // a poller that loses the race gets an empty array and stays silent.
+      let claimed = [];
+      try {
+        claimed = await supabase(
+          `/rest/v1/trade_alerts?id=eq.${row.id}&${column}=is.null`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ [column]: new Date().toISOString() }),
+            headers: { Prefer: "return=representation" },
+          }
+        );
+      } catch (e) {
+        console.error("SL/TP claim error:", e.message);
+      }
+      if (!Array.isArray(claimed) || claimed.length === 0) continue;
+
+      const label = level === "sl" ? "Stop-loss" : "Take-profit";
+      console.log(
+        `[${stamp()}] ${level.toUpperCase()} ${row.symbol} last=${price} level=${levelPrice}`
+      );
+
+      const settings = settingsByUser[row.user_id];
+      if (settings?.notify_discord !== false && settings?.discord_webhook_url) {
+        await fireDiscord(
+          settings.discord_webhook_url,
+          `🎯 **${row.symbol}** hit **${level.toUpperCase()}** — last $${price} reached ${label.toLowerCase()} $${levelPrice}`
+        ).catch((e) => console.error("Discord error:", e.message));
+      }
+      if (settings?.notify_desktop !== false) {
+        await desktopNotify(
+          `${row.symbol} hit ${level.toUpperCase()}`,
+          `Last $${price} reached your ${label.toLowerCase()} at $${levelPrice}.`
+        ).catch(() => {});
+      }
+    }
+  }
+}
+
+/**
+ * Which plan levels this snapshot has hit. Mirrors src/lib/sl-tp.ts — the
+ * watcher is plain .mjs and cannot import TS, so the comparison is duplicated
+ * here and must be kept in step with that module (and its tests).
+ */
+function hitLevels(row, price) {
+  if (!Number.isFinite(price) || price <= 0) return [];
+
+  // No stored side: breaking BELOW the trigger is taken LONG, ABOVE is SHORT.
+  const isLong = row.trigger_direction !== "above";
+  const out = [];
+
+  if (row.stop_loss != null && row.sl_fired_at == null) {
+    const hit = isLong ? price <= row.stop_loss : price >= row.stop_loss;
+    if (hit) out.push("sl");
+  }
+  if (row.take_profit != null && row.tp_fired_at == null) {
+    const hit = isLong ? price >= row.take_profit : price <= row.take_profit;
+    if (hit) out.push("tp");
+  }
+
+  // A gap can cross both levels in one poll. Report only the one the price
+  // overshot least — that is the level it crossed first — so a single poll
+  // never emits contradictory alarms. Must match detectHits() in
+  // src/lib/sl-tp.ts, which the /trades page uses.
+  if (out.length === 2) {
+    const slDist = Math.abs(price - row.stop_loss);
+    const tpDist = Math.abs(price - row.take_profit);
+    // Ties keep SL, the protective level — the same tie-break detectHits()
+    // applies.
+    return slDist <= tpDist ? ["sl"] : ["tp"];
+  }
+  return out;
 }
 
 console.log(

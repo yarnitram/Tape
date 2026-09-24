@@ -363,6 +363,9 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
 
     async function refreshAlerts() {
       try {
+        // Check stop-loss / take-profit levels first so a hit is announced and
+        // journaled on this tick, then reload the list to pick up the plan.
+        await fetch("/api/trade-alerts/check", { method: "POST" }).catch(() => {});
         const res = await fetch("/api/trade-alerts");
         if (!res.ok || cancelled) return;
         const data = await res.json();
@@ -954,11 +957,37 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                             </span>
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-muted">SL: </span>
-                              <span>{fmtPxVal(a.stop_loss)}</span>
+                              <span
+                                className={
+                                  a.sl_fired_at
+                                    ? "text-loss font-semibold"
+                                    : undefined
+                                }
+                                title={
+                                  a.sl_fired_at
+                                    ? "Stop-loss was hit"
+                                    : undefined
+                                }
+                              >
+                                {fmtPxVal(a.stop_loss)}
+                              </span>
                             </span>
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-muted">TP: </span>
-                              <span>{fmtPxVal(a.take_profit)}</span>
+                              <span
+                                className={
+                                  a.tp_fired_at
+                                    ? "text-gain font-semibold"
+                                    : undefined
+                                }
+                                title={
+                                  a.tp_fired_at
+                                    ? "Take-profit was hit"
+                                    : undefined
+                                }
+                              >
+                                {fmtPxVal(a.take_profit)}
+                              </span>
                             </span>
                           </div>
                         </td>
