@@ -25,9 +25,10 @@ interface Ticker {
   fundingRate: number;
 }
 
-const ORDER_KEY = "tape:watchlist-order";
 const SORT_KEY = "tape:watchlist-sort";
+// Legacy single-toggle key; read during migration only.
 const DETAILS_COLS_KEY = "tape:watchlist-details-cols";
+const COLS_KEY = "tape:watchlist-cols";
 
 type SortField =
   | "status"
@@ -35,8 +36,7 @@ type SortField =
   | "change"
   | "volume"
   | "price"
-  | "trigger"
-  | "manual";
+  | "trigger";
 interface SortConfig {
   field: SortField;
   dir: "asc" | "desc";
@@ -56,7 +56,6 @@ const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
   { value: { field: "price", dir: "asc" }, label: "Last price (low → high)" },
   { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
   { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
-  { value: { field: "manual", dir: "asc" }, label: "Manual (drag order)" },
 ];
 
 function sortConfigKey(c: SortConfig): string {
@@ -92,35 +91,68 @@ function cleanSymbol(s: string): string {
   return s.replace(/_USDT$/i, "");
 }
 
-function loadOrder(): string[] | null {
-  try {
-    const raw = localStorage.getItem(ORDER_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : null;
-  } catch {
-    return null;
-  }
-}
+// Toggleable table columns (Coin and actions are always shown).
+type ColKey =
+  | "change"
+  | "volume"
+  | "price"
+  | "trigger"
+  | "plan"
+  | "orderType"
+  | "triggerAdded"
+  | "firedAt"
+  | "status";
 
-function saveOrder(ids: string[]) {
+const COLUMNS: { key: ColKey; label: string }[] = [
+  { key: "change", label: "24h %" },
+  { key: "volume", label: "Volume (24h)" },
+  { key: "price", label: "Last Price" },
+  { key: "trigger", label: "Trigger" },
+  { key: "plan", label: "EP / SL / TP" },
+  { key: "orderType", label: "Order type" },
+  { key: "triggerAdded", label: "Trigger added" },
+  { key: "firedAt", label: "Fired at" },
+  { key: "status", label: "Status" },
+];
+
+const DEFAULT_COLS: Record<ColKey, boolean> = {
+  change: true,
+  volume: true,
+  price: true,
+  trigger: true,
+  plan: true,
+  orderType: true,
+  triggerAdded: true,
+  firedAt: true,
+  status: true,
+};
+
+function loadCols(): Record<ColKey, boolean> {
   try {
-    localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
+    const raw = localStorage.getItem(COLS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Record<ColKey, boolean>>;
+      return { ...DEFAULT_COLS, ...parsed };
+    }
+    // Migrate the old single details toggle: if it hid the details columns,
+    // carry that over; otherwise start with everything visible.
+    if (localStorage.getItem(DETAILS_COLS_KEY) === "0") {
+      return {
+        ...DEFAULT_COLS,
+        orderType: false,
+        triggerAdded: false,
+        firedAt: false,
+      };
+    }
   } catch {
     /* ignore */
   }
+  return { ...DEFAULT_COLS };
 }
 
-function loadShowDetails(): boolean {
+function saveCols(cols: Record<ColKey, boolean>) {
   try {
-    const raw = localStorage.getItem(DETAILS_COLS_KEY);
-    return raw === null ? true : raw === "1";
-  } catch {
-    return true;
-  }
-}
-
-function saveShowDetails(show: boolean) {
-  try {
-    localStorage.setItem(DETAILS_COLS_KEY, show ? "1" : "0");
+    localStorage.setItem(COLS_KEY, JSON.stringify(cols));
   } catch {
     /* ignore */
   }
@@ -147,11 +179,30 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   // Case-insensitive filter for filtering the saved coins by symbol.
   const [filter, setFilter] = useState("");
 
-  // Whether the optional order-type / trigger-added / fired-at columns show.
-  // NOTE: always initialize to `true` so the server and client render the same
-  // initial columns. The persisted preference is applied AFTER hydration in an
-  // effect below (see the row-order effect), avoiding a hydration mismatch.
-  const [showDetails, setShowDetails] = useState<boolean>(true);
+  // Which table columns are visible. NOTE: always initialize to the default
+  // (all visible) so the server and client render the same initial columns.
+  // The persisted preference is applied AFTER hydration in an effect below,
+  // avoiding a hydration mismatch.
+  const [cols, setCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
+  const [colsOpen, setColsOpen] = useState(false);
+  const colsRef = useRef<HTMLDivElement>(null);
+
+  const colVisible = (key: ColKey) => cols[key] !== false;
+
+  function toggleCol(key: ColKey, on: boolean) {
+    setCols((prev) => {
+      const next = { ...prev, [key]: on };
+      saveCols(next);
+      return next;
+    });
+  }
+
+  function showAllCols() {
+    setCols(() => {
+      saveCols({ ...DEFAULT_COLS });
+      return { ...DEFAULT_COLS };
+    });
+  }
 
   // Live tickers keyed by symbol for all saved coins.
   const [live, setLive] = useState<Record<string, Ticker>>({});
@@ -164,25 +215,18 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
   } | null>(null);
   // Id of the row currently awaiting delete confirmation (or null).
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  // Drag-and-drop visual state: which row is being dragged / hovered over.
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
   // Pagination state. pageSize is one of 10/20/50/100, or Infinity for "All".
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragIdRef = useRef<string | null>(null);
 
   const symbolsToTrack = useMemo(
     () => items.map((i) => i.symbol.toUpperCase()),
     [items]
   );
 
-  // Rows in display order. "manual" keeps the stored drag-and-drop order;
-  // every other option (including the default Status sort) actively sorts.
-  const isManualSort = sort.field === "manual";
+  // Rows in display order: always sorted by the selected sort option.
   const sortedItems = useMemo(() => {
-    if (sort.field === "manual") return items;
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...items].sort((a, b) => {
       const aSym = a.symbol.toUpperCase();
@@ -236,32 +280,25 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     return filteredItems.slice(safePage * pageSize, (safePage + 1) * pageSize);
   }, [filteredItems, pageSize, safePage, hasPaging]);
 
-  // Apply any previously saved row order, but ONLY after hydration so the
-  // server and client render the same initial rows (avoids hydration
-  // mismatch). setTimeout defers the state update out of the effect body.
+  // Apply the saved column visibility preference ONLY after hydration, so the
+  // server and client render the same initial columns (avoids a hydration
+  // mismatch when a saved value differs from the initial default).
   useEffect(() => {
-    const order = loadOrder();
-    if (!order || order.length === 0) return;
-    const t = setTimeout(() => {
-      setItems((prev) => {
-        const byId = new Map(prev.map((i) => [i.id, i]));
-        const ordered = order
-          .map((id) => byId.get(id))
-          .filter((x): x is WatchlistItem => !!x);
-        const missing = prev.filter((i) => !order.includes(i.id));
-        return [...ordered, ...missing];
-      });
-    }, 0);
+    const t = setTimeout(() => setCols(loadCols()), 0);
     return () => clearTimeout(t);
   }, []);
 
-  // Apply the saved column-visibility preference ONLY after hydration, so the
-  // server and client render the same initial columns (avoids a hydration
-  // mismatch when a saved value differs from the initial `true`).
+  // Close the column picker when clicking outside of it.
   useEffect(() => {
-    const t = setTimeout(() => setShowDetails(loadShowDetails()), 0);
-    return () => clearTimeout(t);
-  }, []);
+    if (!colsOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (colsRef.current && !colsRef.current.contains(e.target as Node)) {
+        setColsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [colsOpen]);
 
   // Apply the saved sort AFTER hydration so the server and client render the
   // same initial row order (avoids a hydration mismatch from a non-default
@@ -333,6 +370,18 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                   title: `${cleanSymbol(sym)} hit your trigger`,
                   message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
                   link: "/watchlist",
+                  // Token data → logged to trade_alerts, which feeds the
+                  // /trades page table.
+                  symbol: sym,
+                  trigger_price: triggerPrice,
+                  trigger_direction: item.trigger_direction,
+                  fired_price: lastPrice,
+                  entry_price: item.entry_price,
+                  stop_loss: item.stop_loss,
+                  take_profit: item.take_profit,
+                  order_type: item.order_type,
+                  notes: item.notes,
+                  watchlist_item_id: item.id,
                 }),
               }).catch(() => {});
             }
@@ -396,18 +445,6 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
     };
   }, [symbolsToTrack]);
 
-  // Accepts either a concrete array or an updater function.
-  const setItemsAndOrder = (
-    next: WatchlistItem[] | ((prev: WatchlistItem[]) => WatchlistItem[])
-  ) => {
-    setItems((prev) => {
-      const resolved = typeof next === "function" ? next(prev) : next;
-      // Persist order to localStorage once we know the result.
-      queueMicrotask(() => saveOrder(resolved.map((i) => i.id)));
-      return resolved;
-    });
-  };
-
   async function doSearch(q: string) {
     const trimmed = q.trim();
     if (!trimmed) {
@@ -460,7 +497,7 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
         throw new Error(d.error || "Failed to add");
       }
       const { item } = await res.json();
-      setItemsAndOrder([...items, item]);
+      setItems([...items, item]);
       setNote(`Added ${cleanSymbol(sym)} to watchlist.`);
       // Open the detail modal right away so the user can set the price
       // trigger and trade plan without hunting for the Modify button.
@@ -472,88 +509,24 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
 
   async function removeCoin(id: string) {
     await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
-    setItemsAndOrder(items.filter((i) => i.id !== id));
+    setItems(items.filter((i) => i.id !== id));
     setConfirmRemove(null);
   }
 
-  // Reload the saved list after an alert/trade-plan save so the row reflects
-  // the updated trigger state. IMPORTANT: preserve the user's current row
-  // order (their dragged manual order) — replacing with the server's
-  // added_at order would both visually reset the list AND overwrite the
-  // saved manual order in localStorage.
+  // Reload the list after an alert/trade-plan save so the row reflects
+  // the updated trigger state.
   async function reloadItems() {
     try {
       const res = await fetch(`/api/watchlist`);
       if (!res.ok) return;
       const data = await res.json();
-      const fresh = (data.items ?? []) as WatchlistItem[];
-      setItemsAndOrder((prev) => {
-        const prevOrder = prev.map((i) => i.id);
-        const byId = new Map(fresh.map((i) => [i.id, i]));
-        const ordered = prevOrder
-          .map((id) => byId.get(id))
-          .filter((x): x is WatchlistItem => !!x);
-        // Rows that are new since the last render go at the end.
-        const missing = fresh.filter((i) => !prevOrder.includes(i.id));
-        return [...ordered, ...missing];
-      });
+      setItems((data.items ?? []) as WatchlistItem[]);
     } catch {
       /* ignore */
     }
   }
 
-  // ---- Drag & drop reorder (front-end only, Manual sort) ----
-  const reorderDrop = (targetId: string) => {
-    if (!isManualSort) return;
-    const fromId = dragIdRef.current;
-    if (!fromId || fromId === targetId) return;
-    setItemsAndOrder((prev) => {
-      const from = prev.findIndex((i) => i.id === fromId);
-      const to = prev.findIndex((i) => i.id === targetId);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      // After removal, indices above `from` shift left by one; inserting at
-      // `to` lands the row at the target's slot from either direction.
-      next.splice(to, 0, moved);
-      return next;
-    });
-  };
 
-  function handleDragStart(e: React.DragEvent, id: string) {
-    if (!isManualSort) {
-      e.preventDefault();
-      return;
-    }
-    // Firefox refuses to start a drag unless data is set.
-    e.dataTransfer.setData("text/plain", id);
-    e.dataTransfer.effectAllowed = "move";
-    dragIdRef.current = id;
-    // Defer the visual state change: a synchronous setState during dragstart
-    // re-renders the row while the browser is initialising the drag, which
-    // can cancel the drag and leave the grab cursor "stuck".
-    requestAnimationFrame(() => setDraggingId(id));
-  }
-
-  function handleDragOver(e: React.DragEvent, id: string) {
-    if (!isManualSort || dragIdRef.current == null) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    // Only update on actual target changes — dragover fires continuously.
-    setDragOverId((prev) => (prev === id ? prev : id));
-  }
-
-  function handleDrop(e: React.DragEvent, id: string) {
-    if (!isManualSort) return;
-    e.preventDefault();
-    reorderDrop(id);
-  }
-
-  function handleDragEnd() {
-    dragIdRef.current = null;
-    setDraggingId(null);
-    setDragOverId(null);
-  }
 
   // ---- Render helpers ----
   const inputCls =
@@ -690,19 +663,55 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
             />
           </label>
           <div className="flex items-center gap-3 flex-wrap">
-          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none" title="Toggle order details columns">
-            <input
-              type="checkbox"
-              checked={showDetails}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setShowDetails(next);
-                saveShowDetails(next);
-              }}
-              className="accent-accent cursor-pointer"
-            />
-            Toggle
-          </label>
+          <div className="relative" ref={colsRef}>
+            <button
+              type="button"
+              onClick={() => setColsOpen((o) => !o)}
+              aria-expanded={colsOpen}
+              aria-haspopup="true"
+              className={`hairline bg-panel px-2 py-1.5 text-xs cursor-pointer rounded-md flex items-center gap-1.5 ${
+                colsOpen ? "border-accent text-accent" : "text-muted hover:text-text"
+              }`}
+            >
+              Columns
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <path d="M2 3.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {colsOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-30 w-52 hairline bg-panel shadow-lg rounded-lg p-2"
+                role="menu"
+              >
+                <div className="flex items-center justify-between px-2 pb-1.5 mb-1 hairline-b">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    Show columns
+                  </span>
+                  <button
+                    type="button"
+                    onClick={showAllCols}
+                    className="text-[11px] text-accent hover:underline cursor-pointer"
+                  >
+                    Show all
+                  </button>
+                </div>
+                {COLUMNS.map((c) => (
+                  <label
+                    key={c.key}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs text-text rounded hover:bg-panel-soft cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={colVisible(c.key)}
+                      onChange={(e) => toggleCol(c.key, e.target.checked)}
+                      className="accent-accent cursor-pointer"
+                    />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-xs text-muted">
             <span>Sort by</span>
             <select
@@ -764,21 +773,33 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 <th className="px-2 py-2.5 w-8"></th>
                 <th className="px-2 py-2.5 w-10"></th>
                 <th className="px-3 py-2.5">Coin</th>
-                <th className="px-3 py-2.5 text-right">24h %</th>
-                <th className="px-3 py-2.5 text-right">Volume (24h)</th>
-                <th className="px-3 py-2.5 text-right">Last Price</th>
-                <th className="px-3 py-2.5 text-right">Trigger</th>
-                <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
-                {showDetails && (
+                {colVisible("change") && (
+                  <th className="px-3 py-2.5 text-right">24h %</th>
+                )}
+                {colVisible("volume") && (
+                  <th className="px-3 py-2.5 text-right">Volume (24h)</th>
+                )}
+                {colVisible("price") && (
+                  <th className="px-3 py-2.5 text-right">Last Price</th>
+                )}
+                {colVisible("trigger") && (
+                  <th className="px-3 py-2.5 text-right">Trigger</th>
+                )}
+                {colVisible("plan") && (
+                  <th className="px-3 py-2.5 text-center">EP / SL / TP</th>
+                )}
+                {colVisible("orderType") && (
                   <th className="px-3 py-2.5 text-right">Order type</th>
                 )}
-                {showDetails && (
-                  <>
-                    <th className="px-3 py-2.5">Trigger added</th>
-                    <th className="px-3 py-2.5">Fired at</th>
-                  </>
+                {colVisible("triggerAdded") && (
+                  <th className="px-3 py-2.5">Trigger added</th>
                 )}
-                <th className="px-3 py-2.5 text-center">Status</th>
+                {colVisible("firedAt") && (
+                  <th className="px-3 py-2.5">Fired at</th>
+                )}
+                {colVisible("status") && (
+                  <th className="px-3 py-2.5 text-center">Status</th>
+                )}
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
             </thead>
@@ -789,36 +810,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                 return (
                   <tr
                     key={i.id}
-                    onDragStart={(e) => handleDragStart(e, i.id)}
-                    onDragOver={(e) => handleDragOver(e, i.id)}
-                    onDrop={(e) => handleDrop(e, i.id)}
-                    onDragEnd={handleDragEnd}
-                    className={`hairline-b hover:bg-paper transition-colors ${
-                      draggingId === i.id ? "opacity-40" : ""
-                    } ${
-                      dragOverId === i.id && draggingId && draggingId !== i.id
-                        ? "border-t-2 border-t-accent"
-                        : ""
-                    }`}
+                    className="hairline-b hover:bg-paper transition-colors"
                   >
-                    <td
-                      className={`px-2 py-2.5 w-8 select-none ${
-                        isManualSort ? "cursor-grab text-muted" : ""
-                      }`}
-                      {...(isManualSort ? { title: "Drag to reorder" } : {})}
-                      aria-hidden={!isManualSort}
-                    >
-                      {isManualSort && (
-                        <span
-                          className="inline-block cursor-grab"
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, i.id)}
-                          onDragEnd={handleDragEnd}
-                        >
-                          ⋮⋮
-                        </span>
-                      )}
-                    </td>
+                    <td className="px-2 py-2.5 w-8" aria-hidden="true" />
                     <td className="px-2 py-2.5 text-center">
                       {icons[sym] && (
                         <img
@@ -844,47 +838,57 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         </span>
                       </button>
                     </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? (
-                        <span
-                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
-                            t.riseFallRate >= 0
-                              ? "bg-gain/10 text-gain"
-                              : "bg-loss/10 text-loss"
-                          }`}
-                        >
-                          {fmtPct(t.riseFallRate)}
-                        </span>
-                      ) : (
-                        "…"
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? fmtUsd(t.amount24) : "…"}
-                    </td>
-                    <td className="px-3 py-2.5 num">
-                      {t ? fmtPx(t.lastPrice) : "…"}
-                    </td>
-                    <td className="px-3 py-2.5 num text-muted">
-                      {i.trigger_price != null ? fmtPlanPx(i.trigger_price) : "—"}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">EP: </span>
-                          <span>{fmtPlanVal(i.entry_price)}</span>
-                        </span>
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">SL: </span>
-                          <span>{fmtPlanVal(i.stop_loss)}</span>
-                        </span>
-                        <span className="whitespace-nowrap">
-                          <span className="text-[10px] text-muted">TP: </span>
-                          <span>{fmtPlanVal(i.take_profit)}</span>
-                        </span>
-                      </div>
-                    </td>
-                    {showDetails && (
+                    {colVisible("change") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? (
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
+                              t.riseFallRate >= 0
+                                ? "bg-gain/10 text-gain"
+                                : "bg-loss/10 text-loss"
+                            }`}
+                          >
+                            {fmtPct(t.riseFallRate)}
+                          </span>
+                        ) : (
+                          "…"
+                        )}
+                      </td>
+                    )}
+                    {colVisible("volume") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? fmtUsd(t.amount24) : "…"}
+                      </td>
+                    )}
+                    {colVisible("price") && (
+                      <td className="px-3 py-2.5 num">
+                        {t ? fmtPx(t.lastPrice) : "…"}
+                      </td>
+                    )}
+                    {colVisible("trigger") && (
+                      <td className="px-3 py-2.5 num text-muted">
+                        {i.trigger_price != null ? fmtPlanPx(i.trigger_price) : "—"}
+                      </td>
+                    )}
+                    {colVisible("plan") && (
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-0.5 text-center font-mono tabular-nums leading-tight">
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">EP: </span>
+                            <span>{fmtPlanVal(i.entry_price)}</span>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">SL: </span>
+                            <span>{fmtPlanVal(i.stop_loss)}</span>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-muted">TP: </span>
+                            <span>{fmtPlanVal(i.take_profit)}</span>
+                          </span>
+                        </div>
+                      </td>
+                    )}
+                    {colVisible("orderType") && (
                       <td className="px-3 py-2.5 num text-right">
                         {i.order_type ? (
                           ORDER_TYPE_LABELS[i.order_type] ?? i.order_type
@@ -893,31 +897,33 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
                         )}
                       </td>
                     )}
-                    {showDetails && (
+                    {colVisible("triggerAdded") && (
                       <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                         {i.trigger_price != null
                           ? fmtDateTime(i.trigger_created_at)
                           : "—"}
                       </td>
                     )}
-                    {showDetails && (
+                    {colVisible("firedAt") && (
                       <td className="px-3 py-2.5 num text-muted whitespace-nowrap text-center">
                         {i.alert_fired ? fmtDateTime(i.alert_fired_at) : "—"}
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-xs text-center">
-                      {i.alert_fired ? (
-                        <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
-                          ● Triggered
-                        </span>
-                      ) : i.trigger_price != null ? (
-                        <span className="inline-flex items-center rounded-md bg-gain/10 px-2 py-0.5 text-xs font-semibold font-mono text-gain">
-                          ● Ongoing
-                        </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
+                    {colVisible("status") && (
+                      <td className="px-3 py-2.5 text-xs text-center">
+                        {i.alert_fired ? (
+                          <span className="inline-flex items-center rounded-md bg-loss/10 px-2 py-0.5 text-xs font-semibold font-mono text-loss">
+                            ● Triggered
+                          </span>
+                        ) : i.trigger_price != null ? (
+                          <span className="inline-flex items-center rounded-md bg-gain/10 px-2 py-0.5 text-xs font-semibold font-mono text-gain">
+                            ● Ongoing
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                    )}
                     <td
                       className="px-3 py-2.5 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
@@ -974,9 +980,9 @@ export function WatchlistClient({ initialItems, refreshIntervalSec = 10 }: Props
       <p className="text-xs text-muted">
         Live data refreshes every {refreshIntervalSec}s from the MEXC contract
         (futures) API. Rows default to Status sort (Triggered → Ongoing →
-        None). Drag handles appear in “Manual (drag order)” sort — drag{" "}
-        <span className="inline-block">⋮⋮</span> there to build a custom order
-        (saved locally), or sort by 24h %, volume, price, or trigger.
+        None). Use the Sort by dropdown to reorder by coin, 24h %, volume,
+        price, trigger, or change text — or toggle visible columns from the
+        “Columns” button.
       </p>
 
       {details && (

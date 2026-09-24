@@ -11,6 +11,12 @@ interface UserSettings {
   notify_desktop: boolean;
 }
 
+const numOrNull = (v: unknown) => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 /**
  * POST /api/alerts/fire
  * Dispatch a triggered alert across the user's configured channels:
@@ -18,6 +24,11 @@ interface UserSettings {
  *   2. Discord webhook (if webhook URL set + notify_discord)
  *   3. Desktop toast (if notify_desktop) — via local PowerShell
  * Body: { type, title, message, link }
+ *
+ * When token data accompanies the alert (symbol, trigger_price,
+ * trigger_direction, fired_price, entry_price, stop_loss, take_profit,
+ * order_type, notes, watchlist_item_id), the fired alert is also logged to
+ * the trade_alerts table, which feeds the /trades page table.
  *
  * All deliveries are best-effort: a failed channel never fails the request.
  */
@@ -43,6 +54,13 @@ export async function POST(request: Request) {
   const message = String(b.message ?? "").trim();
   const link = b.link != null && String(b.link).trim() !== "" ? String(b.link).trim() : null;
 
+  // Optional token data: when present, the fired alert is logged to
+  // trade_alerts (feeds the /trades page table).
+  const symbol =
+    b.symbol != null && String(b.symbol).trim() !== ""
+      ? String(b.symbol).trim().toUpperCase()
+      : null;
+
   if (!title || !message) {
     return NextResponse.json({ error: "title and message required" }, { status: 400 });
   }
@@ -62,11 +80,12 @@ export async function POST(request: Request) {
 
   const channels: {
     inApp: boolean;
+    tradeLog: boolean;
     discord: boolean;
     desktop: boolean;
-    errors?: { discord?: string; desktop?: string };
-  } = { inApp: false, discord: false, desktop: false };
-  const errors: { discord?: string; desktop?: string } = {};
+    errors?: { discord?: string; desktop?: string; tradeLog?: string };
+  } = { inApp: false, tradeLog: false, discord: false, desktop: false };
+  const errors: { discord?: string; desktop?: string; tradeLog?: string } = {};
 
   // 1) Always create the in-app notification (bell + /notifications page).
   const { error: notifError } = await supabase.from("notifications").insert({
@@ -78,6 +97,42 @@ export async function POST(request: Request) {
     read: false,
   });
   if (!notifError) channels.inApp = true;
+
+  // 1b) When token data accompanies the alert, log the fired alert to
+  //     trade_alerts — this feeds the /trades page table. Best-effort:
+  //     a failed insert never fails the request.
+  if (symbol) {
+    const { error: tradeLogError } = await supabase.from("trade_alerts").insert({
+      user_id: user.id,
+      symbol,
+      trigger_price: numOrNull(b.trigger_price),
+      trigger_direction:
+        b.trigger_direction === "above" || b.trigger_direction === "below"
+          ? b.trigger_direction
+          : null,
+      fired_price: numOrNull(b.fired_price),
+      entry_price: numOrNull(b.entry_price),
+      stop_loss: numOrNull(b.stop_loss),
+      take_profit: numOrNull(b.take_profit),
+      order_type:
+        b.order_type === "limit" ||
+        b.order_type === "trigger_limit" ||
+        b.order_type === "market"
+          ? b.order_type
+          : null,
+      notes:
+        b.notes != null && String(b.notes).trim() !== ""
+          ? String(b.notes).trim()
+          : null,
+      watchlist_item_id:
+        b.watchlist_item_id != null && String(b.watchlist_item_id).trim() !== ""
+          ? String(b.watchlist_item_id).trim()
+          : null,
+      fired_at: new Date().toISOString(),
+    });
+    if (!tradeLogError) channels.tradeLog = true;
+    else errors.tradeLog = tradeLogError.message;
+  }
 
   // 2) Discord webhook (best-effort).
   if (s.notify_discord && s.discord_webhook_url) {
@@ -100,8 +155,13 @@ export async function POST(request: Request) {
   // the caller can log/diagnose if a channel didn't fire.
   const res: {
     ok: true;
-    channels: { inApp: boolean; discord: boolean; desktop: boolean };
-    errors?: { discord?: string; desktop?: string };
+    channels: {
+      inApp: boolean;
+      tradeLog: boolean;
+      discord: boolean;
+      desktop: boolean;
+    };
+    errors?: { discord?: string; desktop?: string; tradeLog?: string };
   } = { ok: true, channels };
   if (Object.keys(errors).length > 0) res.errors = errors;
   return NextResponse.json(res);

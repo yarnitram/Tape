@@ -42,6 +42,9 @@ const EXPECTED = {
   watchlist_items: ["id", "user_id", "symbol", "notes", "alert_price", "added_at",
     "trigger_price", "trigger_direction", "entry_price", "stop_loss", "take_profit", "alert_fired", "alert_fired_at"],
   user_settings: ["user_id", "discord_webhook_url", "notify_discord", "notify_desktop", "updated_at", "refresh_interval_sec"],
+  trade_alerts: ["id", "user_id", "watchlist_item_id", "symbol", "trigger_price", "trigger_direction",
+    "fired_price", "entry_price", "stop_loss", "take_profit", "order_type", "notes",
+    "margin_usd", "leverage", "fired_at", "created_at"],
 };
 
 async function checkTable(name, columns) {

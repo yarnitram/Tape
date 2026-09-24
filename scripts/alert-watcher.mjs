@@ -105,7 +105,7 @@ function stamp() {
 async function checkAll() {
   const [watchlist, settingsByUser] = await Promise.all([
     supabase(
-      "/rest/v1/watchlist_items?select=id,user_id,symbol,trigger_price,trigger_direction,entry_price,stop_loss,take_profit,alert_fired"
+      "/rest/v1/watchlist_items?select=id,user_id,symbol,trigger_price,trigger_direction,entry_price,stop_loss,take_profit,order_type,notes,alert_fired"
     ),
     (async () => {
       const rows = await supabase(
@@ -163,6 +163,31 @@ async function checkAll() {
     console.log(
       `[${stamp()}] TRIGGER ${item.symbol} last=${price} trigger=${trigger}`
     );
+
+    // Log the fired token data to trade_alerts — this feeds the /trades
+    // page table. Best-effort: a failed insert never skips notifications.
+    try {
+      await supabase("/rest/v1/trade_alerts", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: item.user_id,
+          symbol: item.symbol,
+          trigger_price: item.trigger_price,
+          trigger_direction: item.trigger_direction ?? null,
+          fired_price: price,
+          entry_price: item.entry_price ?? null,
+          stop_loss: item.stop_loss ?? null,
+          take_profit: item.take_profit ?? null,
+          order_type: item.order_type ?? null,
+          notes: item.notes ?? null,
+          watchlist_item_id: item.id,
+          fired_at: new Date().toISOString(),
+        }),
+        headers: { Prefer: "return=minimal" },
+      });
+    } catch (e) {
+      console.error("Trade-log error:", e.message);
+    }
 
     // Build notification content with the trade plan.
     const plan = [];
