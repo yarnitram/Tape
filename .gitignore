@@ -50,3 +50,10 @@ next-env.d.ts
 /tmp/
 NUL
 *-check.js
+
+# ad-hoc test-user provisioning — hardcodes a test password and user id,
+# so these stay local and must never be committed
+/scripts/create-test-user.mjs
+/scripts/create-test-trades.mjs
+/scripts/confirm-email.mjs
+/scripts/confirm-email-rest.mjs
