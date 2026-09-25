@@ -135,6 +135,43 @@ export interface TradeAlert {
   tp_fired_at: string | null;
   fired_at: string;
   created_at: string;
+  /** Trade status (added by migration 015). Default: 'active'. */
+  status?: "active" | "closed";
+  closed_reason?: "tp_hit" | "sl_hit" | "manual_close" | null;
+  exit_price?: number | null;
+  closed_at?: string | null;
+  close_notes?: string | null;
+  realized_pnl_usd?: number | null;
+  realized_pnl_pct?: number | null;
+}
+
+export interface ArchivedTradeAlert {
+  id: string;
+  user_id: string;
+  original_trade_alert_id: string | null;
+  watchlist_item_id: string | null;
+  symbol: string;
+  trigger_price: number | null;
+  trigger_direction: "above" | "below" | null;
+  fired_price: number | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  order_type: OrderType | null;
+  notes: string | null;
+  margin_usd: number | null;
+  leverage: number | null;
+  sl_fired_at: string | null;
+  tp_fired_at: string | null;
+  fired_at: string | null;
+  status_at_archive: "active" | "closed";
+  closed_reason: "tp_hit" | "sl_hit" | "manual_close" | null;
+  exit_price: number | null;
+  closed_at: string | null;
+  close_notes: string | null;
+  realized_pnl_usd: number | null;
+  realized_pnl_pct: number | null;
+  archived_at: string;
 }
 
 export interface TriggeredWatchlistItem {

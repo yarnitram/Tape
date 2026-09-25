@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createTrade } from "@/lib/trade-ops";
 import { detectHits, levelLabel, type HitLevel } from "@/lib/sl-tp";
-import type { TradeAlert } from "@/lib/types";
+import { sideForTrigger, type TradeAlert } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +30,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Only rows with a level still outstanding can possibly fire.
+  // Only active rows with a level still outstanding can possibly fire.
   const { data, error } = await supabase
     .from("trade_alerts")
     .select("*")
     .eq("user_id", user.id)
+    .neq("status", "closed")
     .or("sl_fired_at.is.null,tp_fired_at.is.null");
 
   if (error) {
@@ -63,13 +64,31 @@ export async function POST(request: Request) {
 
     for (const { level } of detectHits(row, price)) {
       const column = level === "sl" ? "sl_fired_at" : "tp_fired_at";
+      const closedReason = level === "sl" ? "sl_hit" : "tp_hit";
+      const nowIso = new Date().toISOString();
 
-      // Claim the level atomically: only update while it is still unset. An
-      // empty result means another poller (tab or watcher) already won the
-      // race, so we skip every side effect for this level.
+      const entry = row.entry_price ?? row.fired_price;
+      const side = sideForTrigger(row.trigger_direction);
+      const lev = row.leverage ?? 1;
+      const margin = row.margin_usd ?? 1;
+      const sign = side === "long" ? 1 : -1;
+      const notional = margin * lev;
+      const posSize = entry && entry > 0 ? notional / entry : 0;
+      const pnlUsd = entry && entry > 0 ? sign * posSize * (price - entry) : null;
+      const pnlPct = entry && entry > 0 ? sign * (price / entry - 1) * lev : null;
+
+      // Claim the level atomically and set status to closed.
       const { data: claimed, error: claimError } = await supabase
         .from("trade_alerts")
-        .update({ [column]: new Date().toISOString() })
+        .update({
+          [column]: nowIso,
+          status: "closed",
+          closed_reason: closedReason,
+          exit_price: price,
+          closed_at: nowIso,
+          realized_pnl_usd: pnlUsd,
+          realized_pnl_pct: pnlPct,
+        })
         .eq("id", row.id)
         .is(column, null)
         .select("id");
@@ -79,7 +98,7 @@ export async function POST(request: Request) {
       hits.push({ symbol: row.symbol, level, price });
       await announce(request, row, level, price);
       if (accountId) {
-        await logToJournal(supabase, accountId, row, level, price).catch(() => {});
+        await logToJournal(supabase, accountId, row, level, price, pnlUsd, pnlPct).catch(() => {});
       }
     }
   }
@@ -199,11 +218,14 @@ async function logToJournal(
   accountId: string,
   row: TradeAlert,
   level: HitLevel,
-  hitPrice: number
+  hitPrice: number,
+  pnlUsd?: number | null,
+  pnlPct?: number | null
 ): Promise<void> {
   const entry = row.entry_price ?? hitPrice;
   const leverage = row.leverage ?? 1;
   const size = entry > 0 ? ((row.margin_usd ?? 1) * leverage) / entry : 0;
+  const nowIso = new Date().toISOString();
 
   // `direction` shares the long/short vocabulary of the trades table and is
   // derived from the trigger direction, matching sideForTrigger().
@@ -215,13 +237,13 @@ async function logToJournal(
     direction,
     size,
     entry_price: entry,
-    // Left open on purpose — reviewed and closed in the Journal.
-    exit_price: null,
+    exit_price: hitPrice,
     stop_price: row.stop_loss,
     fees: 0,
-    entry_time: new Date().toISOString(),
-    tags: [level === "sl" ? "SL hit" : "TP hit"],
-    post_trade_review: reviewNote(row, level, hitPrice, entry, size),
+    entry_time: row.fired_at || row.created_at || nowIso,
+    exit_time: nowIso,
+    tags: [level === "sl" ? "SL Hit" : "TP Hit"],
+    post_trade_review: reviewNote(row, level, hitPrice, entry, size, pnlUsd, pnlPct),
   });
 }
 
@@ -231,14 +253,19 @@ function reviewNote(
   level: HitLevel,
   hitPrice: number,
   entry: number,
-  size: number
+  size: number,
+  pnlUsd?: number | null,
+  pnlPct?: number | null
 ): string {
   const lines = [
-    `Auto-logged: ${levelLabel(level)} hit at ${hitPrice}.`,
+    `Auto-closed: ${levelLabel(level)} hit at ${hitPrice}.`,
     `Entry ${entry} · size ${size.toFixed(6)} · margin $${row.margin_usd ?? 1}${
       row.leverage != null ? ` · ${row.leverage}x` : ""
     }`,
   ];
+  if (pnlUsd != null && pnlPct != null) {
+    lines.push(`Realized PnL: $${pnlUsd.toFixed(2)} (${(pnlPct * 100).toFixed(2)}%)`);
+  }
   if (row.stop_loss != null) lines.push(`Stop-loss: ${row.stop_loss}`);
   if (row.take_profit != null) lines.push(`Take-profit: ${row.take_profit}`);
   if (row.notes) lines.push(`Original note: ${row.notes}`);

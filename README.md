@@ -15,10 +15,14 @@ Tape is a high-performance personal trading journal and real-time futures watchl
 
 > 📖 **Full Watchlist Documentation**: See [`WATCHLIST.md`](WATCHLIST.md) for architecture, trigger lifecycles, diagrams, and database schemas.
 
-### 2. Trade Journal & Trade Alerts
-- Track trades with Entry/Exit prices, P&L, position size, fees, and R-multiples.
-- Log trade thesis, reviews, screenshots, and discipline scores.
-- Direct logging of fired watchlist price triggers into the trade journal.
+### 2. Trades Page & Position Management
+- **3-Tab Architecture**: **Active Trades**, **Closed History**, and **Archive**.
+- **Manual Trade Creation**: Add market or limit trades directly on Trades page (`+ Manual Trade`) without Watchlist triggers.
+- **Interactive & Live Close Modal**: Close active trades with live MEXC price pre-fill and live realized PnL calculations ($ and %).
+- **Auto TP/SL Hit & Journaling**: Automatically closes trades when TP or SL target is hit and writes entry into Journal (`trades` table).
+- **Soft-Delete Archive**: Soft-delete trade alerts with Restore (↩) and Permanent Delete (🗑) options.
+
+> 📖 **Full Trades Documentation**: See [`TRADES.md`](TRADES.md) for trade lifecycles, PnL formulas, diagrams, and database schemas.
 
 ### 3. Risk Management & Notifications
 - Account-wide risk parameters (Max Daily Loss, Position Risk %, Max Open Positions).

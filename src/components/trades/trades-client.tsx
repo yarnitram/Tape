@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { sideForTrigger, type TradeAlert, type TradeSide } from "@/lib/types";
+import { sideForTrigger, type TradeAlert, type ArchivedTradeAlert, type TradeSide } from "@/lib/types";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { TradeEditModal } from "./trade-edit-modal";
+import { ManualTradeModal } from "./manual-trade-modal";
+import { CloseTradeModal } from "./close-trade-modal";
+import { ClosedTradesTab } from "./closed-trades-tab";
+import { ArchivedTradesTab } from "./archived-trades-tab";
 import { useLivePrices, formatLastRefreshed } from "./use-live-prices";
 
 interface Props {
@@ -53,7 +57,7 @@ const SORT_OPTIONS: { value: SortConfig; label: string }[] = [
   { value: { field: "trigger", dir: "desc" }, label: "Trigger (high → low)" },
   { value: { field: "trigger", dir: "asc" }, label: "Trigger (low → high)" },
   { value: { field: "firedPrice", dir: "desc" }, label: "FP (high → low)" },
-  { value: { field: "firedPrice", dir: "asc" }, label: "FP (low → high)" },
+  { value: { field: "firedPrice", dir: "asc" }, label: "FP (low → new)" },
   { value: { field: "entry", dir: "desc" }, label: "Entry (high → low)" },
   { value: { field: "entry", dir: "asc" }, label: "Entry (low → high)" },
   { value: { field: "stop", dir: "desc" }, label: "Stop-loss (high → low)" },
@@ -90,36 +94,24 @@ function saveSort(c: SortConfig) {
   }
 }
 
-/** Transform a symbol like "BTC_USDT" into a readable coin label "BTC". */
 function cleanSymbol(s: string): string {
   return s.replace(/_USDT$/i, "");
 }
 
-/** The only contract-detail fields we need (see GET /api/mexc/futures). */
 interface ContractDetail {
   symbol: string;
   contractSize: number;
   maxLeverage: number;
-  /** The coin's logo, shown next to its name. */
   baseCoinIconUrl: string;
 }
 
-// Every position defaults to $1 of margin. Leverage defaults to the coin's
-// maximum from MEXC — and when that is unknown, the row shows "—" rather than
-// a fabricated number.
 const DEFAULT_MARGIN_USD = 1;
 
-/** A logged alert plus the live price and position numbers derived from it. */
 interface TradeRow extends TradeAlert {
-  /** Price the position was opened at: the plan's entry, else the fired price. */
   entryUsed: number | null;
   marginUsd: number;
-  /** Effective leverage (saved value, or the coin's max when none saved).
-   *  NULL when neither is known — the sizing columns then render as "—". */
   leverage: number | null;
-  /** True when this is the exchange's maximum (verified, and none saved). */
   leverageIsMax: boolean;
-  /** Position size in coins (notional ÷ entry). */
   positionSize: number | null;
   notional: number | null;
   lastPrice: number | null;
@@ -128,20 +120,11 @@ interface TradeRow extends TradeAlert {
   side: TradeSide;
 }
 
-/**
- * Size a position and mark it to the live price.
- *
- *   notional  = margin × leverage
- *   position  = notional ÷ entry
- *   P&L       = side × position × (last − entry)
- *   P&L %     = side × (last ÷ entry − 1) × leverage   (return on margin)
- */
 function buildRow(
   a: TradeAlert,
   lastPrice: number | null,
   maxLeverage: number | null
 ): TradeRow {
-  // No stored side: breaking below the trigger is taken long, above is short.
   const side = sideForTrigger(a.trigger_direction);
   const entryUsed = a.entry_price ?? a.fired_price;
 
@@ -151,13 +134,10 @@ function buildRow(
   const savedLev = a.leverage != null && a.leverage > 0 ? a.leverage : null;
   const maxLev = maxLeverage != null && maxLeverage > 0 ? maxLeverage : null;
   const leverage = savedLev ?? maxLev;
-  // Only claim "max" once the exchange's maximum has actually been read.
   const leverageIsMax = savedLev == null && maxLev != null;
 
   const sign = side === "long" ? 1 : -1;
 
-  // Without leverage the position can't be sized, so everything derived from
-  // it stays null (rendered as "—") until the contract detail arrives.
   let notional: number | null = null;
   let positionSize: number | null = null;
   let pnl: number | null = null;
@@ -186,9 +166,6 @@ function buildRow(
   };
 }
 
-// Toggleable table columns (Coin and the action icons are always shown).
-// Direction is deliberately not a column — the trigger direction only
-// decides the side now (below = long, above = short).
 type ColKey =
   | "position"
   | "leverage"
@@ -252,22 +229,12 @@ function saveCols(cols: Record<ColKey, boolean>) {
 }
 
 export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) {
-  // NOTE: initialize with the server-provided order only. Applying any saved
-  // localStorage preference must happen AFTER hydration (see effects below),
-  // otherwise the server and client render different output and React throws
-  // a hydration mismatch error.
   const [alerts, setAlerts] = useState<TradeAlert[]>(initialAlerts);
+  const [archivedAlerts, setArchivedAlerts] = useState<ArchivedTradeAlert[]>([]);
+  const [activeTab, setActiveTab] = useState<"active" | "closed" | "archive">("active");
 
-  // Sort configuration. NOTE: always initialized to the default so the server
-  // and client render rows in the same order. The saved preference is applied
-  // AFTER hydration in an effect, avoiding a hydration mismatch.
   const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
-
-  // Case-insensitive filter for filtering fired alerts by coin.
   const [filter, setFilter] = useState("");
-
-  // Which table columns are visible. NOTE: always initialized to the default
-  // (all visible) so the server and client render the same initial columns.
   const [cols, setCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
   const [colsOpen, setColsOpen] = useState(false);
   const colsRef = useRef<HTMLDivElement>(null);
@@ -289,13 +256,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     });
   }
 
-  // Pagination state. pageSize is one of 10/20/50/100, or Infinity for "All".
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
 
-  // Live MEXC prices keyed by symbol (e.g. "BTC_USDT" → 64123.5).
-  // Wraps the REST polling logic from /api/mexc/futures. Fails gracefully:
-  // prices are cosmetic, so a failed poll keeps the last known snapshot.
+  // Live prices
   const {
     prices: live,
     loading: pricesLoading,
@@ -304,40 +268,60 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     refreshIntervalSec: pricesRefreshInterval,
   } = useLivePrices(alerts.map((a) => a.symbol.toUpperCase()), refreshIntervalSec);
 
-  // Contract detail keyed by symbol; supplies the default (max) leverage.
-  // Position / UPNL cannot be sized without it, so we fetch once per page load.
   const [details, setDetails] = useState<Record<string, ContractDetail>>({});
-  // Mirror of `details` for the fetch effect, which must not list the state
-  // in its deps (see the effect below).
   const detailsRef = useRef<Record<string, ContractDetail>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
   const attemptsRef = useRef<Record<string, number>>({});
   const [retryTick, setRetryTick] = useState(0);
 
-  // Row actions: the trade open in the edit modal, and the one awaiting
-  // delete confirmation.
+  // Modals & Action states
   const [editing, setEditing] = useState<TradeAlert | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<TradeAlert | null>(null);
-  // Transient confirmation ("Trade deleted.") shown under the table.
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [closingAlert, setClosingAlert] = useState<TradeAlert | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Apply the saved sort AFTER hydration so the server and client render the
-  // same initial row order (avoids a hydration mismatch from a non-default
-  // saved sort). `loadSort()` already falls back to the default when invalid.
+  // Split active and closed trade alerts
+  const activeAlerts = useMemo(
+    () => alerts.filter((a) => a.status !== "closed"),
+    [alerts]
+  );
+
+  const closedAlerts = useMemo(
+    () => alerts.filter((a) => a.status === "closed"),
+    [alerts]
+  );
+
+  // Fetch archived alerts when tab opens
+  const fetchArchived = async () => {
+    try {
+      const res = await fetch("/api/archived-trades");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.archivedAlerts)) {
+        setArchivedAlerts(data.archivedAlerts as ArchivedTradeAlert[]);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "archive") {
+      fetchArchived();
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     const t = setTimeout(() => setSort(loadSort()), 0);
     return () => clearTimeout(t);
   }, []);
 
-  // Apply the saved column visibility preference ONLY after hydration, so the
-  // server and client render the same initial columns (avoids a hydration
-  // mismatch when a saved value differs from the initial default).
   useEffect(() => {
     const t = setTimeout(() => setCols(loadCols()), 0);
     return () => clearTimeout(t);
   }, []);
 
-  // Close the column picker when clicking outside of it.
   useEffect(() => {
     if (!colsOpen) return;
     function onDocClick(e: MouseEvent) {
@@ -349,11 +333,21 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [colsOpen]);
 
-  // Poll for newly fired alerts so the table stays live while the page is
-  // open — alerts fire from the watchlist page poller or the always-on
-  // background watcher. The fresh list simply replaces local state.
-  // Live prices are handled by useLivePrices (above); this effect only refreshes
-  // the alert list, which indirectly updates which symbols the price hook tracks.
+  // Poll for active alert updates & TP/SL checks
+  const refreshAllAlerts = async () => {
+    try {
+      await fetch("/api/trade-alerts/check", { method: "POST" }).catch(() => {});
+      const res = await fetch("/api/trade-alerts");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.alerts)) {
+        setAlerts(data.alerts as TradeAlert[]);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const intervalMs = Math.max(
@@ -361,53 +355,26 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       (Number(refreshIntervalSec) || 10) * 1000
     );
 
-    async function refreshAlerts() {
-      try {
-        // Check stop-loss / take-profit levels first so a hit is announced and
-        // journaled on this tick, then reload the list to pick up the plan.
-        await fetch("/api/trade-alerts/check", { method: "POST" }).catch(() => {});
-        const res = await fetch("/api/trade-alerts");
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (Array.isArray(data.alerts)) {
-          setAlerts(data.alerts as TradeAlert[]);
-        }
-      } catch {
-        // keep last known data on failure
-      }
-    }
+    const run = async () => {
+      if (cancelled) return;
+      await refreshAllAlerts();
+    };
 
-    // Fetch once on mount, then on the poll interval.
-    refreshAlerts();
-
-    const id = setInterval(refreshAlerts, intervalMs);
+    run();
+    const id = setInterval(run, intervalMs);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
   }, [refreshIntervalSec]);
 
-  // Distinct coins on the page (sorted so the effect's dependency is stable).
+  // Contract details fetch
   const symbols = useMemo(
     () => Array.from(new Set(alerts.map((a) => a.symbol.toUpperCase()))).sort(),
     [alerts]
   );
 
-  // Ask MEXC for each coin's contract detail once per page load: maxLeverage
-  // is the default leverage, and Position / UPNL cannot be sized
-  // without it. Results are written unconditionally — a response that arrives
-  // after this effect is torn down is still correct (React StrictMode mounts
-  // effects twice in dev, which used to drop the answer entirely and leave
-  // every row on a bogus 1× leverage). Failures retry a few times with
-  // backoff, then give up quietly.
   useEffect(() => {
-    // Read the latest details through a ref rather than depending on the
-    // state directly. Depending on `details` made our own setDetails() tear
-    // this effect down mid-loop, which abandoned every coin still queued
-    // behind the stagger — so only the first coin ever got its logo and its
-    // real max leverage.
-    // Snapshot the ref so the cleanup below closes over a stable value
-    // (react-hooks/exhaustive-deps) — the Set itself is never replaced.
     const inFlight = inFlightRef.current;
     const missing = symbols.filter(
       (s) => !detailsRef.current[s] && !inFlight.has(s)
@@ -415,21 +382,15 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     if (missing.length === 0) return;
     for (const sym of missing) inFlight.add(sym);
 
-    // True only after a genuine teardown (unmount, or the symbol list
-    // changing). Set in the cleanup below.
     let stopped = false;
     (async () => {
       for (let i = 0; i < missing.length; i++) {
         const sym = missing[i];
-        // Release the in-flight claim as soon as we decide not to request
-        // this symbol, so a later run can still pick it up.
         const releaseAndSkip = () => {
           inFlight.delete(sym);
         };
         try {
-          // Stagger, and back off on retries, so a page with many coins
-          // doesn't fire one burst of requests.
-          const delay = i * 120 + (attemptsRef.current[sym] ?? 0) * 1500;
+          const delay = i * 120;
           if (delay > 0) await new Promise((r) => setTimeout(r, delay));
           if (stopped) {
             releaseAndSkip();
@@ -440,20 +401,11 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           );
           const data = res.ok ? await res.json() : null;
           if (data?.detail) {
-            attemptsRef.current[sym] = 0;
             const detail = data.detail as ContractDetail;
             setDetails((prev) => ({ ...prev, [sym]: detail }));
-          } else {
-            throw new Error(`no contract detail (HTTP ${res.status})`);
           }
         } catch {
-          attemptsRef.current[sym] = (attemptsRef.current[sym] ?? 0) + 1;
-          const done = attemptsRef.current[sym];
-          if (done < 3) {
-            setTimeout(() => {
-              if (!stopped) setRetryTick((t) => t + 1);
-            }, done * 1500);
-          }
+          /* ignore */
         } finally {
           inFlight.delete(sym);
         }
@@ -462,39 +414,32 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
 
     return () => {
       stopped = true;
-      // Any symbol this run never resolved must not stay claimed forever.
       for (const sym of missing) inFlight.delete(sym);
     };
   }, [symbols, retryTick]);
 
-  // Keep detailsRef in step with `details` so the fetch effect can read the
-  // latest values without depending on the state (which would restart it).
   useEffect(() => {
     detailsRef.current = details;
   }, [details]);
 
-  // Clear the action notice after a few seconds.
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
     return () => clearTimeout(t);
   }, [notice]);
 
-  // Display rows: stored fields plus the live price and the computed margin /
-  // leverage / position / P&L. Rebuilt when the alerts or prices change.
+  // Active Rows
   const rows = useMemo(
     () =>
-      alerts.map((a) => {
+      activeAlerts.map((a) => {
         const sym = a.symbol.toUpperCase();
         return buildRow(a, live[sym] ?? null, details[sym]?.maxLeverage ?? null);
       }),
-    [alerts, live, details]
+    [activeAlerts, live, details]
   );
 
-  // Rows in display order: always sorted by the selected sort option.
   const sortedAlerts = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
-    // Missing values sink to the bottom regardless of direction.
     const cmpNum = (a: number | null, b: number | null) => {
       if (a == null && b == null) return 0;
       if (a == null) return 1;
@@ -510,7 +455,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           const aT = new Date(a.fired_at).getTime();
           const bT = new Date(b.fired_at).getTime();
           if (Number.isNaN(aT) && Number.isNaN(bT)) return aSym.localeCompare(bSym);
-          // Invalid timestamps sink to the bottom regardless of direction.
           if (Number.isNaN(aT)) return 1;
           if (Number.isNaN(bT)) return -1;
           return (aT - bT) * dir;
@@ -531,27 +475,24 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           return cmpNum(a.positionSize, b.positionSize);
         case "leverage":
           return cmpNum(a.leverage, b.leverage);
+        case "pnl":
+          return cmpNum(a.pnl, b.pnl);
         case "margin":
           return cmpNum(a.marginUsd, b.marginUsd);
         case "lastPrice":
           return cmpNum(a.lastPrice, b.lastPrice);
-        case "pnl":
-          return cmpNum(a.pnl, b.pnl);
         default:
           return 0;
       }
     });
   }, [rows, sort]);
 
-  // Rows after applying the client-side filter (search). Composes with sort:
-  // filter first, then the result still goes through sortedAlerts' ordering.
   const filteredAlerts = useMemo(() => {
     const q = filter.trim().toUpperCase();
     if (!q) return sortedAlerts;
     return sortedAlerts.filter((a) => a.symbol.toUpperCase().includes(q));
   }, [sortedAlerts, filter]);
 
-  // ---- Pagination ----
   const total = filteredAlerts.length;
   const hasPaging = Number.isFinite(pageSize);
   const pageCount = hasPaging ? Math.max(1, Math.ceil(total / pageSize)) : 1;
@@ -561,19 +502,15 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     return filteredAlerts.slice(safePage * pageSize, (safePage + 1) * pageSize);
   }, [filteredAlerts, pageSize, safePage, hasPaging]);
 
-  // Price formatting: up to 7 decimals, with any trailing zeros after the
-  // decimal point trimmed (0.5000000 → 0.5).
   function fmtPx(p: number): string {
     const s = p.toLocaleString("en-US", { maximumFractionDigits: 7 });
     return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
   }
 
-  // Render one price value, or a muted "—" when unset.
   function fmtPxVal(v: number | null | undefined): ReactNode {
     return v != null ? fmtPx(v) : <span className="text-muted">—</span>;
   }
 
-  // Signed USD amount, e.g. "+$1.11" / "-$0.42". Used for UPNL.
   function fmtUsd(v: number | null | undefined, digits = 2): string {
     if (v == null || !Number.isFinite(v)) return "—";
     const abs = Math.abs(v).toLocaleString("en-US", {
@@ -583,7 +520,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     return `${v < 0 ? "-" : "+"}$${abs}`;
   }
 
-  // Unsigned USD amount, e.g. "$1.00". Used for Margin, which is never negative.
   function fmtMoney(v: number | null | undefined, digits = 2): string {
     if (v == null || !Number.isFinite(v)) return "—";
     return `$${v.toLocaleString("en-US", {
@@ -592,7 +528,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     })}`;
   }
 
-  // Leverage rendered as "50×"; "—" when the exchange max isn't known yet.
   function fmtLev(v: number | null): string {
     if (v == null || !Number.isFinite(v)) return "—";
     return `${v % 1 === 0 ? v : v.toFixed(2)}×`;
@@ -604,12 +539,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     market: "Market",
   };
 
-  // Render an ISO timestamp as full-numeric date on top, time below (SGT / GMT+8).
   function fmtDateTime(iso: string | null | undefined): ReactNode {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-    // Format in Singapore time (GMT+8).
     const sgTime = d.toLocaleTimeString("en-SG", {
       timeZone: "Asia/Singapore",
       hour: "2-digit",
@@ -630,9 +563,50 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     );
   }
 
-  // ---- Row actions ----
+  // Row Action Handlers
+  async function archiveTradeAlert(alertId: string) {
+    try {
+      const res = await fetch("/api/archived-trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trade_alert_id: alertId }),
+      });
+      if (!res.ok) throw new Error("Failed to archive trade");
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      if (activeTab === "archive") fetchArchived();
+      setNotice("Trade archived.");
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Error archiving trade");
+    }
+  }
 
-  /** Delete a logged trade. RLS scopes the write to the signed-in user. */
+  async function restoreArchivedTradeAlert(archivedAlert: ArchivedTradeAlert) {
+    try {
+      const res = await fetch(`/api/archived-trades/${archivedAlert.id}/restore`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to restore trade");
+      setArchivedAlerts((prev) => prev.filter((a) => a.id !== archivedAlert.id));
+      await refreshAllAlerts();
+      setNotice("Trade restored.");
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Error restoring trade");
+    }
+  }
+
+  async function deleteArchivedPermanent(archivedAlert: ArchivedTradeAlert) {
+    try {
+      const res = await fetch(`/api/archived-trades/${archivedAlert.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete archived trade");
+      setArchivedAlerts((prev) => prev.filter((a) => a.id !== archivedAlert.id));
+      setNotice("Trade permanently deleted.");
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Error deleting archived trade");
+    }
+  }
+
   async function deleteTrade(id: string) {
     setConfirmDelete(null);
     try {
@@ -648,7 +622,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     }
   }
 
-  /** The edit modal saved — merge the values in so the row updates at once. */
   function onTradeSaved(id: string, patch: Partial<TradeAlert>) {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
     setEditing(null);
@@ -659,438 +632,411 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <p className="eyebrow mb-1">Alert log</p>
+          <p className="eyebrow mb-1">Alert log & Management</p>
           <h1 className="text-2xl font-semibold mb-1">Trades</h1>
           <p className="text-sm text-muted">
-            Fired watchlist triggers · token data logged automatically ·{" "}
-            {alerts.length} total
+            Manage active position alerts, view closed trade history, or archive trades.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setManualModalOpen(true)}
+          className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <span>+</span> Manual Trade
+        </button>
       </div>
 
-      {alerts.length > 0 && (
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-xs text-muted">
-            <span>Search</span>
-            <input
-              className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent w-44"
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Filter by coin…"
-            />
-          </label>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative" ref={colsRef}>
-              <button
-                type="button"
-                onClick={() => setColsOpen((o) => !o)}
-                aria-expanded={colsOpen}
-                aria-haspopup="true"
-                className={`hairline bg-panel px-2 py-1.5 text-xs cursor-pointer rounded-md flex items-center gap-1.5 ${
-                  colsOpen ? "border-accent text-accent" : "text-muted hover:text-text"
-                }`}
-              >
-                Columns
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 10 10"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M2 3.5l3 3 3-3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-              {colsOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-30 w-52 hairline bg-panel shadow-lg rounded-lg p-2"
-                  role="menu"
-                >
-                  <div className="flex items-center justify-between px-2 pb-1.5 mb-1 hairline-b">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                      Show columns
-                    </span>
-                    <button
-                      type="button"
-                      onClick={showAllCols}
-                      className="text-[11px] text-accent hover:underline cursor-pointer"
-                    >
-                      Show all
-                    </button>
-                  </div>
-                  {COLUMNS.map((c) => (
-                    <label
-                      key={c.key}
-                      className="flex items-center gap-2 px-2 py-1.5 text-xs text-text rounded hover:bg-panel-soft cursor-pointer select-none"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={colVisible(c.key)}
-                        onChange={(e) => toggleCol(c.key, e.target.checked)}
-                        className="accent-accent cursor-pointer"
-                      />
-                      {c.label}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            <label className="flex items-center gap-2 text-xs text-muted">
-              <span>Sort by</span>
-              <select
-                className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
-                value={sortConfigKey(sort)}
-                onChange={(e) => {
-                  const next = SORT_OPTIONS.find(
-                    (o) => sortConfigKey(o.value) === e.target.value
-                  );
-                  if (next) {
-                    setSort(next.value);
-                    saveSort(next.value);
-                  }
-                }}
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option
-                    key={sortConfigKey(o.value)}
-                    value={sortConfigKey(o.value)}
-                  >
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-xs text-muted">
-              <span>Rows per page</span>
-              <select
-                className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
-                value={hasPaging ? String(pageSize) : "all"}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPageSize(v === "all" ? Number.POSITIVE_INFINITY : Number(v));
-                  setPage(0);
-                }}
-              >
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="all">All</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      )}
+      {/* Tabs Bar */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("active")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === "active"
+              ? "bg-zinc-800 text-zinc-100 font-semibold"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          Active Trades ({activeAlerts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("closed")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === "closed"
+              ? "bg-zinc-800 text-zinc-100 font-semibold"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          Closed History ({closedAlerts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("archive")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === "archive"
+              ? "bg-zinc-800 text-zinc-100 font-semibold"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          Archive ({archivedAlerts.length})
+        </button>
+      </div>
 
-      {alerts.length === 0 ? (
-        <div className="hairline text-muted p-10 text-center text-sm">
-          No triggered trades yet. Arm a price trigger on the Watchlist page —
-          when it fires, the token data lands here.
-        </div>
-      ) : filteredAlerts.length === 0 ? (
-        <div className="hairline text-muted p-10 text-center text-sm">
-          No triggered trades match “{filter}”. Try a different search.
-        </div>
-      ) : (
+      {/* Tab Contents */}
+      {activeTab === "active" && (
         <>
-          <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
-            <table className="w-full text-sm border-collapse min-w-[1240px]">
-              <thead>
-                <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
-                  <th className="w-9 min-w-9 px-2 py-1.5" aria-hidden="true" />
-                  <th className="px-2 py-1.5 text-left">Coin</th>
-                  {colVisible("position") && (
-                    <th className="px-2 py-1.5 text-left">Position</th>
-                  )}
-                  {colVisible("leverage") && (
-                    <th className="px-2 py-1.5 text-left">Leverage</th>
-                  )}
-                  {colVisible("pnl") && (
-                    <th className="px-2 py-1.5 text-left">UPNL</th>
-                  )}
-                  {colVisible("margin") && (
-                    <th className="px-2 py-1.5 text-left">Margin</th>
-                  )}
-                  {colVisible("lastPrice") && (
-                    <th className="px-2 py-1.5 text-left">LP</th>
-                  )}
-                  {colVisible("trigger") && (
-                    <th className="px-2 py-1.5 text-left">Trigger</th>
-                  )}
-                  {colVisible("firedPrice") && (
-                    <th className="px-2 py-1.5 text-left">FP</th>
-                  )}
-                  {colVisible("plan") && (
-                    <th className="px-2 py-1.5 text-left">EP / SL / TP</th>
-                  )}
-                  {colVisible("orderType") && (
-                    <th className="px-2 py-1.5 text-left">Order type</th>
-                  )}
-                  {colVisible("notes") && (
-                    <th className="px-2 py-1.5 text-left">Notes</th>
-                  )}
-                  {colVisible("firedAt") && (
-                    <th className="px-2 py-1.5 text-left">Fired at</th>
-                  )}
-                  <th className="w-24 min-w-24 px-2 py-1.5 text-right" aria-hidden="true" />
-                </tr>
-              </thead>
-              <tbody>
-                {pageAlerts.map((a) => {
-                  const sym = a.symbol.toUpperCase();
-                  return (
-                    <tr
-                      key={a.id}
-                      className="hairline-b hover:bg-paper transition-colors"
-                    >
-                      <td className="px-2 py-2.5">
-                        <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
-                          {details[sym]?.baseCoinIconUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={details[sym].baseCoinIconUrl}
-                              alt=""
-                              aria-hidden="true"
-                              draggable={false}
-                              width={20}
-                              height={20}
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                              className="size-5 shrink-0 object-contain"
-                            />
-                          ) : (
-                            <span className="flex size-5 items-center justify-center rounded-full bg-panel-soft text-[10px] font-semibold text-muted">
-                              {cleanSymbol(sym).charAt(0).toUpperCase()}
-                            </span>
-                          )}
+          {activeAlerts.length > 0 && (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <span>Search</span>
+                <input
+                  className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent w-44"
+                  value={filter}
+                  onChange={(e) => {
+                    setFilter(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Filter by coin…"
+                />
+              </label>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative" ref={colsRef}>
+                  <button
+                    type="button"
+                    onClick={() => setColsOpen((o) => !o)}
+                    aria-expanded={colsOpen}
+                    className={`hairline bg-panel px-2 py-1.5 text-xs cursor-pointer rounded-md flex items-center gap-1.5 ${
+                      colsOpen ? "border-accent text-accent" : "text-muted hover:text-text"
+                    }`}
+                  >
+                    Columns
+                  </button>
+                  {colsOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-30 w-52 hairline bg-panel shadow-lg rounded-lg p-2">
+                      <div className="flex items-center justify-between px-2 pb-1.5 mb-1 hairline-b">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                          Show columns
                         </span>
-                      </td>
-                      <td className="px-2 py-2.5">
-                        <span className="font-medium">{cleanSymbol(sym)}</span>
-                        <span className="text-xs text-muted ml-1 block">
-                          {sym.replace("_USDT", "")}
-                        </span>
-                      </td>
-                      {colVisible("position") && (
-                        <td className="px-2 py-2.5 text-left whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                              a.side === "long"
-                                ? "bg-gain/10 text-gain"
-                                : "bg-loss/10 text-loss"
-                            }`}
-                          >
-                            {a.side}
-                          </span>
-                        </td>
-                      )}
-                      {colVisible("leverage") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
-                          {fmtLev(a.leverage)}
-                          {a.leverageIsMax && (
-                            <span className="text-muted text-[10px] ml-1">max</span>
-                          )}
-                        </td>
-                      )}
-                      {colVisible("pnl") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
-                          {a.pnl == null ? (
-                            <span className="text-muted">—</span>
-                          ) : (
-                            <>
-                              <span
-                                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
-                                  a.pnl > 0
-                                    ? "bg-gain/10 text-gain"
-                                    : a.pnl < 0
-                                      ? "bg-loss/10 text-loss"
-                                      : "bg-panel-soft text-muted"
-                                }`}
-                              >
-                                {fmtUsd(a.pnl)}
-                              </span>
-                              {a.pnlPct != null && (
-                                <span className="block text-[10px] text-muted">
-                                  {a.pnlPct >= 0 ? "+" : ""}
-                                  {(a.pnlPct * 100).toFixed(2)}%
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </td>
-                      )}
-                      {colVisible("margin") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
-                          {fmtMoney(a.marginUsd)}
-                        </td>
-                      )}
-                      {colVisible("lastPrice") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
-                          {fmtPxVal(a.lastPrice)}
-                        </td>
-                      )}
-                      {colVisible("trigger") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
-                          {fmtPxVal(a.trigger_price)}
-                        </td>
-                      )}
-                      {colVisible("firedPrice") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-left">
-                          {fmtPxVal(a.fired_price)}
-                        </td>
-                      )}
-                      {colVisible("plan") && (
-                        <td className="px-2 py-2.5">
-                          <div className="flex flex-col gap-0.5 text-left font-mono tabular-nums leading-tight">
-                            <span className="whitespace-nowrap">
-                              <span className="text-[10px] text-muted">EP: </span>
-                              <span>{fmtPxVal(a.entry_price)}</span>
-                            </span>
-                            <span className="whitespace-nowrap">
-                              <span className="text-[10px] text-muted">SL: </span>
-                              <span
-                                className={
-                                  a.sl_fired_at
-                                    ? "text-loss font-semibold"
-                                    : undefined
-                                }
-                                title={
-                                  a.sl_fired_at
-                                    ? "Stop-loss was hit"
-                                    : undefined
-                                }
-                              >
-                                {fmtPxVal(a.stop_loss)}
-                              </span>
-                            </span>
-                            <span className="whitespace-nowrap">
-                              <span className="text-[10px] text-muted">TP: </span>
-                              <span
-                                className={
-                                  a.tp_fired_at
-                                    ? "text-gain font-semibold"
-                                    : undefined
-                                }
-                                title={
-                                  a.tp_fired_at
-                                    ? "Take-profit was hit"
-                                    : undefined
-                                }
-                              >
-                                {fmtPxVal(a.take_profit)}
-                              </span>
-                            </span>
-                          </div>
-                        </td>
-                      )}
-                      {colVisible("orderType") && (
-                        <td className="px-2 py-2.5 text-left">
-                          {a.order_type ? (
-                            ORDER_TYPE_LABELS[a.order_type] ?? a.order_type
-                          ) : (
-                            <span className="text-muted">—</span>
-                          )}
-                        </td>
-                      )}
-                      {colVisible("notes") && (
-                        <td className="px-2 py-2.5 max-w-[160px] text-left">
-                          {a.notes ? (
-                            <span className="block truncate" title={a.notes}>
-                              {a.notes}
-                            </span>
-                          ) : (
-                            <span className="text-muted">—</span>
-                          )}
-                        </td>
-                      )}
-                      {colVisible("firedAt") && (
-                        <td className="px-2 py-2.5 font-mono tabular-nums text-muted whitespace-nowrap text-left">
-                          {fmtDateTime(a.fired_at)}
-                        </td>
-                      )}
-                      <td
-                        className="px-2 py-2.5 text-right whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
                         <button
                           type="button"
-                          onClick={() => setEditing(a)}
-                          className="text-accent hover:underline text-xs mr-3 cursor-pointer"
-                          title="Edit trade"
+                          onClick={showAllCols}
+                          className="text-[11px] text-accent hover:underline cursor-pointer"
                         >
-                          Edit
+                          Show all
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(a)}
-                          className="text-loss hover:underline text-xs cursor-pointer"
-                          title="Delete trade"
+                      </div>
+                      {COLUMNS.map((c) => (
+                        <label
+                          key={c.key}
+                          className="flex items-center gap-2 px-2 py-1.5 text-xs text-text rounded hover:bg-panel-soft cursor-pointer select-none"
                         >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {hasPaging && (
-            <div className="flex items-center justify-center gap-4 text-xs text-muted mt-3">
-              <button
-                type="button"
-                disabled={safePage === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                ← Prev
-              </button>
-              <span className="num">
-                Page {safePage + 1} of {pageCount}
-              </span>
-              <button
-                type="button"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next →
-              </button>
+                          <input
+                            type="checkbox"
+                            checked={colVisible(c.key)}
+                            onChange={(e) => toggleCol(c.key, e.target.checked)}
+                            className="accent-accent cursor-pointer"
+                          />
+                          {c.label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <span>Sort by</span>
+                  <select
+                    className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
+                    value={sortConfigKey(sort)}
+                    onChange={(e) => {
+                      const next = SORT_OPTIONS.find(
+                        (o) => sortConfigKey(o.value) === e.target.value
+                      );
+                      if (next) {
+                        setSort(next.value);
+                        saveSort(next.value);
+                      }
+                    }}
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={sortConfigKey(o.value)} value={sortConfigKey(o.value)}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <span>Rows per page</span>
+                  <select
+                    className="hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent cursor-pointer"
+                    value={hasPaging ? String(pageSize) : "all"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPageSize(v === "all" ? Number.POSITIVE_INFINITY : Number(v));
+                      setPage(0);
+                    }}
+                  >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">All</option>
+                  </select>
+                </label>
+              </div>
             </div>
           )}
+
+          {activeAlerts.length === 0 ? (
+            <div className="hairline text-muted p-10 text-center text-sm rounded-xl">
+              No active trades. Arm a price trigger on the Watchlist page or click "+ Manual Trade" above.
+            </div>
+          ) : filteredAlerts.length === 0 ? (
+            <div className="hairline text-muted p-10 text-center text-sm rounded-xl">
+              No active trades match “{filter}”. Try a different search.
+            </div>
+          ) : (
+            <>
+              <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
+                <table className="w-full text-sm border-collapse min-w-[1240px]">
+                  <thead>
+                    <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
+                      <th className="w-9 min-w-9 px-2 py-1.5" aria-hidden="true" />
+                      <th className="px-2 py-1.5 text-left">Coin</th>
+                      {colVisible("position") && <th className="px-2 py-1.5 text-left">Position</th>}
+                      {colVisible("leverage") && <th className="px-2 py-1.5 text-left">Leverage</th>}
+                      {colVisible("pnl") && <th className="px-2 py-1.5 text-left">UPNL</th>}
+                      {colVisible("margin") && <th className="px-2 py-1.5 text-left">Margin</th>}
+                      {colVisible("lastPrice") && <th className="px-2 py-1.5 text-left">LP</th>}
+                      {colVisible("trigger") && <th className="px-2 py-1.5 text-left">Trigger</th>}
+                      {colVisible("firedPrice") && <th className="px-2 py-1.5 text-left">FP</th>}
+                      {colVisible("plan") && <th className="px-2 py-1.5 text-left">EP / SL / TP</th>}
+                      {colVisible("orderType") && <th className="px-2 py-1.5 text-left">Order type</th>}
+                      {colVisible("notes") && <th className="px-2 py-1.5 text-left">Notes</th>}
+                      {colVisible("firedAt") && <th className="px-2 py-1.5 text-left">Fired at</th>}
+                      <th className="w-44 min-w-44 px-2 py-1.5 text-right" aria-hidden="true" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageAlerts.map((a) => {
+                      const sym = a.symbol.toUpperCase();
+                      return (
+                        <tr key={a.id} className="hairline-b hover:bg-paper transition-colors">
+                          <td className="px-2 py-2.5">
+                            <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                              {details[sym]?.baseCoinIconUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={details[sym].baseCoinIconUrl}
+                                  alt=""
+                                  width={20}
+                                  height={20}
+                                  className="size-5 shrink-0 object-contain"
+                                />
+                              ) : (
+                                <span className="flex size-5 items-center justify-center rounded-full bg-panel-soft text-[10px] font-semibold text-muted">
+                                  {cleanSymbol(sym).charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <span className="font-medium">{cleanSymbol(sym)}</span>
+                          </td>
+                          {colVisible("position") && (
+                            <td className="px-2 py-2.5 text-left whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                                  a.side === "long" ? "bg-gain/10 text-gain" : "bg-loss/10 text-loss"
+                                }`}
+                              >
+                                {a.side}
+                              </span>
+                            </td>
+                          )}
+                          {colVisible("leverage") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
+                              {fmtLev(a.leverage)}
+                              {a.leverageIsMax && <span className="text-muted text-[10px] ml-1">max</span>}
+                            </td>
+                          )}
+                          {colVisible("pnl") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
+                              {a.pnl == null ? (
+                                <span className="text-muted">—</span>
+                              ) : (
+                                <>
+                                  <span
+                                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold font-mono tabular-nums ${
+                                      a.pnl > 0
+                                        ? "bg-gain/10 text-gain"
+                                        : a.pnl < 0
+                                        ? "bg-loss/10 text-loss"
+                                        : "bg-panel-soft text-muted"
+                                    }`}
+                                  >
+                                    {fmtUsd(a.pnl)}
+                                  </span>
+                                  {a.pnlPct != null && (
+                                    <span className="block text-[10px] text-muted">
+                                      {a.pnlPct >= 0 ? "+" : ""}
+                                      {(a.pnlPct * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                          )}
+                          {colVisible("margin") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left whitespace-nowrap">
+                              {fmtMoney(a.marginUsd)}
+                            </td>
+                          )}
+                          {colVisible("lastPrice") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left">
+                              {fmtPxVal(a.lastPrice)}
+                            </td>
+                          )}
+                          {colVisible("trigger") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left">
+                              {fmtPxVal(a.trigger_price)}
+                            </td>
+                          )}
+                          {colVisible("firedPrice") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-left">
+                              {fmtPxVal(a.fired_price)}
+                            </td>
+                          )}
+                          {colVisible("plan") && (
+                            <td className="px-2 py-2.5">
+                              <div className="flex flex-col gap-0.5 text-left font-mono tabular-nums leading-tight">
+                                <span className="whitespace-nowrap">
+                                  <span className="text-[10px] text-muted">EP: </span>
+                                  <span>{fmtPxVal(a.entry_price)}</span>
+                                </span>
+                                <span className="whitespace-nowrap">
+                                  <span className="text-[10px] text-muted">SL: </span>
+                                  <span className={a.sl_fired_at ? "text-loss font-semibold" : undefined}>
+                                    {fmtPxVal(a.stop_loss)}
+                                  </span>
+                                </span>
+                                <span className="whitespace-nowrap">
+                                  <span className="text-[10px] text-muted">TP: </span>
+                                  <span className={a.tp_fired_at ? "text-gain font-semibold" : undefined}>
+                                    {fmtPxVal(a.take_profit)}
+                                  </span>
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                          {colVisible("orderType") && (
+                            <td className="px-2 py-2.5 text-left">
+                              {a.order_type ? ORDER_TYPE_LABELS[a.order_type] ?? a.order_type : <span className="text-muted">—</span>}
+                            </td>
+                          )}
+                          {colVisible("notes") && (
+                            <td className="px-2 py-2.5 max-w-[160px] text-left">
+                              {a.notes ? (
+                                <span className="block truncate" title={a.notes}>
+                                  {a.notes}
+                                </span>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
+                            </td>
+                          )}
+                          {colVisible("firedAt") && (
+                            <td className="px-2 py-2.5 font-mono tabular-nums text-muted whitespace-nowrap text-left">
+                              {fmtDateTime(a.fired_at)}
+                            </td>
+                          )}
+                          <td className="px-2 py-2.5 text-right whitespace-nowrap space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setClosingAlert(a)}
+                              className="text-rose-400 hover:underline text-xs font-semibold cursor-pointer"
+                              title="Close trade"
+                            >
+                              Close
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditing(a)}
+                              className="text-accent hover:underline text-xs cursor-pointer"
+                              title="Edit trade"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => archiveTradeAlert(a.id)}
+                              className="text-amber-400 hover:underline text-xs cursor-pointer"
+                              title="Archive trade"
+                            >
+                              Archive
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {hasPaging && (
+                <div className="flex items-center justify-center gap-4 text-xs text-muted mt-3">
+                  <button
+                    type="button"
+                    disabled={safePage === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="num">
+                    Page {safePage + 1} of {pageCount}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={safePage >= pageCount - 1}
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    className="btn-ghost px-3 py-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </>
+      )}
+
+      {activeTab === "closed" && (
+        <ClosedTradesTab
+          closedAlerts={closedAlerts}
+          onArchive={(alert) => archiveTradeAlert(alert.id)}
+        />
+      )}
+
+      {activeTab === "archive" && (
+        <ArchivedTradesTab
+          archivedAlerts={archivedAlerts}
+          onRestore={restoreArchivedTradeAlert}
+          onDeletePermanent={deleteArchivedPermanent}
+        />
       )}
 
       {notice && <p className="text-xs text-muted">{notice}</p>}
 
       <p className="text-xs text-muted">
-        Every fired watchlist alert is logged here automatically with its token
-        data (trigger, fired price, trade plan). Position and UPNL are
-        sized from the margin (default $1) and leverage (default: the coin&apos;s
-        maximum), marked against the live MEXC price. Use the Edit button to
-        edit a trade, the Delete button to remove it, the Sort by dropdown to
-        reorder rows, or the “Columns” button to toggle columns. Alerts fire
-        from the Watchlist page poller or the always-on watcher script.
-      </p>
-
-      <p className="text-xs text-muted mt-1">
         <span className="inline-flex items-center gap-1.5">
           <span
             className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
               pricesLoading
                 ? "bg-panel-soft text-muted"
                 : pricesError
-                  ? "bg-loss/10 text-loss"
-                  : "bg-gain/10 text-gain"
+                ? "bg-loss/10 text-loss"
+                : "bg-gain/10 text-gain"
             }`}
           >
             {pricesLoading ? "Loading" : pricesError ? "Offline" : "Live"}
@@ -1102,49 +1048,64 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         </span>
       </p>
 
+      {/* Modals */}
+      <ManualTradeModal
+        open={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        onSuccess={refreshAllAlerts}
+      />
+
+      <CloseTradeModal
+        alert={closingAlert}
+        livePrice={
+          closingAlert ? live[closingAlert.symbol.toUpperCase()] ?? null : null
+        }
+        open={closingAlert !== null}
+        onClose={() => setClosingAlert(null)}
+        onSuccess={refreshAllAlerts}
+      />
+
       {editing && (
         <TradeEditModal
           alert={editing}
           maxLeverage={details[editing.symbol.toUpperCase()]?.maxLeverage ?? null}
           onClose={() => setEditing(null)}
-          onSaved={onTradeSaved}
+          onSaved={(id, patch) => onTradeSaved(id, patch)}
         />
       )}
 
-      {confirmDelete &&
-        (() => {
-          const sym = cleanSymbol(confirmDelete.symbol.toUpperCase());
-          return (
-            <ModalShell
-              title={`Delete ${sym} trade?`}
-              onClose={() => setConfirmDelete(null)}
-              maxWidth="max-w-sm"
-              center
-            >
-              <p className="text-sm">
-                Delete this logged trade for{" "}
-                <span className="font-medium">{sym}</span>? It will be removed
-                from your alert log — this can&apos;t be undone.
-              </p>
-              <div className="flex justify-end gap-2 hairline-t pt-4 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(null)}
-                  className="px-3 py-2 text-sm btn-ghost cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => deleteTrade(confirmDelete.id)}
-                  className="px-4 py-2 text-sm font-semibold bg-loss text-panel rounded-md cursor-pointer"
-                >
-                  Delete
-                </button>
-              </div>
-            </ModalShell>
-          );
-        })()}
+      {confirmDelete && (
+        <ModalShell
+          onClose={() => setConfirmDelete(null)}
+          title="Delete Trade Alert"
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-muted">
+              Are you sure you want to delete the trade alert for{" "}
+              <span className="font-semibold text-text">
+                {cleanSymbol(confirmDelete.symbol)}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteTrade(confirmDelete.id)}
+                className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-zinc-950 text-xs font-semibold transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      )}
     </div>
   );
 }
