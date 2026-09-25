@@ -5,6 +5,7 @@ import { sideForTrigger } from "@/lib/types";
 
 interface Props {
   archivedAlerts: ArchivedTradeAlert[];
+  onEdit: (alert: ArchivedTradeAlert) => void;
   onRestore: (alert: ArchivedTradeAlert) => void;
   onDeletePermanent: (alert: ArchivedTradeAlert) => void;
 }
@@ -30,6 +31,7 @@ function formatDate(iso: string | null | undefined): string {
 
 export function ArchivedTradesTab({
   archivedAlerts,
+  onEdit,
   onRestore,
   onDeletePermanent,
 }: Props) {
@@ -111,6 +113,14 @@ export function ArchivedTradesTab({
                 </td>
                 <td className="py-3 px-4 text-zinc-400">{formatDate(row.archived_at)}</td>
                 <td className="py-3 px-4 text-right space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(row)}
+                    title="Edit Trade"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  >
+                    ✏️
+                  </button>
                   <button
                     type="button"
                     onClick={() => onRestore(row)}

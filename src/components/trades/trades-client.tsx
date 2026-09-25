@@ -275,7 +275,8 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [retryTick, setRetryTick] = useState(0);
 
   // Modals & Action states
-  const [editing, setEditing] = useState<TradeAlert | null>(null);
+  const [editing, setEditing] = useState<TradeAlert | ArchivedTradeAlert | null>(null);
+  const [editingIsArchived, setEditingIsArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<TradeAlert | null>(null);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [closingAlert, setClosingAlert] = useState<TradeAlert | null>(null);
@@ -622,10 +623,13 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
     }
   }
 
-  function onTradeSaved(id: string, patch: Partial<TradeAlert>) {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  async function handleEditSaved() {
     setEditing(null);
     setNotice("Trade updated.");
+    await refreshAllAlerts();
+    if (activeTab === "archive" || editingIsArchived) {
+      await fetchArchived();
+    }
   }
 
   return (
@@ -962,7 +966,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditing(a)}
+                              onClick={() => {
+                                setEditing(a);
+                                setEditingIsArchived(false);
+                              }}
                               className="text-accent hover:underline text-xs cursor-pointer"
                               title="Edit trade"
                             >
@@ -1014,6 +1021,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       {activeTab === "closed" && (
         <ClosedTradesTab
           closedAlerts={closedAlerts}
+          onEdit={(alert) => {
+            setEditing(alert);
+            setEditingIsArchived(false);
+          }}
           onArchive={(alert) => archiveTradeAlert(alert.id)}
         />
       )}
@@ -1021,6 +1032,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       {activeTab === "archive" && (
         <ArchivedTradesTab
           archivedAlerts={archivedAlerts}
+          onEdit={(alert) => {
+            setEditing(alert);
+            setEditingIsArchived(true);
+          }}
           onRestore={restoreArchivedTradeAlert}
           onDeletePermanent={deleteArchivedPermanent}
         />
@@ -1068,9 +1083,10 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       {editing && (
         <TradeEditModal
           alert={editing}
+          isArchived={editingIsArchived}
           maxLeverage={details[editing.symbol.toUpperCase()]?.maxLeverage ?? null}
           onClose={() => setEditing(null)}
-          onSaved={(id, patch) => onTradeSaved(id, patch)}
+          onSaved={handleEditSaved}
         />
       )}
 

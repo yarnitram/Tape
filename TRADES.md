@@ -1,26 +1,39 @@
 # Trades Page & Position Management System
 
-The **Trades Page** (`/trades`) provides live position tracking, manual trade creation, trade execution management, auto TP/SL hit monitoring, automatic journal logging, and trade archiving.
+The **Trades Page** (`/trades`) provides live position tracking, manual trade creation, trade execution management, auto TP/SL hit monitoring, automatic journal logging, full trade property modification, and trade archiving.
 
 ---
 
 ## 📌 Overview & Key Features
 
 1. **3-Tab Navigation Architecture**:
-   - **Active Trades**: Running position alerts with live prices, position sizing, margin, leverage, UPNL ($ & %), TP/SL level indicators, manual edit, manual close, and archive actions.
-   - **Closed History**: Completed trades table with final Exit Price, Realized PnL ($ and %), Exit Reason (`TP Hit`, `SL Hit`, `Manual Close`), Closed Date, and soft-delete archiving.
-   - **Archive**: Soft-deleted trades table with **Restore (↩)** (returns item to Active or Closed History) and **Delete Permanently (🗑)** actions.
+   - **Active Trades**: Running position alerts with live prices, position sizing, margin, leverage, UPNL ($ & %), TP/SL level indicators, full edit, manual close, and archive actions.
+   - **Closed History**: Completed trades table with final Exit Price, Realized PnL ($ and %), Exit Reason (`TP Hit`, `SL Hit`, `Manual Close`), Closed Date, full edit, and soft-delete archiving.
+   - **Archive**: Soft-deleted trades table with full edit, **Restore (↩)** (returns item to Active or Closed History), and **Delete Permanently (🗑)** actions.
 
-2. **Manual Trade Entry (`+ Manual Trade`)**:
-   - Create trades directly on the Trades page without requiring prior Watchlist triggers (e.g. for market or limit orders executed manually outside the app).
-   - Requires manual entry for symbol, direction (`Long` / `Short`), entry price, stop loss, take profit, margin ($), leverage (x), order type, and notes.
+2. **Full Trade Property Modification (`Edit` on all tabs)**:
+   - Modify **ALL** properties of any trade in **Active Trades**, **Closed History**, or **Archive**:
+     - Symbol & Coin pair (e.g. `BTC_USDT`)
+     - Position Direction (`Long` / `Short`)
+     - Trigger Price & Fired Price
+     - Entry Price, Stop Loss (SL), Take Profit (TP)
+     - Margin ($) & Leverage (x)
+     - Order Type (`Market`, `Limit`, `Trigger Limit`)
+     - Trade Status (`Active` vs `Closed`)
+     - Exit Price, Closed Reason (`TP Hit`, `SL Hit`, `Manual Close`), and Close Notes
+     - Strategy & Pre-trade notes
+   - Dynamic PnL recalculation: Updating price, margin, or leverage on closed or archived trades instantly recalculates Realized PnL ($ and %).
 
-3. **Interactive Manual Trade Closure**:
+3. **Enhanced Manual Trade Entry (`+ Manual Trade`)**:
+   - Create trades directly on the Trades page without requiring prior Watchlist triggers.
+   - Create trades as **Active** or pre-closed (with Exit Price, Closed Reason, and auto-computed realized PnL directly into Closed History with Journal logging).
+
+4. **Interactive Manual Trade Closure**:
    - Clicking **Close** on an active trade opens a quick modal pre-filled with the live MEXC market price.
    - Displays live preview of Realized PnL ($) and PnL (%) dynamically as exit price is confirmed or adjusted.
    - Submitting updates trade status to `closed`, logs the finished trade into the user's primary **Journal** (`trades` table), and dispatches notifications.
 
-4. **Automated TP/SL Hit Detection & Journaling**:
+5. **Automated TP/SL Hit Detection & Journaling**:
    - Background poller (`/api/trade-alerts/check`) checks active trades against MEXC prices.
    - When live price crosses SL or TP:
      1. Claims level atomically.
@@ -28,7 +41,7 @@ The **Trades Page** (`/trades`) provides live position tracking, manual trade cr
      3. Writes an entry directly to the **Journal** (`trades` table) with post-trade review notes.
      4. Dispatches multi-channel alert notifications (in-app, desktop toast, Discord webhooks, Telegram bots).
 
-5. **Soft-Delete Trade Archiving**:
+6. **Soft-Delete Trade Archiving**:
    - Delete action on Active Trades or Closed History soft-deletes the row into `archived_trade_alerts`.
    - Restoring moves the item back to `trade_alerts` preserving its active or closed status.
    - Permanent delete purges the record from the database.
@@ -51,6 +64,9 @@ flowchart TD
     I -->|User Soft-Deletes| J[Archive Tab]
     J -->|Restore| I
     J -->|Permanent Delete| K[Database Purged]
+    B -->|User Clicks Edit| L[Modify All Fields]
+    I -->|User Clicks Edit| L
+    J -->|User Clicks Edit| L
 ```
 
 ---
@@ -62,13 +78,15 @@ flowchart TD
 - `user_id` (UUID, Foreign Key)
 - `symbol` (TEXT)
 - `trigger_direction` (`'above'` | `'below'`)
-- `entry_price`, `stop_loss`, `take_profit` (NUMERIC)
+- `trigger_price`, `fired_price`, `entry_price`, `stop_loss`, `take_profit` (NUMERIC)
 - `margin_usd`, `leverage` (NUMERIC)
+- `order_type` (`'market'` | `'limit'` | `'trigger_limit'`)
 - `sl_fired_at`, `tp_fired_at` (TIMESTAMPTZ)
 - `status` (`'active'` | `'closed'`)
 - `closed_reason` (`'tp_hit'` | `'sl_hit'` | `'manual_close'`)
 - `exit_price` (NUMERIC)
 - `closed_at` (TIMESTAMPTZ)
+- `close_notes` (TEXT)
 - `realized_pnl_usd`, `realized_pnl_pct` (NUMERIC)
 
 ### `archived_trade_alerts` Table (`015`)
@@ -77,6 +95,7 @@ flowchart TD
 - `original_trade_alert_id` (UUID)
 - `symbol` (TEXT)
 - `trigger_direction`, `entry_price`, `exit_price`, `stop_loss`, `take_profit`
+- `margin_usd`, `leverage`, `order_type`
 - `status_at_archive` (`'active'` | `'closed'`)
-- `closed_reason`, `realized_pnl_usd`, `realized_pnl_pct`
+- `closed_reason`, `close_notes`, `realized_pnl_usd`, `realized_pnl_pct`
 - `archived_at` (TIMESTAMPTZ)

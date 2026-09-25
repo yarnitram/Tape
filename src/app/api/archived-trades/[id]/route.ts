@@ -1,7 +1,144 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { calculateTradePnl } from "@/lib/trade-calc";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+const numOrNull = (v: unknown) => (v == null || v === "" ? null : Number(v));
+const posOrNull = (v: unknown) => {
+  const n = numOrNull(v);
+  return n != null && Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/**
+ * PATCH /api/archived-trades/[id]
+ * Modify an archived trade alert row in archived_trade_alerts.
+ */
+export async function PATCH(request: Request, { params }: Ctx) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const b = body as Record<string, unknown>;
+
+  // Fetch current archived alert
+  const { data: current, error: fetchErr } = await supabase
+    .from("archived_trade_alerts")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (fetchErr || !current) {
+    return NextResponse.json({ error: "Archived trade alert not found" }, { status: 404 });
+  }
+
+  const updates: Record<string, unknown> = {};
+
+  if (b.symbol !== undefined && b.symbol !== null) {
+    const rawSym = b.symbol.toString().trim().toUpperCase();
+    if (rawSym) {
+      updates.symbol = rawSym.endsWith("_USDT") ? rawSym : `${rawSym}_USDT`;
+    }
+  }
+
+  if (b.trigger_direction !== undefined) {
+    updates.trigger_direction =
+      b.trigger_direction === "above" || b.trigger_direction === "below"
+        ? b.trigger_direction
+        : null;
+  }
+
+  if (b.trigger_price !== undefined) updates.trigger_price = numOrNull(b.trigger_price);
+  if (b.fired_price !== undefined) updates.fired_price = numOrNull(b.fired_price);
+  if (b.entry_price !== undefined) updates.entry_price = numOrNull(b.entry_price);
+  if (b.stop_loss !== undefined) updates.stop_loss = numOrNull(b.stop_loss);
+  if (b.take_profit !== undefined) updates.take_profit = numOrNull(b.take_profit);
+
+  if (b.order_type !== undefined) {
+    updates.order_type =
+      b.order_type === "limit" ||
+      b.order_type === "trigger_limit" ||
+      b.order_type === "market"
+        ? b.order_type
+        : null;
+  }
+
+  if (b.notes !== undefined) updates.notes = b.notes?.toString() || null;
+  if (b.margin_usd !== undefined) updates.margin_usd = posOrNull(b.margin_usd);
+  if (b.leverage !== undefined) updates.leverage = posOrNull(b.leverage);
+
+  if (b.status_at_archive !== undefined || b.status !== undefined) {
+    const st = b.status_at_archive ?? b.status;
+    updates.status_at_archive = st === "closed" ? "closed" : "active";
+  }
+
+  if (b.closed_reason !== undefined) {
+    updates.closed_reason =
+      b.closed_reason === "tp_hit" ||
+      b.closed_reason === "sl_hit" ||
+      b.closed_reason === "manual_close"
+        ? b.closed_reason
+        : null;
+  }
+
+  if (b.close_notes !== undefined) updates.close_notes = b.close_notes?.toString() || null;
+  if (b.exit_price !== undefined) updates.exit_price = numOrNull(b.exit_price);
+
+  // Compute effective values for PnL
+  const effStatus = (updates.status_at_archive ?? current.status_at_archive) as "active" | "closed";
+  const effExit = (updates.exit_price !== undefined ? updates.exit_price : current.exit_price) as number | null;
+  const effEntry = ((updates.entry_price !== undefined ? updates.entry_price : current.entry_price) ?? current.fired_price) as number | null;
+  const effDirection = (updates.trigger_direction !== undefined ? updates.trigger_direction : current.trigger_direction) as "above" | "below" | null;
+  const effMargin = (updates.margin_usd !== undefined ? updates.margin_usd : current.margin_usd) as number | null;
+  const effLeverage = (updates.leverage !== undefined ? updates.leverage : current.leverage) as number | null;
+
+  if (effStatus === "closed" || effExit != null) {
+    const pnl = calculateTradePnl(
+      effEntry,
+      effExit,
+      effDirection,
+      effMargin,
+      effLeverage
+    );
+    updates.realized_pnl_usd = pnl.realizedPnlUsd;
+    updates.realized_pnl_pct = pnl.realizedPnlPct;
+    if (effStatus === "closed" && !current.closed_at) {
+      updates.closed_at = new Date().toISOString();
+    }
+  } else {
+    updates.realized_pnl_usd = null;
+    updates.realized_pnl_pct = null;
+  }
+
+  const { data: updated, error } = await supabase
+    .from("archived_trade_alerts")
+    .update(updates)
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, archived: updated });
+}
 
 /**
  * DELETE /api/archived-trades/[id]

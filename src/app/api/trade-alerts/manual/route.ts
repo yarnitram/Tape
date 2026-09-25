@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { calculateTradePnl } from "@/lib/trade-calc";
+import { createTrade } from "@/lib/trade-ops";
+import { sideForTrigger } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +12,37 @@ const posOrNull = (v: unknown) => {
   return n != null && Number.isFinite(n) && n > 0 ? n : null;
 };
 
+async function resolveAccountId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (data) return (data as { id: string }).id;
+
+  const { data: created } = await supabase
+    .from("accounts")
+    .insert({
+      user_id: userId,
+      name: "Default",
+      broker: "Manual",
+      starting_balance: 0,
+      current_balance: 0,
+    })
+    .select("id")
+    .single();
+  return created ? (created as { id: string }).id : null;
+}
+
 /**
  * POST /api/trade-alerts/manual
- * Manually create an active trade alert directly on the Trades page.
- * Body: { symbol, trigger_direction ('above' | 'below'), entry_price, stop_loss, take_profit, leverage, margin_usd, order_type, notes }
+ * Manually create a trade alert directly on the Trades page (Active or Closed).
+ * Body: { symbol, trigger_direction ('above' | 'below'), trigger_price, fired_price, entry_price, stop_loss, take_profit, leverage, margin_usd, order_type, notes, status ('active' | 'closed'), exit_price, closed_reason, close_notes }
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -54,11 +84,36 @@ export async function POST(request: Request) {
       ? b.order_type
       : "market";
 
-  const insertData = {
+  const isClosed = b.status === "closed";
+  const exitPrice = isClosed ? numOrNull(b.exit_price) : null;
+  const closedReason = (b.closed_reason?.toString() || "manual_close") as
+    | "manual_close"
+    | "tp_hit"
+    | "sl_hit";
+  const closeNotes = b.close_notes?.toString() || null;
+  const nowIso = new Date().toISOString();
+
+  let pnlUsd: number | null = null;
+  let pnlPct: number | null = null;
+
+  if (isClosed && exitPrice != null) {
+    const pnl = calculateTradePnl(
+      entryPrice,
+      exitPrice,
+      direction,
+      posOrNull(b.margin_usd) ?? 1,
+      posOrNull(b.leverage)
+    );
+    pnlUsd = pnl.realizedPnlUsd;
+    pnlPct = pnl.realizedPnlPct;
+  }
+
+  const insertData: Record<string, unknown> = {
     user_id: user.id,
     symbol,
     trigger_direction: direction,
-    fired_price: entryPrice,
+    trigger_price: numOrNull(b.trigger_price),
+    fired_price: numOrNull(b.fired_price) ?? entryPrice,
     entry_price: entryPrice,
     stop_loss: numOrNull(b.stop_loss),
     take_profit: numOrNull(b.take_profit),
@@ -66,8 +121,14 @@ export async function POST(request: Request) {
     leverage: posOrNull(b.leverage),
     order_type: orderType,
     notes: b.notes?.toString() || null,
-    status: "active",
-    fired_at: new Date().toISOString(),
+    status: isClosed ? "closed" : "active",
+    closed_reason: isClosed ? closedReason : null,
+    exit_price: exitPrice,
+    close_notes: closeNotes,
+    realized_pnl_usd: pnlUsd,
+    realized_pnl_pct: pnlPct,
+    closed_at: isClosed ? nowIso : null,
+    fired_at: nowIso,
   };
 
   const { data, error } = await supabase
@@ -78,6 +139,45 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // If created as pre-closed, log to Journal
+  if (isClosed && exitPrice != null) {
+    try {
+      const accountId = await resolveAccountId(supabase, user.id);
+      if (accountId) {
+        const side = sideForTrigger(direction);
+        const lev = posOrNull(b.leverage) ?? 1;
+        const margin = posOrNull(b.margin_usd) ?? 1;
+        const notional = margin * lev;
+        const size = notional / entryPrice;
+
+        await createTrade(supabase, {
+          account_id: accountId,
+          symbol,
+          direction: side,
+          size,
+          entry_price: entryPrice,
+          exit_price: exitPrice,
+          stop_price: numOrNull(b.stop_loss),
+          fees: 0,
+          entry_time: nowIso,
+          exit_time: nowIso,
+          tags: ["Manual Trade"],
+          post_trade_review: [
+            "Manually logged closed trade.",
+            `Entry: ${entryPrice} | Exit: ${exitPrice}`,
+            `Margin: $${margin} | Leverage: ${lev}x`,
+            pnlUsd != null ? `PnL: $${pnlUsd.toFixed(2)} (${(pnlPct! * 100).toFixed(2)}%)` : "",
+            closeNotes ? `Notes: ${closeNotes}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to write manual trade to journal:", err);
+    }
   }
 
   return NextResponse.json({ ok: true, alert: data });

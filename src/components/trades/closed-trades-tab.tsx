@@ -4,6 +4,7 @@ import { sideForTrigger, type TradeAlert } from "@/lib/types";
 
 interface Props {
   closedAlerts: TradeAlert[];
+  onEdit: (alert: TradeAlert) => void;
   onArchive: (alert: TradeAlert) => void;
 }
 
@@ -26,7 +27,7 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
-export function ClosedTradesTab({ closedAlerts, onArchive }: Props) {
+export function ClosedTradesTab({ closedAlerts, onEdit, onArchive }: Props) {
   if (closedAlerts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-950/40">
@@ -123,7 +124,15 @@ export function ClosedTradesTab({ closedAlerts, onArchive }: Props) {
                   </span>
                 </td>
                 <td className="py-3 px-4 text-zinc-400">{formatDate(row.closed_at)}</td>
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(row)}
+                    title="Edit Trade"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                  >
+                    ✏️
+                  </button>
                   <button
                     type="button"
                     onClick={() => onArchive(row)}
