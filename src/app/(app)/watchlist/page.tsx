@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { WatchlistClient } from "@/components/watchlist/watchlist-client";
-import type { TriggeredWatchlistItem, WatchlistItem } from "@/lib/types";
+import type {
+  TriggeredWatchlistItem,
+  WatchlistItem,
+  ArchivedWatchlistItem,
+} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +16,27 @@ export default async function WatchlistPage() {
 
   let items: WatchlistItem[] = [];
   let triggered: TriggeredWatchlistItem[] = [];
+  let archived: ArchivedWatchlistItem[] = [];
 
   if (user) {
-    const [{ data: itemsData }, { data: triggeredData }] = await Promise.all([
-      supabase
-        .from("watchlist_items")
-        .select("*")
-        .order("added_at", { ascending: true }),
-      supabase
-        .from("triggered_watchlist_items")
-        .select("*")
-        .order("fired_at", { ascending: false }),
-    ]);
+    const [{ data: itemsData }, { data: triggeredData }, { data: archivedData }] =
+      await Promise.all([
+        supabase
+          .from("watchlist_items")
+          .select("*")
+          .order("added_at", { ascending: true }),
+        supabase
+          .from("triggered_watchlist_items")
+          .select("*")
+          .order("fired_at", { ascending: false }),
+        supabase
+          .from("archived_watchlist_items")
+          .select("*")
+          .order("archived_at", { ascending: false }),
+      ]);
     items = (itemsData ?? []) as WatchlistItem[];
     triggered = (triggeredData ?? []) as TriggeredWatchlistItem[];
+    archived = (archivedData ?? []) as ArchivedWatchlistItem[];
   }
 
   // Read the user's preferred refresh interval (seconds) so the client can
@@ -48,6 +59,7 @@ export default async function WatchlistPage() {
     <WatchlistClient
       initialItems={items}
       initialTriggeredItems={triggered}
+      initialArchivedItems={archived}
       refreshIntervalSec={refreshIntervalSec}
     />
   );

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccounts, getRiskSettings } from "@/lib/data";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { RiskSettingsForm } from "@/components/risk/risk-settings-form";
+import type { TelegramDestination } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,23 @@ export default async function SettingsPage() {
 
   const d = (data as {
     discord_webhook_url?: string | null;
+    discord_webhooks?: string[] | null;
     notify_discord?: boolean;
+    telegram_destinations?: TelegramDestination[] | null;
+    notify_telegram?: boolean;
     notify_desktop?: boolean;
     refresh_interval_sec?: number | null;
   } | null);
+
+  const discordWebhooks = Array.isArray(d?.discord_webhooks) && d.discord_webhooks.length > 0
+    ? d.discord_webhooks
+    : d?.discord_webhook_url
+    ? [d.discord_webhook_url]
+    : [];
+
+  const telegramDestinations = Array.isArray(d?.telegram_destinations)
+    ? d.telegram_destinations
+    : [];
 
   // Risk settings (now hosted on the Settings page).
   const accounts = await getAccounts(supabase, user);
@@ -40,8 +54,10 @@ export default async function SettingsPage() {
       <SettingsForm
         userEmail={user.email ?? ""}
         initial={{
-          discord_webhook_url: d?.discord_webhook_url ?? null,
+          discord_webhooks: discordWebhooks,
           notify_discord: d?.notify_discord ?? true,
+          telegram_destinations: telegramDestinations,
+          notify_telegram: d?.notify_telegram ?? true,
           notify_desktop: d?.notify_desktop ?? true,
           refresh_interval_sec: d?.refresh_interval_sec ?? 10,
         }}

@@ -10,9 +10,10 @@ The **Futures Watchlist** is a real-time market tracking and trade plan trigger 
    - Live ticker updates (price, 24h change, 24h volume) polled at configurable intervals.
    - Quick search across MEXC USDT-perpetual futures contracts.
 
-2. **Dual-Tab Architecture**:
+2. **3-Tab Architecture**:
    - **Watchlist (Active)**: Armed tokens actively watching live prices for trigger conditions.
-   - **Triggered (Archive)**: Tokens whose trigger conditions have been met.
+   - **Triggered**: Tokens whose trigger conditions have been met automatically.
+   - **Archive**: Soft-deleted tokens from either the active Watchlist or Triggered tab.
 
 3. **Trade Plan & Order Types**:
    - **Trigger Price**: The price condition that arms/fires the alert (`above` or `below`).
@@ -25,7 +26,7 @@ The **Futures Watchlist** is a real-time market tracking and trade plan trigger 
 4. **Multi-Instance Token Support**:
    - Traders can create and monitor **multiple independent setups for the same coin** simultaneously (e.g., separate dip-buy `Limit` and breakout `Trigger Limit` setups for `BTC`).
    - Ticker polling automatically deduplicates symbols so market data requests remain lean.
-   - Moving an item back from the Triggered tab creates a new active entry without overwriting or colliding with existing active setups for that coin.
+   - Moving an item back from Triggered or Archive creates a new active entry without overwriting or colliding with existing active setups for that coin.
 
 ---
 
@@ -73,9 +74,9 @@ When a `Trigger Limit` item fires:
 
 ---
 
-## 📂 Triggered Tokens Tab (Archive)
+## 📂 Triggered Tokens Tab
 
-The **Triggered** tab maintains a permanent record of all fired tokens and their trade plans at the exact moment of execution.
+The **Triggered** tab maintains a record of all automatically fired tokens and their trade plans at the exact moment of execution.
 
 ### Displayed Information
 - **Coin**: Base asset symbol (e.g., `BTC`, `SOL`).
@@ -88,8 +89,36 @@ The **Triggered** tab maintains a permanent record of all fired tokens and their
 - **Notes**: Trade thesis or notes saved with the item.
 
 ### Actions
-- **Move Back (↩)**: Re-creates the item back into the active watchlist with its full trade plan intact, clearing it from the archive.
-- **Delete (🗑)**: Permanently removes the record from the database archive.
+- **Move Back (↩)**: Re-creates the item back into the active Watchlist with its full trade plan intact, clearing it from Triggered.
+- **Delete (🗑)**: Soft-deletes the item to the **Archive** tab (tagged as `Removed from Triggered`).
+
+---
+
+## 📦 Archive Tab (Soft-Delete Repository)
+
+The **Archive** tab holds all manually deleted items from both the Active Watchlist and Triggered tabs.
+
+```mermaid
+flowchart TD
+    W[Active Watchlist Item] -->|Delete| A[Archive Tab]
+    T[Triggered Item] -->|Delete| A[Archive Tab]
+
+    A -->|Restore ↩| W
+    A -->|Delete 🗑| X((Permanent Delete))
+```
+
+### Displayed Information
+- **Coin**: Base asset symbol.
+- **Source**: `Watchlist` (if removed from Active Watchlist) or `Triggered` (if removed from Triggered tab).
+- **Side**: `LONG` or `SHORT`.
+- **Order Type**: `Trigger Limit`, `Limit`, or `Market`.
+- **Trigger Px & Fired Px**: Configured and actual execution prices (if fired).
+- **Archived At**: Timestamp when the item was moved to Archive.
+- **Notes**: Trade notes saved with the item.
+
+### Actions
+- **Restore (↩)**: Re-creates the item back into the active Watchlist with its full trade plan, clearing it from the Archive.
+- **Permanently Delete (🗑)**: Completely purges the item from the database.
 
 ---
 
@@ -100,8 +129,11 @@ The **Triggered** tab maintains a permanent record of all fired tokens and their
 1. **`watchlist_items`**: Active watchlist items currently monitored by the watcher.
    - Key columns: `id`, `user_id`, `symbol`, `trigger_price`, `trigger_direction`, `entry_price`, `stop_loss`, `take_profit`, `order_type`, `notes`.
 
-2. **`triggered_watchlist_items`**: Permanent archive of fired tokens.
+2. **`triggered_watchlist_items`**: Archive of automatically fired tokens.
    - Key columns: `id`, `user_id`, `source_item_id`, `symbol`, `trigger_price`, `trigger_direction`, `fired_price`, `entry_price`, `stop_loss`, `take_profit`, `order_type`, `notes`, `fired_at`.
+
+3. **`archived_watchlist_items`**: Soft-delete repository for manually removed active or triggered items.
+   - Key columns: `id`, `user_id`, `symbol`, `trigger_price`, `trigger_direction`, `fired_price`, `entry_price`, `stop_loss`, `take_profit`, `order_type`, `notes`, `archive_source`, `fired_at`, `archived_at`.
 
 ### API Endpoints
 
@@ -109,6 +141,9 @@ The **Triggered** tab maintains a permanent record of all fired tokens and their
 - `POST /api/watchlist`: Add/re-create an active watchlist item with trade plan.
 - `PATCH /api/watchlist/[id]`: Update trade plan or claim trigger (`alert_fired: true`).
 - `DELETE /api/watchlist/[id]`: Remove active item.
-- `GET  /api/triggered-watchlist`: Fetch archived triggered tokens.
-- `POST /api/triggered-watchlist`: Insert a new archived item on fire.
-- `DELETE /api/triggered-watchlist/[id]`: Remove an archived item.
+- `GET  /api/triggered-watchlist`: Fetch triggered tokens.
+- `POST /api/triggered-watchlist`: Insert a new triggered item on fire.
+- `DELETE /api/triggered-watchlist/[id]`: Remove a triggered item.
+- `GET  /api/archived-watchlist`: Fetch soft-deleted archived tokens.
+- `POST /api/archived-watchlist`: Save a soft-deleted item into Archive.
+- `DELETE /api/archived-watchlist/[id]`: Permanently delete an archived item.

@@ -22,7 +22,10 @@ Tape is a high-performance personal trading journal and real-time futures watchl
 
 ### 3. Risk Management & Notifications
 - Account-wide risk parameters (Max Daily Loss, Position Risk %, Max Open Positions).
-- Multi-channel alert notifications (In-app bell, Desktop notifications, Discord webhooks).
+- **Multi-Channel Alert Notifications**:
+  - **Discord Webhooks**: Configure single or multiple Discord webhooks.
+  - **Telegram Bot Integration**: Configure single or multiple Telegram bot destinations (`Bot Token` + `Chat ID`).
+  - **In-App & Desktop Toasts**: Instant notifications via bell menu and Windows PowerShell toasts.
 
 ---
 

@@ -65,6 +65,24 @@ export interface RiskSettings {
   max_open_positions: number | null;
 }
 
+export interface TelegramDestination {
+  id: string;
+  bot_token: string;
+  chat_id: string;
+  label?: string;
+}
+
+export interface UserSettings {
+  user_id: string;
+  discord_webhook_url?: string | null;
+  discord_webhooks: string[];
+  notify_discord: boolean;
+  telegram_destinations: TelegramDestination[];
+  notify_telegram: boolean;
+  notify_desktop: boolean;
+  refresh_interval_sec: number;
+}
+
 export interface WatchlistItem {
   id: string;
   user_id: string;
@@ -134,6 +152,23 @@ export interface TriggeredWatchlistItem {
   notes: string | null;
   fired_at: string;
   created_at: string;
+}
+
+export interface ArchivedWatchlistItem {
+  id: string;
+  user_id: string;
+  symbol: string;
+  trigger_price: number | null;
+  trigger_direction: "above" | "below" | null;
+  fired_price: number | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  order_type: OrderType | null;
+  notes: string | null;
+  archive_source: "active_deleted" | "triggered_deleted";
+  fired_at: string | null;
+  archived_at: string;
 }
 
 /**

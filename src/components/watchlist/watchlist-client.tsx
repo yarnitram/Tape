@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { WatchlistItem, TriggeredWatchlistItem } from "@/lib/types";
+import type { WatchlistItem, TriggeredWatchlistItem, ArchivedWatchlistItem } from "@/lib/types";
 import { cleanSymbol, fmtPx, fmtPct, fmtPlanPx } from "@/lib/format";
 import { CoinDetailModal } from "./coin-detail-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { WatchlistToolbar } from "./watchlist-toolbar";
 import { WatchlistTable } from "./watchlist-table";
 import { WatchlistTriggeredTab } from "./watchlist-triggered-tab";
+import { WatchlistArchiveTab } from "./watchlist-archive-tab";
 import type { ColKey, SortConfig, Ticker } from "./watchlist-types";
 import {
   DEFAULT_COLS,
@@ -23,6 +24,7 @@ import {
 interface Props {
   initialItems: WatchlistItem[];
   initialTriggeredItems?: TriggeredWatchlistItem[];
+  initialArchivedItems?: ArchivedWatchlistItem[];
   refreshIntervalSec?: number;
 }
 
@@ -31,13 +33,19 @@ interface Props {
 export function WatchlistClient({
   initialItems,
   initialTriggeredItems = [],
+  initialArchivedItems = [],
   refreshIntervalSec = 10,
 }: Props) {
   const [items, setItems] = useState<WatchlistItem[]>(initialItems);
   const [triggeredItems, setTriggeredItems] = useState<TriggeredWatchlistItem[]>(
     initialTriggeredItems
   );
-  const [activeTab, setActiveTab] = useState<"active" | "triggered">("active");
+  const [archivedItems, setArchivedItems] = useState<ArchivedWatchlistItem[]>(
+    initialArchivedItems
+  );
+  const [activeTab, setActiveTab] = useState<"active" | "triggered" | "archive">(
+    "active"
+  );
 
   // ---- Search state ----
   const [query, setQuery] = useState("");
@@ -439,8 +447,35 @@ export function WatchlistClient({
   }
 
   async function removeCoin(id: string) {
+    const pending = items.find((x) => x.id === id);
+    if (pending) {
+      try {
+        const archRes = await fetch("/api/archived-watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            symbol: pending.symbol,
+            trigger_price: pending.trigger_price,
+            trigger_direction: pending.trigger_direction,
+            entry_price: pending.entry_price,
+            stop_loss: pending.stop_loss,
+            take_profit: pending.take_profit,
+            order_type: pending.order_type,
+            notes: pending.notes,
+            archive_source: "active_deleted",
+          }),
+        });
+        if (archRes.ok) {
+          const { item: archived } = await archRes.json();
+          setArchivedItems((prev) => [archived, ...prev]);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
-    setItems(items.filter((i) => i.id !== id));
+    setItems((prev) => prev.filter((i) => i.id !== id));
     setConfirmRemove(null);
   }
 
@@ -559,6 +594,21 @@ export function WatchlistClient({
             {triggeredItems.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("archive")}
+          className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
+            activeTab === "archive"
+              ? "border-accent text-foreground font-semibold"
+              : "border-transparent text-muted hover:text-foreground"
+          }`}
+        >
+          Archive
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface border border-hairline font-mono">
+            {archivedItems.length}
+          </span>
+        </button>
       </div>
 
       {/* ---- Tab Content ---- */}
@@ -572,8 +622,23 @@ export function WatchlistClient({
             );
             setNote(`Moved ${cleanSymbol(restored.symbol)} back to active Watchlist.`);
           }}
-          onItemDeleted={(id) => {
+          onItemDeleted={(id, archivedItem) => {
             setTriggeredItems((prev) => prev.filter((x) => x.id !== id));
+            if (archivedItem) {
+              setArchivedItems((prev) => [archivedItem, ...prev]);
+            }
+          }}
+        />
+      ) : activeTab === "archive" ? (
+        <WatchlistArchiveTab
+          archivedItems={archivedItems}
+          onItemRestored={(restored, archivedId) => {
+            setItems((prev) => [...prev, restored]);
+            setArchivedItems((prev) => prev.filter((x) => x.id !== archivedId));
+            setNote(`Restored ${cleanSymbol(restored.symbol)} to Watchlist.`);
+          }}
+          onItemDeleted={(id) => {
+            setArchivedItems((prev) => prev.filter((x) => x.id !== id));
           }}
         />
       ) : items.length === 0 ? (
