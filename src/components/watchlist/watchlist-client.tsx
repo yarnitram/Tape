@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WatchlistItem, TriggeredWatchlistItem, ArchivedWatchlistItem } from "@/lib/types";
 import { cleanSymbol, fmtPx, fmtPct, fmtPlanPx } from "@/lib/format";
+import { useMexcMarketData } from "@/hooks/use-mexc-market-data";
 import { CoinDetailModal } from "./coin-detail-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { WatchlistToolbar } from "./watchlist-toolbar";
@@ -68,9 +69,6 @@ export function WatchlistClient({
   const [cols, setCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
 
   // ---- Live data + icons ----
-  const [live, setLive] = useState<Record<string, Ticker>>({});
-  const [icons, setIcons] = useState<Record<string, string>>({});
-
   // ---- UI state ----
   const [note, setNote] = useState<string | null>(null);
   const [details, setDetails] = useState<{
@@ -90,6 +88,31 @@ export function WatchlistClient({
     [items]
   );
 
+  // ---- Unified MEXC Market Data Hook ----
+  const mexcMarketData = useMexcMarketData({
+    symbols: symbolsToTrack,
+    refreshIntervalSec,
+    enableDetails: true,
+  });
+
+  const live = useMemo(() => {
+    const map: Record<string, Ticker> = {};
+    for (const t of mexcMarketData.tickers) {
+      map[t.symbol.toUpperCase()] = t as Ticker;
+    }
+    return map;
+  }, [mexcMarketData.tickers]);
+
+  const icons = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [sym, d] of Object.entries(mexcMarketData.details)) {
+      if (d?.baseCoinIconUrl) {
+        map[sym] = d.baseCoinIconUrl;
+      }
+    }
+    return map;
+  }, [mexcMarketData.details]);
+
   const sortedItems = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...items].sort((a, b) => {
@@ -99,7 +122,7 @@ export function WatchlistClient({
       const bT = live[bSym];
       switch (sort.field) {
         case "status": {
-          // Triggered â†’ Ongoing (trigger set, not fired) â†’ None.
+          // Triggered → Ongoing (trigger set, not fired) → None.
           const rank = (x: WatchlistItem) =>
             x.alert_fired ? 0 : x.trigger_price != null ? 1 : 2;
           const byStatus = rank(a) - rank(b);
@@ -155,77 +178,131 @@ export function WatchlistClient({
     return () => clearTimeout(t);
   }, []);
 
-  // ---- Effect: live ticker polling + alert firing ----
+  // ---- Effect: background trigger checking + triggered list sync ----
 
   useEffect(() => {
     let cancelled = false;
-    const intervalMs = Math.max(
-      1000,
-      (Number(refreshIntervalSec) || 10) * 1000
-    );
 
-    async function refresh() {
-      try {
-        // Also sync triggered items in background
-        fetch("/api/triggered-watchlist")
-          .then((r) => r.json())
-          .then((data) => {
-            if (!cancelled && data?.items) {
-              setTriggeredItems(data.items as TriggeredWatchlistItem[]);
-            }
-          })
-          .catch(() => {});
-
-        if (symbolsToTrack.length === 0) return;
-
-        const data = await fetch(`/api/mexc/futures`).then((r) => r.json());
-        if (cancelled || !data.tickers) return;
-        const map: Record<string, Ticker> = {};
-        for (const t of data.tickers as Ticker[]) {
-          if (symbolsToTrack.includes(t.symbol)) map[t.symbol] = t;
+    // Background sync triggered items
+    fetch("/api/triggered-watchlist")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.items) {
+          setTriggeredItems(data.items as TriggeredWatchlistItem[]);
         }
-        setLive(map);
+      })
+      .catch(() => {});
 
-        // ---- Check armed price triggers and fire alerts ----
-        const toFire = items.filter((i) => {
-          if (i.alert_fired) return false;
-          if (i.trigger_price == null || i.trigger_direction == null)
-            return false;
-          const t = map[i.symbol.toUpperCase()];
-          if (!t) return false;
-          const tp = i.trigger_price;
-          if (i.trigger_direction === "above" && t.lastPrice >= tp) return true;
-          if (i.trigger_direction === "below" && t.lastPrice <= tp) return true;
-          return false;
-        });
+    if (symbolsToTrack.length === 0 || Object.keys(live).length === 0) return;
 
-        for (const item of toFire) {
-          const nowIso = new Date().toISOString();
-          const sym = item.symbol.toUpperCase();
-          const triggerPrice = item.trigger_price as number;
-          const lastPrice = map[sym]?.lastPrice ?? 0;
-          try {
-            // Atomic claim on watchlist row
-            const res = await fetch(`/api/watchlist/${item.id}`, {
-              method: "PATCH",
+    async function checkTriggers() {
+      const toFire = items.filter((i) => {
+        if (i.alert_fired) return false;
+        if (i.trigger_price == null || i.trigger_direction == null) return false;
+        const t = live[i.symbol.toUpperCase()];
+        if (!t) return false;
+        const tp = i.trigger_price;
+        if (i.trigger_direction === "above" && t.lastPrice >= tp) return true;
+        if (i.trigger_direction === "below" && t.lastPrice <= tp) return true;
+        return false;
+      });
+
+      for (const item of toFire) {
+        const nowIso = new Date().toISOString();
+        const sym = item.symbol.toUpperCase();
+        const triggerPrice = item.trigger_price as number;
+        const lastPrice = live[sym]?.lastPrice ?? 0;
+        try {
+          // Atomic claim on watchlist row
+          const res = await fetch(`/api/watchlist/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              alert_fired: true,
+              alert_fired_at: nowIso,
+            }),
+          });
+          const claimed = await res
+            .json()
+            .then((j) => j?.claimed !== false)
+            .catch(() => false);
+
+          if (claimed) {
+            // 1. Move to triggered archive table
+            const trigRes = await fetch("/api/triggered-watchlist", {
+              method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                alert_fired: true,
-                alert_fired_at: nowIso,
+                source_item_id: item.id,
+                symbol: sym,
+                trigger_price: triggerPrice,
+                trigger_direction: item.trigger_direction,
+                fired_price: lastPrice,
+                entry_price: item.entry_price,
+                stop_loss: item.stop_loss,
+                take_profit: item.take_profit,
+                order_type: item.order_type,
+                notes: item.notes,
+                fired_at: nowIso,
               }),
             });
-            const claimed = await res
-              .json()
-              .then((j) => j?.claimed !== false)
-              .catch(() => false);
 
-            if (claimed) {
-              // 1. Move to triggered archive table
-              const trigRes = await fetch("/api/triggered-watchlist", {
+            if (trigRes.ok) {
+              const { item: trigItem } = await trigRes.json();
+              setTriggeredItems((prev) => [
+                trigItem,
+                ...prev.filter((x) => x.id !== trigItem.id),
+              ]);
+            }
+
+            // 2. Remove from active watchlist
+            await fetch(`/api/watchlist/${item.id}`, { method: "DELETE" });
+            setItems((prev) => prev.filter((x) => x.id !== item.id));
+
+            // 3. Handle Order Type branching
+            if (item.order_type === "trigger_limit") {
+              // Trigger Limit: spawn new watchlist item with trigger = EP, order_type = Limit
+              if (item.entry_price != null) {
+                const epDirection =
+                  lastPrice > item.entry_price ? "below" : "above";
+                await fetch("/api/watchlist", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    symbol: sym,
+                    trigger_price: item.entry_price,
+                    trigger_direction: epDirection,
+                    entry_price: item.entry_price,
+                    stop_loss: item.stop_loss,
+                    take_profit: item.take_profit,
+                    order_type: "limit",
+                    notes: item.notes,
+                  }),
+                });
+                await reloadItems();
+              }
+
+              // Send notification without creating a /trades alert row
+              await fetch(`/api/alerts/fire`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  source_item_id: item.id,
+                  type: "watchlist_trigger",
+                  title: `${cleanSymbol(sym)} TL trigger hit — Limit order armed`,
+                  message: `Trigger ${fmtPlanPx(triggerPrice)} fired. New watchlist item created at EP ${fmtPlanPx(item.entry_price ?? 0)}.`,
+                  link: "/watchlist",
+                }),
+              }).catch(() => {});
+            } else {
+              // Limit or Market: send notification + log trade alert for /trades page
+              await fetch(`/api/alerts/fire`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "watchlist_trigger",
+                  title: `${cleanSymbol(sym)} hit your trigger`,
+                  message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
+                  link: "/watchlist",
                   symbol: sym,
                   trigger_price: triggerPrice,
                   trigger_direction: item.trigger_direction,
@@ -235,139 +312,23 @@ export function WatchlistClient({
                   take_profit: item.take_profit,
                   order_type: item.order_type,
                   notes: item.notes,
-                  fired_at: nowIso,
+                  watchlist_item_id: item.id,
                 }),
-              });
-
-              if (trigRes.ok) {
-                const { item: trigItem } = await trigRes.json();
-                setTriggeredItems((prev) => [
-                  trigItem,
-                  ...prev.filter((x) => x.id !== trigItem.id),
-                ]);
-              }
-
-              // 2. Remove from active watchlist
-              await fetch(`/api/watchlist/${item.id}`, { method: "DELETE" });
-              setItems((prev) => prev.filter((x) => x.id !== item.id));
-
-              // 3. Handle Order Type branching
-              if (item.order_type === "trigger_limit") {
-                // Trigger Limit: spawn new watchlist item with trigger = EP, order_type = Limit
-                if (item.entry_price != null) {
-                  const epDirection =
-                    lastPrice > item.entry_price ? "below" : "above";
-                  await fetch("/api/watchlist", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      symbol: sym,
-                      trigger_price: item.entry_price,
-                      trigger_direction: epDirection,
-                      entry_price: item.entry_price,
-                      stop_loss: item.stop_loss,
-                      take_profit: item.take_profit,
-                      order_type: "limit",
-                      notes: item.notes,
-                    }),
-                  });
-                  await reloadItems();
-                }
-
-                // Send notification without creating a /trades alert row
-                await fetch(`/api/alerts/fire`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    type: "watchlist_trigger",
-                    title: `${cleanSymbol(sym)} TL trigger hit — Limit order armed`,
-                    message: `Trigger ${fmtPlanPx(triggerPrice)} fired. New watchlist item created at EP ${fmtPlanPx(item.entry_price ?? 0)}.`,
-                    link: "/watchlist",
-                  }),
-                }).catch(() => {});
-              } else {
-                // Limit or Market: send notification + log trade alert for /trades page
-                await fetch(`/api/alerts/fire`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    type: "watchlist_trigger",
-                    title: `${cleanSymbol(sym)} hit your trigger`,
-                    message: `Last ${fmtPx(lastPrice)} reached your ${fmtPlanPx(triggerPrice)} trigger.`,
-                    link: "/watchlist",
-                    symbol: sym,
-                    trigger_price: triggerPrice,
-                    trigger_direction: item.trigger_direction,
-                    fired_price: lastPrice,
-                    entry_price: item.entry_price,
-                    stop_loss: item.stop_loss,
-                    take_profit: item.take_profit,
-                    order_type: item.order_type,
-                    notes: item.notes,
-                    watchlist_item_id: item.id,
-                  }),
-                }).catch(() => {});
-              }
+              }).catch(() => {});
             }
-          } catch {
-            // ignore per-item failures
           }
+        } catch {
+          // ignore per-item failures
         }
-      } catch {
-        // keep last known data on failure
       }
     }
 
-    refresh();
-    const id = setInterval(refresh, intervalMs);
+    checkTriggers();
+
     return () => {
       cancelled = true;
-      clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbolsToTrack.join(","), items, refreshIntervalSec]);
-
-  // ---- Effect: coin icon fetching ----
-
-  useEffect(() => {
-    if (symbolsToTrack.length === 0) return;
-    let cancelled = false;
-
-    async function fetchIcons() {
-      try {
-        const fetched = await Promise.all(
-          symbolsToTrack.map(async (sym) => {
-            const res = await fetch(
-              `/api/mexc/futures?symbol=${encodeURIComponent(sym)}`
-            );
-            if (!res.ok) return { symbol: sym, iconUrl: null };
-            const data = await res.json();
-            return {
-              symbol: sym,
-              iconUrl: data.detail?.baseCoinIconUrl ?? null,
-            };
-          })
-        );
-        if (!cancelled) {
-          const map: Record<string, string> = {};
-          for (const r of fetched) {
-            if (r.iconUrl) map[r.symbol] = r.iconUrl;
-          }
-          setIcons(map);
-        }
-      } catch {
-        // keep last known icons on failure
-      }
-    }
-
-    fetchIcons();
-    // Refresh icons less frequently (every 5 minutes) since they rarely change.
-    const id = setInterval(fetchIcons, 5 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [symbolsToTrack]);
+  }, [mexcMarketData.lastRefreshed, items, symbolsToTrack, live]);
 
   // ---- Column helpers ----
 

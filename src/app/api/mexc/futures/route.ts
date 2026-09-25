@@ -4,13 +4,12 @@ export const dynamic = "force-dynamic";
 
 const FUTURES_BASE = "https://contract.mexc.com/api/v1/contract";
 
-// Simple in-memory TTL cache to avoid hammering MEXC on every keystroke.
 const cache: {
-  data: unknown;
+  data: FuturesTicker[] | null;
   fetchedAt: number;
 } = { data: null, fetchedAt: 0 };
 
-interface FuturesTicker {
+export interface FuturesTicker {
   symbol: string;
   lastPrice: number;
   bid1: number;
@@ -30,7 +29,7 @@ interface FuturesTicker {
 
 const TTL_MS = 5000;
 
-interface FuturesDetail {
+export interface FuturesDetail {
   symbol: string;
   displayNameEn: string;
   baseCoin: string;
@@ -53,31 +52,70 @@ interface FuturesDetail {
   openTime?: number;
 }
 
-// Separate short cache for contract details keyed by symbol.
-const detailCache: Record<string, { data: unknown; fetchedAt: number }> = {};
+const detailCache: Record<string, { data: FuturesDetail | null; fetchedAt: number }> = {};
+const allDetailsCache: { data: Record<string, FuturesDetail> | null; fetchedAt: number } = {
+  data: null,
+  fetchedAt: 0,
+};
 const DETAIL_TTL_MS = 60_000;
 
 async function fetchContractDetail(symbol: string): Promise<FuturesDetail | null> {
   const cached = detailCache[symbol];
   if (cached && Date.now() - cached.fetchedAt < DETAIL_TTL_MS) {
-    return cached.data as FuturesDetail | null;
+    return cached.data;
   }
 
-  const res = await fetch(
-    `${FUTURES_BASE}/detail?symbol=${encodeURIComponent(symbol)}`,
-    { cache: "no-store", signal: AbortSignal.timeout(15000) }
-  );
-  if (!res.ok) return null;
-  const json = (await res.json()) as { success: boolean; data: FuturesDetail };
-  const out = json.success ? json.data : null;
-  detailCache[symbol] = { data: out, fetchedAt: Date.now() };
-  return out;
+  try {
+    const res = await fetch(
+      `${FUTURES_BASE}/detail?symbol=${encodeURIComponent(symbol)}`,
+      { cache: "no-store", signal: AbortSignal.timeout(15000) }
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as { success: boolean; data: FuturesDetail };
+    const out = json.success ? json.data : null;
+    detailCache[symbol] = { data: out, fetchedAt: Date.now() };
+    return out;
+  } catch {
+    return cached ? cached.data : null;
+  }
+}
+
+async function fetchAllContractDetails(): Promise<Record<string, FuturesDetail>> {
+  const now = Date.now();
+  if (allDetailsCache.data && now - allDetailsCache.fetchedAt < DETAIL_TTL_MS) {
+    return allDetailsCache.data;
+  }
+
+  try {
+    const res = await fetch(`${FUTURES_BASE}/detail`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return allDetailsCache.data || {};
+    const json = (await res.json()) as { success: boolean; data: FuturesDetail[] };
+    if (!json.success || !Array.isArray(json.data)) return allDetailsCache.data || {};
+
+    const map: Record<string, FuturesDetail> = {};
+    for (const d of json.data) {
+      if (d.symbol) {
+        const symUpper = d.symbol.toUpperCase();
+        map[symUpper] = d;
+        detailCache[symUpper] = { data: d, fetchedAt: now };
+      }
+    }
+
+    allDetailsCache.data = map;
+    allDetailsCache.fetchedAt = now;
+    return map;
+  } catch {
+    return allDetailsCache.data || {};
+  }
 }
 
 async function fetchAllTickers(): Promise<FuturesTicker[]> {
   const now = Date.now();
   if (cache.data && now - cache.fetchedAt < TTL_MS) {
-    return cache.data as FuturesTicker[];
+    return cache.data;
   }
 
   const res = await fetch(`${FUTURES_BASE}/ticker`, {
@@ -92,7 +130,6 @@ async function fetchAllTickers(): Promise<FuturesTicker[]> {
     throw new Error("MEXC futures request failed");
   }
 
-  // Restrict to USDT-margined perpetual contracts (symbols are "XXX_USDT").
   const filtered = json.data.filter(
     (t) =>
       t.symbol.endsWith("_USDT") &&
@@ -107,38 +144,81 @@ async function fetchAllTickers(): Promise<FuturesTicker[]> {
 
 /**
  * GET /api/mexc/futures
- *   ?symbol=BTC_USDT   -> single ticker for that symbol (404 if not found)
- *   ?q=BTC             -> search USDT perpetuals by symbol substring
- *   (no params)        -> all USDT perpetuals
+ *   ?symbols=BTC_USDT,ETH_USDT -> tickers + details map for symbols
+ *   ?symbol=BTC_USDT          -> single ticker + detail for symbol
+ *   ?q=BTC                    -> search USDT perpetuals by substring
+ *   ?with_details=true        -> include contract details map for all/filtered symbols
+ *   (no params)               -> all USDT perpetual tickers
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol")?.toUpperCase();
+  const singleSymbol = searchParams.get("symbol")?.toUpperCase();
+  const rawSymbols = searchParams.get("symbols")?.toUpperCase();
   const q = searchParams.get("q")?.toUpperCase();
+  const withDetails = searchParams.get("with_details") === "true";
 
   try {
-    const all = await fetchAllTickers();
+    const allTickers = await fetchAllTickers();
 
-    if (symbol) {
-      const hit = all.find((t) => t.symbol === symbol);
+    // 1. Single symbol lookup
+    if (singleSymbol) {
+      const hit = allTickers.find((t) => t.symbol === singleSymbol);
       if (!hit) {
         return NextResponse.json(
           { error: "Futures symbol not found" },
           { status: 404 }
         );
       }
-      const detail = await fetchContractDetail(symbol);
-      return NextResponse.json({ ticker: hit, detail });
+      const detail = await fetchContractDetail(singleSymbol);
+      return NextResponse.json({ success: true, ticker: hit, detail });
     }
 
+    // 2. Comma-separated symbols lookup (Batch Mode)
+    if (rawSymbols) {
+      const requestedList = rawSymbols
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const symbolSet = new Set(requestedList);
+
+      const matchedTickers = allTickers.filter((t) => symbolSet.has(t.symbol));
+      const allDetails = await fetchAllContractDetails();
+      const detailsMap: Record<string, FuturesDetail> = {};
+
+      for (const sym of symbolSet) {
+        if (allDetails[sym]) {
+          detailsMap[sym] = allDetails[sym];
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        tickers: matchedTickers,
+        details: detailsMap,
+        count: matchedTickers.length,
+      });
+    }
+
+    // 3. Search query lookup
     if (q) {
-      const matches = all
+      const matches = allTickers
         .filter((t) => t.symbol.includes(q))
         .sort((a, b) => a.symbol.localeCompare(b.symbol));
-      return NextResponse.json({ tickers: matches, count: matches.length });
+      return NextResponse.json({ success: true, tickers: matches, count: matches.length });
     }
 
-    return NextResponse.json({ tickers: all, count: all.length });
+    // 4. Default: all tickers (+ optional details)
+    let detailsMap: Record<string, FuturesDetail> | undefined;
+    if (withDetails) {
+      detailsMap = await fetchAllContractDetails();
+    }
+
+    return NextResponse.json({
+      success: true,
+      tickers: allTickers,
+      details: detailsMap,
+      count: allTickers.length,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },

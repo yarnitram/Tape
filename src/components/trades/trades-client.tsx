@@ -259,20 +259,15 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(20);
 
-  // Live prices
+  // Live prices and contract details
   const {
     prices: live,
+    details,
     loading: pricesLoading,
     error: pricesError,
     lastRefreshed,
     refreshIntervalSec: pricesRefreshInterval,
   } = useLivePrices(alerts.map((a) => a.symbol.toUpperCase()), refreshIntervalSec);
-
-  const [details, setDetails] = useState<Record<string, ContractDetail>>({});
-  const detailsRef = useRef<Record<string, ContractDetail>>({});
-  const inFlightRef = useRef<Set<string>>(new Set());
-  const attemptsRef = useRef<Record<string, number>>({});
-  const [retryTick, setRetryTick] = useState(0);
 
   // Modals & Action states
   const [editing, setEditing] = useState<TradeAlert | ArchivedTradeAlert | null>(null);
@@ -368,60 +363,6 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       clearInterval(id);
     };
   }, [refreshIntervalSec]);
-
-  // Contract details fetch
-  const symbols = useMemo(
-    () => Array.from(new Set(alerts.map((a) => a.symbol.toUpperCase()))).sort(),
-    [alerts]
-  );
-
-  useEffect(() => {
-    const inFlight = inFlightRef.current;
-    const missing = symbols.filter(
-      (s) => !detailsRef.current[s] && !inFlight.has(s)
-    );
-    if (missing.length === 0) return;
-    for (const sym of missing) inFlight.add(sym);
-
-    let stopped = false;
-    (async () => {
-      for (let i = 0; i < missing.length; i++) {
-        const sym = missing[i];
-        const releaseAndSkip = () => {
-          inFlight.delete(sym);
-        };
-        try {
-          const delay = i * 120;
-          if (delay > 0) await new Promise((r) => setTimeout(r, delay));
-          if (stopped) {
-            releaseAndSkip();
-            break;
-          }
-          const res = await fetch(
-            `/api/mexc/futures?symbol=${encodeURIComponent(sym)}`
-          );
-          const data = res.ok ? await res.json() : null;
-          if (data?.detail) {
-            const detail = data.detail as ContractDetail;
-            setDetails((prev) => ({ ...prev, [sym]: detail }));
-          }
-        } catch {
-          /* ignore */
-        } finally {
-          inFlight.delete(sym);
-        }
-      }
-    })();
-
-    return () => {
-      stopped = true;
-      for (const sym of missing) inFlight.delete(sym);
-    };
-  }, [symbols, retryTick]);
-
-  useEffect(() => {
-    detailsRef.current = details;
-  }, [details]);
 
   useEffect(() => {
     if (!notice) return;
