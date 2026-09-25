@@ -30,3 +30,55 @@ export function signed(v: number, digits = 2): string {
     maximumFractionDigits: digits,
   })}`;
 }
+
+// ---- Watchlist / MEXC helpers ----
+
+/**
+ * Strip the _USDT suffix from a MEXC futures symbol.
+ * e.g. "BTC_USDT" → "BTC"
+ */
+export function cleanSymbol(s: string): string {
+  return s.replace(/_USDT$/i, "");
+}
+
+/**
+ * Format a MEXC last-price with adaptive precision:
+ * ≥ 1000 → 1 decimal, ≥ 1 → 3 decimals, < 1 → 6 decimals.
+ */
+export function fmtPx(p: number): string {
+  if (p >= 1000)
+    return p.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  if (p >= 1)
+    return p.toLocaleString("en-US", { maximumFractionDigits: 3 });
+  return p.toLocaleString("en-US", { maximumFractionDigits: 6 });
+}
+
+/**
+ * Format a plan price (trigger / EP / SL / TP) with up to 7 decimal places,
+ * trailing zeros after the decimal point trimmed.
+ * e.g. 0.5000000 → "0.5"
+ */
+export function fmtPlanPx(p: number): string {
+  const s = p.toLocaleString("en-US", { maximumFractionDigits: 7 });
+  return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
+}
+
+/**
+ * Format a 24 h rise/fall rate as a signed percentage.
+ * MEXC returns this as a decimal fraction (0.0512 → "+5.12%").
+ */
+export function fmtPct(f: number): string {
+  return `${f >= 0 ? "+" : ""}${(f * 100).toFixed(2)}%`;
+}
+
+/**
+ * Compact USD volume display.
+ * e.g. 1_230_000_000 → "$1.23B", 456_780 → "$456.78K"
+ */
+export function compact(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}

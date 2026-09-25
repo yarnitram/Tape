@@ -119,6 +119,23 @@ export interface TradeAlert {
   created_at: string;
 }
 
+export interface TriggeredWatchlistItem {
+  id: string;
+  user_id: string;
+  source_item_id: string | null;
+  symbol: string;
+  trigger_price: number | null;
+  trigger_direction: "above" | "below" | null;
+  fired_price: number | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  order_type: OrderType | null;
+  notes: string | null;
+  fired_at: string;
+  created_at: string;
+}
+
 /**
  * How a fired alert is traded. There is no stored side column: the watchlist
  * trigger direction decides it — a coin breaking BELOW its trigger is taken

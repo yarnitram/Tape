@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-/** GET /api/watchlist — list the current user's watchlist items. */
+const numOrNull = (v: unknown) => (v == null || v === "" ? null : Number(v));
+
+/** GET /api/triggered-watchlist — list the current user's triggered watchlist items. */
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -10,14 +12,15 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase
-    .from("watchlist_items")
+    .from("triggered_watchlist_items")
     .select("*")
-    .order("added_at", { ascending: true });
+    .order("fired_at", { ascending: false });
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ items: data ?? [] });
 }
 
-/** POST /api/watchlist — add a watchlist item. Body: { symbol, notes?, alert_price? } */
+/** POST /api/triggered-watchlist — insert a triggered watchlist item archive row. */
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -38,8 +41,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "symbol required" }, { status: 400 });
   }
 
-  const numOrNull = (v: unknown) => (v == null || v === "" ? null : Number(v));
-
   const triggerDirection =
     b.trigger_direction === "above" || b.trigger_direction === "below"
       ? b.trigger_direction
@@ -52,30 +53,25 @@ export async function POST(request: Request) {
       ? b.order_type
       : null;
 
-  const triggerPrice = numOrNull(b.trigger_price);
-
   const { data, error } = await supabase
-    .from("watchlist_items")
+    .from("triggered_watchlist_items")
     .insert({
       user_id: user.id,
+      source_item_id: b.source_item_id ? String(b.source_item_id) : null,
       symbol,
-      notes: b.notes?.toString() || null,
-      alert_price: numOrNull(b.alert_price),
-      trigger_price: triggerPrice,
+      trigger_price: numOrNull(b.trigger_price),
       trigger_direction: triggerDirection,
-      order_type: orderType,
+      fired_price: numOrNull(b.fired_price),
       entry_price: numOrNull(b.entry_price),
       stop_loss: numOrNull(b.stop_loss),
       take_profit: numOrNull(b.take_profit),
-      trigger_created_at:
-        b.trigger_created_at != null
-          ? String(b.trigger_created_at)
-          : triggerPrice != null
-          ? new Date().toISOString()
-          : null,
+      order_type: orderType,
+      notes: b.notes?.toString() || null,
+      fired_at: b.fired_at ? String(b.fired_at) : new Date().toISOString(),
     })
     .select("*")
     .single();
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ item: data }, { status: 201 });
 }

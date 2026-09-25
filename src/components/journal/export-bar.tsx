@@ -8,12 +8,15 @@ interface Props {
   trades: TradeWithExtras[];
   selectedIds: Set<string>;
   symbolOptions: string[];
+  onDeleteSelected?: () => Promise<void>;
 }
 
-export function ExportBar({ trades, selectedIds, symbolOptions }: Props) {
+export function ExportBar({ trades, selectedIds, symbolOptions, onDeleteSelected }: Props) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [symbol, setSymbol] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Apply the date-range + symbol filters (used by both "range" and "all").
   const filtered = useMemo(() => {
@@ -42,6 +45,17 @@ export function ExportBar({ trades, selectedIds, symbolOptions }: Props) {
   function handleExportRange() {
     // Export "range" = the currently filtered set, same as all but scoped.
     downloadXlsx(filtered, `tape-range-${stamp()}.xlsx`);
+  }
+
+  async function handleConfirmDelete() {
+    if (!onDeleteSelected) return;
+    setDeleting(true);
+    try {
+      await onDeleteSelected();
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
   }
 
   const inputCls =
@@ -84,6 +98,40 @@ export function ExportBar({ trades, selectedIds, symbolOptions }: Props) {
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
+        {/* Bulk delete — only visible when rows are checked */}
+        {selected.length > 0 && onDeleteSelected && (
+          confirmingDelete ? (
+            <span className="flex items-center gap-2 text-sm">
+              <span className="text-muted">
+                Delete {selected.length} trade{selected.length > 1 ? "s" : ""}?
+              </span>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="px-3 py-1 border border-loss text-loss text-sm cursor-pointer hover:bg-loss/10 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Confirm"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="py-1 text-muted hover:text-text text-sm cursor-pointer"
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="px-3 py-1.5 text-xs border border-loss text-loss cursor-pointer hover:bg-loss/10 transition-colors"
+            >
+              Delete selected ({selected.length})
+            </button>
+          )
+        )}
         <button
           type="button"
           onClick={handleExportRange}

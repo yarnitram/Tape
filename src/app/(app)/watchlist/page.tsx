@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { WatchlistClient } from "@/components/watchlist/watchlist-client";
-import type { WatchlistItem } from "@/lib/types";
+import type { TriggeredWatchlistItem, WatchlistItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +10,23 @@ export default async function WatchlistPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data } = user
-    ? await supabase
+  let items: WatchlistItem[] = [];
+  let triggered: TriggeredWatchlistItem[] = [];
+
+  if (user) {
+    const [{ data: itemsData }, { data: triggeredData }] = await Promise.all([
+      supabase
         .from("watchlist_items")
         .select("*")
-        .order("added_at", { ascending: true })
-    : { data: [] };
+        .order("added_at", { ascending: true }),
+      supabase
+        .from("triggered_watchlist_items")
+        .select("*")
+        .order("fired_at", { ascending: false }),
+    ]);
+    items = (itemsData ?? []) as WatchlistItem[];
+    triggered = (triggeredData ?? []) as TriggeredWatchlistItem[];
+  }
 
   // Read the user's preferred refresh interval (seconds) so the client can
   // poll the MEXC API at the configured cadence.
@@ -35,7 +46,8 @@ export default async function WatchlistPage() {
 
   return (
     <WatchlistClient
-      initialItems={(data ?? []) as WatchlistItem[]}
+      initialItems={items}
+      initialTriggeredItems={triggered}
       refreshIntervalSec={refreshIntervalSec}
     />
   );

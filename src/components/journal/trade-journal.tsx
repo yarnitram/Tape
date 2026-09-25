@@ -97,6 +97,14 @@ export function TradeJournal({
     [mutation, refresh]
   );
 
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    await mutation("/api/trades/bulk-delete", "DELETE", { ids });
+    await refresh();
+    setSelectedIds(new Set());
+  }, [selectedIds, mutation, refresh]);
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -179,6 +187,7 @@ export function TradeJournal({
             trades={trades}
             selectedIds={selectedIds}
             symbolOptions={uniqueSymbols}
+            onDeleteSelected={handleBulkDelete}
           />
         </div>
 
