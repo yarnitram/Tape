@@ -82,3 +82,14 @@ export function compact(v: number): string {
   if (abs >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
   return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
+
+/**
+ * Generate external MEXC futures chart URL for a symbol.
+ * e.g. "BTC" or "BTC_USDT" → "https://futures.mexc.com/exchange/BTC_USDT"
+ */
+export function mexcChartUrl(symbol: string): string {
+  if (!symbol) return "https://futures.mexc.com/exchange";
+  const clean = symbol.trim().toUpperCase();
+  const formattedSymbol = clean.includes("_") ? clean : `${clean}_USDT`;
+  return `https://futures.mexc.com/exchange/${formattedSymbol}`;
+}

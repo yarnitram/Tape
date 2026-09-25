@@ -8,6 +8,7 @@ import {
   fmtPlanPx,
   fmtPx,
   compact,
+  mexcChartUrl,
 } from "@/lib/format";
 import type { ColKey, Ticker } from "./watchlist-types";
 import { ORDER_TYPE_LABELS } from "./watchlist-types";
@@ -221,6 +222,21 @@ export function WatchlistRow({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
+        <a
+          href={mexcChartUrl(item.symbol)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:underline text-xs mr-3 inline-flex items-center gap-1 cursor-pointer"
+          title={`Open ${cleanSymbol(item.symbol)} chart on MEXC`}
+        >
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3v18h18" />
+            <path d="M18 17V9" />
+            <path d="M13 17V5" />
+            <path d="M8 17v-3" />
+          </svg>
+          <span>Chart</span>
+        </a>
         <button
           type="button"
           onClick={onModify}

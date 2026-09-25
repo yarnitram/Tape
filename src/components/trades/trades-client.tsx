@@ -9,6 +9,7 @@ import { CloseTradeModal } from "./close-trade-modal";
 import { ClosedTradesTab } from "./closed-trades-tab";
 import { ArchivedTradesTab } from "./archived-trades-tab";
 import { useLivePrices, formatLastRefreshed } from "./use-live-prices";
+import { mexcChartUrl } from "@/lib/format";
 
 interface Props {
   initialAlerts: TradeAlert[];
@@ -897,6 +898,21 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                             </td>
                           )}
                           <td className="px-2 py-2.5 text-right whitespace-nowrap space-x-2">
+                            <a
+                              href={mexcChartUrl(a.symbol)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-accent hover:underline text-xs cursor-pointer inline-flex items-center gap-1"
+                              title={`Open ${cleanSymbol(a.symbol)} chart on MEXC`}
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 3v18h18" />
+                                <path d="M18 17V9" />
+                                <path d="M13 17V5" />
+                                <path d="M8 17v-3" />
+                              </svg>
+                              Chart
+                            </a>
                             <button
                               type="button"
                               onClick={() => setClosingAlert(a)}

@@ -2,6 +2,7 @@
 
 import type { ArchivedTradeAlert } from "@/lib/types";
 import { sideForTrigger } from "@/lib/types";
+import { mexcChartUrl } from "@/lib/format";
 
 interface Props {
   archivedAlerts: ArchivedTradeAlert[];
@@ -113,6 +114,15 @@ export function ArchivedTradesTab({
                 </td>
                 <td className="py-3 px-4 text-zinc-400">{formatDate(row.archived_at)}</td>
                 <td className="py-3 px-4 text-right space-x-2">
+                  <a
+                    href={mexcChartUrl(row.symbol)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open ${formatSymbol(row.symbol)} chart on MEXC`}
+                    className="p-1.5 rounded-lg inline-block text-zinc-400 hover:text-accent hover:bg-accent/10 transition-colors"
+                  >
+                    📈
+                  </a>
                   <button
                     type="button"
                     onClick={() => onEdit(row)}

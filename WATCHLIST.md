@@ -159,3 +159,6 @@ flowchart TD
 2. **Unified Hook & Tab Visibility Pause (`useMexcMarketData`)**:
    - Replaced duplicate polling and per-symbol icon fetch loops with `useMexcMarketData`.
    - Automatically pauses polling when browser tab is inactive (`document.hidden`), preventing rate limits and reducing network usage.
+
+3. **Direct MEXC Futures Chart Links (`mexcChartUrl`)**:
+   - Every row across Active Watchlist, Triggered, and Archive tabs includes a **Chart** action link to open `https://futures.mexc.com/exchange/SYMBOL_USDT` in a new browser tab.
