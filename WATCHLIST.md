@@ -161,4 +161,4 @@ flowchart TD
    - Automatically pauses polling when browser tab is inactive (`document.hidden`), preventing rate limits and reducing network usage.
 
 3. **Direct MEXC Futures Chart Links (`mexcChartUrl`)**:
-   - Every row across Active Watchlist, Triggered, and Archive tabs includes a **Chart** action link to open `https://futures.mexc.com/exchange/SYMBOL_USDT` in a new browser tab.
+   - Every row across Active Watchlist, Triggered, and Archive tabs includes a **Chart** action link to open `https://www.mexc.co/futures/SYMBOL_USDT` in a new browser tab.

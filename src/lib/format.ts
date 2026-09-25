@@ -85,11 +85,11 @@ export function compact(v: number): string {
 
 /**
  * Generate external MEXC futures chart URL for a symbol.
- * e.g. "BTC" or "BTC_USDT" → "https://futures.mexc.com/exchange/BTC_USDT"
+ * e.g. "BTC" or "BTC_USDT" → "https://www.mexc.co/futures/BTC_USDT"
  */
 export function mexcChartUrl(symbol: string): string {
-  if (!symbol) return "https://futures.mexc.com/exchange";
+  if (!symbol) return "https://www.mexc.co/futures";
   const clean = symbol.trim().toUpperCase();
   const formattedSymbol = clean.includes("_") ? clean : `${clean}_USDT`;
-  return `https://futures.mexc.com/exchange/${formattedSymbol}`;
+  return `https://www.mexc.co/futures/${formattedSymbol}`;
 }

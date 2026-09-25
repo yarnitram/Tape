@@ -113,4 +113,4 @@ flowchart TD
    - Pauses polling when the tab is inactive to prevent background network load and rate limits, instantly refreshing live prices when focused.
 
 3. **Direct MEXC Futures Chart Links (`mexcChartUrl`)**:
-   - All trade rows across Active Trades, Closed History, and Archive tabs feature a **Chart** action link to open `https://futures.mexc.com/exchange/SYMBOL_USDT` in a new browser tab.
+   - All trade rows across Active Trades, Closed History, and Archive tabs feature a **Chart** action link to open `https://www.mexc.co/futures/SYMBOL_USDT` in a new browser tab.
