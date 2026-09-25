@@ -147,3 +147,15 @@ flowchart TD
 - `GET  /api/archived-watchlist`: Fetch soft-deleted archived tokens.
 - `POST /api/archived-watchlist`: Save a soft-deleted item into Archive.
 - `DELETE /api/archived-watchlist/[id]`: Permanently delete an archived item.
+
+---
+
+## ⚡ Unified MEXC Market Request Pipeline
+
+1. **Server Spec Caching & Batching (`/api/mexc/futures`)**:
+   - 60-second in-memory server cache for MEXC contract details (max leverage, base coin icon URLs, fee rates).
+   - Supports batch lookup queries (`?symbols=BTC_USDT,ETH_USDT&with_details=true`), returning both tickers and coin icons in **1 single HTTP payload**.
+
+2. **Unified Hook & Tab Visibility Pause (`useMexcMarketData`)**:
+   - Replaced duplicate polling and per-symbol icon fetch loops with `useMexcMarketData`.
+   - Automatically pauses polling when browser tab is inactive (`document.hidden`), preventing rate limits and reducing network usage.

@@ -99,3 +99,15 @@ flowchart TD
 - `status_at_archive` (`'active'` | `'closed'`)
 - `closed_reason`, `close_notes`, `realized_pnl_usd`, `realized_pnl_pct`
 - `archived_at` (TIMESTAMPTZ)
+
+---
+
+## ⚡ Unified MEXC Market Request Pipeline
+
+1. **Single-Payload Polling (`useMexcMarketData`)**:
+   - The `/trades` page utilizes the `useMexcMarketData` unified React hook (via `useLivePrices`).
+   - Batches ticker prices and contract specifications (max leverage, base coin icons, fee rates) into **1 single HTTP payload** (`/api/mexc/futures?symbols=...&with_details=true`), eliminating per-symbol loop fetches.
+
+2. **Tab Visibility Idle Pause**:
+   - Automatically detects browser tab visibility (`document.hidden`).
+   - Pauses polling when the tab is inactive to prevent background network load and rate limits, instantly refreshing live prices when focused.
