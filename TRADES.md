@@ -26,6 +26,13 @@ The **Trades Page** (`/trades`) provides live position tracking, manual trade cr
 
 3. **Enhanced Manual Trade Entry (`+ Manual Trade`)**:
    - Create trades directly on the Trades page without requiring prior Watchlist triggers.
+   - **Unified `CoinPicker` Integration**:
+     - Real-time debounced MEXC futures autocomplete.
+     - Popular market chips (`BTC`, `ETH`, `SOL`, `DOGE`, `XRP`, `SUI`, `PEPE`, `NEAR`, `AVAX`, `BNB`) for 1-click selection.
+     - Active selected coin banner with coin icon, symbol, `USDT Perpetual`, live price (`fmtPx`), and 24h change %.
+   - **Direction Toggle Buttons**: Clean `↗ LONG` (green gain) and `↘ SHORT` (red loss) buttons with directional icons.
+   - **1-Click "Use Last Price" Helpers**: Instant auto-fill buttons for `Entry Price`, `Trigger Price`, `Fired Price`, and `Exit Price`.
+   - **Live Risk:Reward (R:R) Calculator**: Automatically computes `🎯 1 : X.X R:R` with directional safety warnings.
    - Create trades as **Active** or pre-closed (with Exit Price, Closed Reason, and auto-computed realized PnL directly into Closed History with Journal logging).
 
 4. **Interactive Manual Trade Closure**:

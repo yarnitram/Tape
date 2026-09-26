@@ -8,7 +8,10 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
 
 ### 1. Futures Watchlist & Trigger Engine
 - **Live MEXC Prices**: Real-time ticker prices, 24h volume, and percentage changes.
-- **Dual-Tab Interface**: Separate **Watchlist (Active)** and **Triggered (Archive)** tabs.
+- **All-in-One Setup Builder Modal**: Single cohesive modal configuring coin, position side (`↗ LONG` / `↘ SHORT`), trigger price, order type, EP, SL, TP, and strategy notes.
+- **Mandatory Required Parameters**: Trigger Price, Order Type, Entry Price (EP), Stop Loss (SL), and Take Profit (TP) are strictly required.
+- **Directional Safety Guardrails**: Enforces `SL < EP < TP` for Longs and `TP < EP < SL` for Shorts to protect against accidental instant stop-outs.
+- **Dedicated Position Column**: Distinct table column displaying `↗ LONG` (gain green) and `↘ SHORT` (loss red) badges with directional icons.
 - **Multi-Setup Per Coin**: Add multiple independent trade plans for the same token (e.g. dip-buy `Limit` vs breakout `Trigger Limit`).
 - **Trigger Limit Chaining**: First-stage triggers automatically spawn a secondary `Limit` order at Entry Price (EP) when hit.
 - **Trigger Archive & Restoring**: Move triggered items back to the active watchlist anytime without plan loss.
@@ -17,6 +20,8 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
 
 ### 2. Trades Page & Position Management
 - **3-Tab Architecture**: **Active Trades**, **Closed History**, and **Archive**.
+- **Unified `CoinPicker` Integration**: Real-time MEXC futures search, popular market chips, active coin card banner, and 1-click **"Use Last Price"** shortcuts.
+- **Interactive Direction & R:R Calculator**: `↗ LONG` and `↘ SHORT` toggle buttons with live `🎯 1 : X.X R:R` calculation.
 - **Manual Trade Creation**: Add market or limit trades directly on Trades page (`+ Manual Trade`) without Watchlist triggers.
 - **Interactive & Live Close Modal**: Close active trades with live MEXC price pre-fill and live realized PnL calculations ($ and %).
 - **Auto TP/SL Hit & Journaling**: Automatically closes trades when TP or SL target is hit and writes entry into Journal (`trades` table).
@@ -24,7 +29,13 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
 
 > 📖 **Full Trades Documentation**: See [`TRADES.md`](TRADES.md) for trade lifecycles, PnL formulas, diagrams, and database schemas.
 
-### 3. Public Sharing Hub & Vanity Handle URLs
+### 3. Trade Journal & Analytics
+- **Modernized Journal Trade Modal**: Integrated `CoinPicker` supporting both MEXC futures and custom assets (equities, forex, crypto).
+- **1-Click Price Helpers**: Pre-fills entry price with live market price at a single click.
+- **Comprehensive Logging**: Track entry time, size, exit price, stop price, trading fees, interactive tags, pre-trade thesis, post-trade review, and discipline score (1★–5★).
+- **Performance Analytics**: Calendar PnL heatmaps, cumulative equity curve charts, and win/loss statistics.
+
+### 4. Public Sharing Hub & Vanity Handle URLs
 - **Custom Vanity Handles**: Share setup URLs under clean vanity routes (`/[username]/[slug]`).
 - **Multi-Token Support**: Share single or multiple coin setups on a single unified page.
 - **Two Specialized Templates**:
@@ -35,7 +46,7 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
 
 > 📖 **Full Public Sharing Documentation**: See [`SHARES.md`](SHARES.md) for vanity URL routing, card templates, diagrams, and database schemas.
 
-### 4. Risk Management & Notifications
+### 5. Risk Management & Notifications
 - Account-wide risk parameters (Max Daily Loss, Position Risk %, Max Open Positions).
 - **Multi-Channel Alert Notifications**:
   - **Discord Webhooks**: Configure single or multiple Discord webhooks.

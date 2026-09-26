@@ -15,18 +15,37 @@ The **Futures Watchlist** is a real-time market tracking and trade plan trigger 
    - **Triggered**: Tokens whose trigger conditions have been met automatically.
    - **Archive**: Soft-deleted tokens from either the active Watchlist or Triggered tab.
 
-3. **Trade Plan & Order Types**:
-   - **Trigger Price**: The price condition that arms/fires the alert (`above` or `below`).
-   - **Entry Price (EP)**, **Stop Loss (SL)**, **Take Profit (TP)**: Trade parameters.
-   - **Order Types**:
-     - `Limit`: Standard limit order plan.
-     - `Trigger Limit`: Two-stage order chaining.
-     - `Market`: Immediate market order plan.
+3. **All-in-One Setup Builder Modal**:
+   - Single-modal flow configuring the token and full execution plan at once:
+     - Real-time MEXC futures search with debounced autocomplete.
+     - Popular market quick chips (`BTC`, `ETH`, `SOL`, `DOGE`, `XRP`, `SUI`, `PEPE`, `NEAR`, `AVAX`, `BNB`).
+     - Selected coin card displaying coin icon, symbol, `USDT Perpetual`, live price (`fmtPx`), and 24h change %.
+     - Position side toggle: `↗ LONG` (green) and `↘ SHORT` (red).
+     - 1-click **"Use Last Price"** shortcuts for Trigger Price and Entry Price.
+     - Strategy notes and thesis textarea.
 
-4. **Multi-Instance Token Support**:
-   - Traders can create and monitor **multiple independent setups for the same coin** simultaneously (e.g., separate dip-buy `Limit` and breakout `Trigger Limit` setups for `BTC`).
+4. **Mandatory Setup Parameters & Safety Guardrails**:
+   - Every Watchlist setup strictly requires complete trade parameters before submission:
+     - **Trigger Price \***: Positive price condition that arms/fires the alert (`> 0`).
+     - **Order Type \***: Execution plan order type (`Limit`, `Trigger Limit`, or `Market`).
+     - **Entry Price (EP) \***: Intended trade entry price (`> 0`).
+     - **Stop Loss (SL) \***: Risk cut-off price (`> 0`).
+     - **Take Profit (TP) \***: Target profit price (`> 0`).
+   - **Directional Safety Validation**:
+     - **LONG**: Enforces `Stop Loss < Entry Price` and `Take Profit > Entry Price`.
+     - **SHORT**: Enforces `Stop Loss > Entry Price` and `Take Profit < Entry Price`.
+   - Real-time **Risk:Reward (R:R)** calculator badge (`🎯 1 : X.X R:R`).
+
+5. **Dedicated Position Column**:
+   - The main Watchlist table features a dedicated **Position** column right after `Coin`:
+     - `↗ LONG`: Green badge (`bg-gain/15 text-gain border border-gain/20`) with directional up-right icon.
+     - `↘ SHORT`: Red badge (`bg-loss/15 text-loss border border-loss/20`) with directional down-right icon.
+
+6. **Multi-Instance Token Support**:
+   - Traders can track **multiple independent setups for the same coin** simultaneously (e.g. scalp long, swing long, or macro hedge short on `BTC`).
+   - No duplicate-token restrictions; every setup receives a unique UUID in `watchlist_items`.
    - Ticker polling automatically deduplicates symbols so market data requests remain lean.
-   - Moving an item back from Triggered or Archive creates a new active entry without overwriting or colliding with existing active setups for that coin.
+   - Restoring an item from Triggered or Archive creates a new active entry without overwriting or colliding with existing active setups.
 
 ---
 
