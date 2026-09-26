@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   InteractiveCandlestickChart,
@@ -17,12 +18,17 @@ interface Props {
 
 export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const cleanSym = cleanSymbol(symbol);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div
         className={`relative w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
@@ -149,6 +155,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

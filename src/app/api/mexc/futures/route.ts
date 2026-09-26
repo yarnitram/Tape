@@ -152,7 +152,10 @@ async function fetchAllTickers(): Promise<FuturesTicker[]> {
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const singleSymbol = searchParams.get("symbol")?.toUpperCase();
+  let singleSymbol = searchParams.get("symbol")?.toUpperCase();
+  if (singleSymbol && !singleSymbol.endsWith("_USDT")) {
+    singleSymbol = `${singleSymbol}_USDT`;
+  }
   const rawSymbols = searchParams.get("symbols")?.toUpperCase();
   const q = searchParams.get("q")?.toUpperCase();
   const withDetails = searchParams.get("with_details") === "true";

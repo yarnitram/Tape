@@ -31,15 +31,17 @@ const CACHE_TTL_MS = 10_000; // 10 seconds
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol")?.toUpperCase();
+  let rawSymbol = searchParams.get("symbol")?.toUpperCase();
   const rawInterval = searchParams.get("interval") || "15m";
 
-  if (!symbol) {
+  if (!rawSymbol) {
     return NextResponse.json(
       { error: "Missing symbol parameter" },
       { status: 400 }
     );
   }
+
+  const symbol = rawSymbol.endsWith("_USDT") ? rawSymbol : `${rawSymbol}_USDT`;
 
   const mexcInterval = INTERVAL_MAP[rawInterval] || "Min15";
   const cacheKey = `${symbol}_${mexcInterval}`;
