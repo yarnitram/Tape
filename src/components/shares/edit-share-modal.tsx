@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
-import type { PublicShareLink } from "@/lib/types";
+import type { PublicShareLink, PublicShareItem } from "@/lib/types";
 import { cleanSymbol } from "@/lib/format";
 
 interface Props {
@@ -31,26 +31,68 @@ export function EditShareModal({
 }: Props) {
   const [title, setTitle] = useState(share.title);
   const [slug, setSlug] = useState(share.slug);
-  const [notes, setNotes] = useState(share.notes || "");
+  const [pageNotes, setPageNotes] = useState(share.notes || "");
   const [isActive, setIsActive] = useState(share.is_active);
-  const [entryPrice, setEntryPrice] = useState(
-    share.entry_price != null ? String(share.entry_price) : ""
-  );
-  const [stopLoss, setStopLoss] = useState(
-    share.stop_loss != null ? String(share.stop_loss) : ""
-  );
-  const [takeProfit, setTakeProfit] = useState(
-    share.take_profit != null ? String(share.take_profit) : ""
-  );
+
+  // Initialize items array from share.items, or fallback to legacy single symbol item
+  const initialItems: PublicShareItem[] = Array.isArray(share.items) && share.items.length > 0
+    ? share.items
+    : [
+        {
+          id: "item-1",
+          symbol: share.symbol,
+          share_type: share.share_type,
+          trigger_direction: share.trigger_direction,
+          entry_price: share.entry_price,
+          stop_loss: share.stop_loss,
+          take_profit: share.take_profit,
+          notes: share.notes,
+        },
+      ];
+
+  const [items, setItems] = useState<PublicShareItem[]>(initialItems);
+  const [customSymbol, setCustomSymbol] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
 
+  const handleAddCustomToken = () => {
+    const sym = customSymbol.trim().toUpperCase();
+    if (!sym) return;
+    const formatted = sym.includes("_") ? sym : `${sym}_USDT`;
+    const newItem: PublicShareItem = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      symbol: formatted,
+      share_type: "watchlist",
+      trigger_direction: "above",
+      entry_price: null,
+      stop_loss: null,
+      take_profit: null,
+      notes: "",
+    };
+    setItems((prev) => [...prev, newItem]);
+    setCustomSymbol("");
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handleUpdateItem = (id: string, updates: Partial<PublicShareItem>) => {
+    setItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, ...updates } : i))
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError("Please enter a title.");
+      return;
+    }
+    if (items.length === 0) {
+      setError("At least 1 coin setup is required on this share page.");
       return;
     }
 
@@ -65,10 +107,8 @@ export function EditShareModal({
           title: title.trim(),
           slug: slug.trim(),
           is_active: isActive,
-          notes: notes.trim() || null,
-          entry_price: entryPrice ? Number(entryPrice) : null,
-          stop_loss: stopLoss ? Number(stopLoss) : null,
-          take_profit: takeProfit ? Number(takeProfit) : null,
+          notes: pageNotes.trim() || null,
+          items,
         }),
       });
 
@@ -91,14 +131,14 @@ export function EditShareModal({
     "hairline bg-panel px-3 py-2 text-xs outline-none focus:border-accent w-full rounded";
 
   return (
-    <ModalShell title={`✏️ Edit ${cleanSymbol(share.symbol)} Public Share`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs">
+    <ModalShell title={`✏️ Edit Public Share Page`} onClose={onClose} maxWidth="max-w-2xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs max-h-[80vh] overflow-y-auto pr-1">
         {/* Status Active Toggle */}
         <label className="flex items-center justify-between p-3 rounded bg-panel/60 border border-hairline cursor-pointer">
           <div className="flex flex-col gap-0.5">
             <span className="font-semibold text-xs">Public Visibility</span>
             <span className="text-[11px] text-muted">
-              {isActive ? "Anyone with the link can view your setup." : "Setup is hidden (Private 404)."}
+              {isActive ? "Anyone with the link can view your setup page." : "Page is hidden (Private 404)."}
             </span>
           </div>
           <input
@@ -142,50 +182,132 @@ export function EditShareModal({
           </span>
         </div>
 
-        {/* Price Targets */}
-        <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1 text-muted">
-            Entry Price ($)
-            <input
-              type="number"
-              step="any"
-              value={entryPrice}
-              onChange={(e) => setEntryPrice(e.target.value)}
-              className={`${inputCls} font-mono`}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-muted">
-            Stop Loss ($)
-            <input
-              type="number"
-              step="any"
-              value={stopLoss}
-              onChange={(e) => setStopLoss(e.target.value)}
-              className={`${inputCls} font-mono`}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-muted">
-            Take Profit ($)
-            <input
-              type="number"
-              step="any"
-              value={takeProfit}
-              onChange={(e) => setTakeProfit(e.target.value)}
-              className={`${inputCls} font-mono`}
-            />
-          </label>
-        </div>
-
-        {/* Notes */}
+        {/* Overall Thesis / Notes */}
         <label className="flex flex-col gap-1 text-muted font-medium">
-          Public Trader Notes
+          Overall Page Thesis / Description
           <textarea
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            value={pageNotes}
+            onChange={(e) => setPageNotes(e.target.value)}
             className={`${inputCls} resize-none`}
           />
         </label>
+
+        {/* Multi-token Items List */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-text text-xs">Coins on this Share Page ({items.length})</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={customSymbol}
+                onChange={(e) => setCustomSymbol(e.target.value)}
+                placeholder="Add coin (e.g. SOL)..."
+                className={`${inputCls} font-mono w-36`}
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomToken}
+                className="px-2.5 py-1.5 bg-panel hover:bg-panel-soft text-text border border-hairline rounded font-semibold text-[11px] whitespace-nowrap cursor-pointer"
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {items.map((item, idx) => (
+              <div key={item.id} className="p-3 rounded-lg border border-hairline bg-panel/60 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-text">#{idx + 1} {cleanSymbol(item.symbol)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateItem(item.id, {
+                          trigger_direction: item.trigger_direction === "below" ? "above" : "below",
+                        })
+                      }
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded border cursor-pointer ${
+                        item.trigger_direction === "below"
+                          ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      }`}
+                    >
+                      {item.trigger_direction === "below" ? "SHORT" : "LONG"}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-xs text-muted hover:text-rose-400 cursor-pointer"
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex flex-col gap-1 text-[11px] text-muted">
+                    Entry Price ($)
+                    <input
+                      type="number"
+                      step="any"
+                      value={item.entry_price != null ? String(item.entry_price) : ""}
+                      onChange={(e) =>
+                        handleUpdateItem(item.id, {
+                          entry_price: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                      className={`${inputCls} font-mono`}
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-[11px] text-muted">
+                    Stop Loss ($)
+                    <input
+                      type="number"
+                      step="any"
+                      value={item.stop_loss != null ? String(item.stop_loss) : ""}
+                      onChange={(e) =>
+                        handleUpdateItem(item.id, {
+                          stop_loss: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                      className={`${inputCls} font-mono`}
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-[11px] text-muted">
+                    Take Profit ($)
+                    <input
+                      type="number"
+                      step="any"
+                      value={item.take_profit != null ? String(item.take_profit) : ""}
+                      onChange={(e) =>
+                        handleUpdateItem(item.id, {
+                          take_profit: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                      className={`${inputCls} font-mono`}
+                      placeholder="0.00"
+                    />
+                  </label>
+                </div>
+
+                <input
+                  type="text"
+                  value={item.notes || ""}
+                  onChange={(e) => handleUpdateItem(item.id, { notes: e.target.value })}
+                  placeholder={`Notes/Thesis for ${cleanSymbol(item.symbol)}...`}
+                  className={inputCls}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {error && <p className="text-xs text-rose-400">{error}</p>}
 
@@ -199,7 +321,7 @@ export function EditShareModal({
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || items.length === 0}
             className="accent-btn px-4 py-1.5 text-xs font-semibold rounded cursor-pointer disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save Changes"}

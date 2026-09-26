@@ -84,6 +84,17 @@ export interface UserSettings {
   refresh_interval_sec: number;
 }
 
+export interface PublicShareItem {
+  id: string;
+  symbol: string;
+  share_type?: "watchlist" | "trade";
+  trigger_direction?: "above" | "below" | null;
+  entry_price?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  notes?: string | null;
+}
+
 export interface PublicShareLink {
   id: string;
   user_id: string;
@@ -91,6 +102,7 @@ export interface PublicShareLink {
   slug: string;
   share_type: "watchlist" | "trade";
   symbol: string;
+  items?: PublicShareItem[];
   watchlist_item_id?: string | null;
   trade_alert_id?: string | null;
   entry_price?: number | null;

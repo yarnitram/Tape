@@ -177,17 +177,34 @@ export function SharesClient({
                       </div>
                     </td>
                     <td className="py-3 px-4 font-semibold text-zinc-100">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span>{cleanSymbol(row.symbol)}</span>
-                        <span className="text-[10px] text-zinc-500 uppercase px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900">
-                          {row.share_type}
+                      {Array.isArray(row.items) && row.items.length > 1 ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-[10px] bg-accent/10 text-accent border border-accent/20 px-1.5 py-0.5 rounded font-bold">
+                              {row.items.length} Coins
+                            </span>
+                          </span>
+                          <span className="text-xs text-zinc-300 font-mono">
+                            {row.items.map((i) => cleanSymbol(i.symbol)).join(", ")}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span>{cleanSymbol(row.symbol)}</span>
+                          <span className="text-[10px] text-zinc-500 uppercase px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900">
+                            {row.share_type}
+                          </span>
                         </span>
-                      </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 font-mono text-[11px] text-zinc-400">
-                      <span>EP: {fmtPlanPx(row.entry_price ?? null)}</span> ·{" "}
-                      <span>SL: {fmtPlanPx(row.stop_loss ?? null)}</span> ·{" "}
-                      <span>TP: {fmtPlanPx(row.take_profit ?? null)}</span>
+                      {Array.isArray(row.items) && row.items.length > 1 ? (
+                        <span>Multiple setups ({row.items.length})</span>
+                      ) : (
+                        <span>
+                          EP: {fmtPlanPx(row.entry_price ?? null)} · SL: {fmtPlanPx(row.stop_loss ?? null)} · TP: {fmtPlanPx(row.take_profit ?? null)}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 font-mono font-semibold text-zinc-300">
                       👁 {row.view_count}

@@ -61,6 +61,24 @@ export async function PUT(
     }
   }
 
+  if (Array.isArray(b.items)) {
+    const items = b.items.map((item: Record<string, unknown>, idx: number) => ({
+      id: String(item.id || `item-${idx + 1}`),
+      symbol: String(item.symbol || "").trim().toUpperCase(),
+      share_type: item.share_type === "trade" ? "trade" : "watchlist",
+      trigger_direction: item.trigger_direction ? String(item.trigger_direction) : null,
+      entry_price: item.entry_price != null && !isNaN(Number(item.entry_price)) ? Number(item.entry_price) : null,
+      stop_loss: item.stop_loss != null && !isNaN(Number(item.stop_loss)) ? Number(item.stop_loss) : null,
+      take_profit: item.take_profit != null && !isNaN(Number(item.take_profit)) ? Number(item.take_profit) : null,
+      notes: item.notes ? String(item.notes).trim() : null,
+    })).filter((x) => x.symbol);
+
+    updateData.items = items;
+    if (items.length > 0) {
+      updateData.symbol = items.map((i) => i.symbol).join(", ");
+    }
+  }
+
   if (typeof b.is_active === "boolean") {
     updateData.is_active = b.is_active;
   }

@@ -75,18 +75,36 @@ export async function POST(request: Request) {
   const rawTitle = String(b.title || "").trim();
   const rawSlug = String(b.slug || "").trim();
   const shareType = b.share_type === "trade" ? "trade" : "watchlist";
-  const symbol = String(b.symbol || "").trim().toUpperCase();
+
+  // Parse items array
+  let items: Record<string, unknown>[] = [];
+  if (Array.isArray(b.items) && b.items.length > 0) {
+    items = b.items.map((item: Record<string, unknown>, idx: number) => ({
+      id: String(item.id || `item-${idx + 1}`),
+      symbol: String(item.symbol || "").trim().toUpperCase(),
+      share_type: item.share_type === "trade" ? "trade" : "watchlist",
+      trigger_direction: item.trigger_direction ? String(item.trigger_direction) : null,
+      entry_price: item.entry_price != null && !isNaN(Number(item.entry_price)) ? Number(item.entry_price) : null,
+      stop_loss: item.stop_loss != null && !isNaN(Number(item.stop_loss)) ? Number(item.stop_loss) : null,
+      take_profit: item.take_profit != null && !isNaN(Number(item.take_profit)) ? Number(item.take_profit) : null,
+      notes: item.notes ? String(item.notes).trim() : null,
+    })).filter((x) => x.symbol);
+  }
+
+  const primarySymbol = items.length > 0
+    ? items.map((i) => i.symbol).join(", ")
+    : String(b.symbol || "").trim().toUpperCase();
 
   if (!rawTitle) {
     return NextResponse.json({ error: "Title is required." }, { status: 400 });
   }
-  if (!symbol) {
-    return NextResponse.json({ error: "Symbol is required." }, { status: 400 });
+  if (!primarySymbol) {
+    return NextResponse.json({ error: "At least one coin symbol is required." }, { status: 400 });
   }
 
   let slug = slugify(rawSlug || rawTitle);
   if (!slug) {
-    slug = slugify(symbol);
+    slug = slugify(primarySymbol);
   }
 
   // Prevent reserved slugs
@@ -114,10 +132,10 @@ export async function POST(request: Request) {
     counter++;
   }
 
-  const entry_price = b.entry_price != null && !isNaN(Number(b.entry_price)) ? Number(b.entry_price) : null;
-  const stop_loss = b.stop_loss != null && !isNaN(Number(b.stop_loss)) ? Number(b.stop_loss) : null;
-  const take_profit = b.take_profit != null && !isNaN(Number(b.take_profit)) ? Number(b.take_profit) : null;
-  const trigger_direction = b.trigger_direction ? String(b.trigger_direction) : null;
+  const entry_price = b.entry_price != null && !isNaN(Number(b.entry_price)) ? Number(b.entry_price) : items[0]?.entry_price ?? null;
+  const stop_loss = b.stop_loss != null && !isNaN(Number(b.stop_loss)) ? Number(b.stop_loss) : items[0]?.stop_loss ?? null;
+  const take_profit = b.take_profit != null && !isNaN(Number(b.take_profit)) ? Number(b.take_profit) : items[0]?.take_profit ?? null;
+  const trigger_direction = b.trigger_direction ? String(b.trigger_direction) : items[0]?.trigger_direction ?? null;
   const notes = b.notes ? String(b.notes).trim() : null;
   const watchlist_item_id = b.watchlist_item_id ? String(b.watchlist_item_id) : null;
   const trade_alert_id = b.trade_alert_id ? String(b.trade_alert_id) : null;
@@ -129,7 +147,8 @@ export async function POST(request: Request) {
       title: rawTitle,
       slug: finalSlug,
       share_type: shareType,
-      symbol,
+      symbol: primarySymbol,
+      items: items.length > 0 ? items : [],
       watchlist_item_id,
       trade_alert_id,
       entry_price,
