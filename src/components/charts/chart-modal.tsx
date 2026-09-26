@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import {
   InteractiveCandlestickChart,
   TradeSetupOverlay,
@@ -14,18 +16,24 @@ interface Props {
 }
 
 export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
+  const [isMaximized, setIsMaximized] = useState(false);
+
   if (!isOpen) return null;
 
   const cleanSym = cleanSymbol(symbol);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className={`relative w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+          isMaximized
+            ? "max-w-[96vw] h-[94vh]"
+            : "max-w-6xl max-h-[92vh]"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Header */}
-        <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-6 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-cyan-950/50 border border-cyan-800/40 text-cyan-400 flex items-center justify-center text-lg font-bold">
               📈
@@ -42,24 +50,52 @@ export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
                 )}
               </div>
               <p className="text-xs text-slate-400">
-                Interactive MEXC Futures Candlestick Chart & Trade Plan Overlay
+                Interactive MEXC Candlestick Chart & Trade Plan Overlay
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Open Dedicated Page Link */}
+            <Link
+              href={`/chart/${encodeURIComponent(cleanSym)}`}
+              target="_blank"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 rounded-xl transition"
+              title="Open dedicated full-screen chart page in new tab"
+            >
+              <span>↗️ Dedicated Page</span>
+            </Link>
+
+            {/* External MEXC Link */}
             <a
               href={mexcChartUrl(symbol)}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-lg transition"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition"
+              title="View on MEXC Exchange"
             >
-              <span>External MEXC Chart</span>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
+              <span>MEXC Chart</span>
             </a>
 
+            {/* Maximize / Restore Toggle Button */}
+            <button
+              onClick={() => setIsMaximized((prev) => !prev)}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 border border-slate-800 transition"
+              title={isMaximized ? "Restore Modal Size" : "Maximize Modal to Full Screen"}
+            >
+              {isMaximized ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M4 10h6m0 0V4m0 6L3 3m17 7h-6m0 0V4m0 6l7-7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3h6m0 0v6m0-6L14 10M9 21H3m0 0v-6m0 6l7-7M3 9V3m0 0h6m-6 0l7 7m11 11v-6m0 6h-6m6 0l-7-7" />
+                </svg>
+              )}
+            </button>
+
+            {/* Close Button */}
             <button
               onClick={onClose}
               className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
@@ -74,7 +110,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
 
         {/* Setup Level Badges Bar if setup exists */}
         {setup && (
-          <div className="px-6 py-2.5 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center gap-3 text-xs font-mono">
+          <div className="px-6 py-2 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center gap-3 text-xs font-mono">
             <span className="text-slate-400 text-xs font-sans font-medium">Active Setup Levels:</span>
             {setup.trigger_price && setup.trigger_price > 0 && (
               <span className="px-2.5 py-1 rounded bg-amber-950/40 text-amber-300 border border-amber-800/40 flex items-center gap-1">
@@ -104,11 +140,11 @@ export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
         )}
 
         {/* Modal Chart Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto">
+        <div className="p-3 sm:p-5 flex-1 overflow-y-auto">
           <InteractiveCandlestickChart
             symbol={symbol}
             setup={setup}
-            height={460}
+            height={isMaximized ? 660 : 540}
             showOverlayToggle={true}
           />
         </div>

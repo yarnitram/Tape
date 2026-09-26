@@ -60,64 +60,75 @@ export function InteractiveCandlestickChart({
   const [lastCandle, setLastCandle] = useState<CandleData | null>(null);
   const [hoverData, setHoverData] = useState<CandleData | null>(null);
 
+  const isFirstLoadRef = useRef<boolean>(true);
+
   const cleanSym = cleanSymbol(symbol);
 
   // Fetch Kline candles from API proxy
-  const fetchCandles = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const res = await fetch(
-        `/api/mexc/kline?symbol=${encodeURIComponent(symbol)}&interval=${klineInterval}`
-      );
-      const json = await res.json();
-
-      if (!json.success || !Array.isArray(json.candles)) {
-        throw new Error(json.error || "Failed to load candlestick chart data");
-      }
-
-      const candles: CandleData[] = json.candles;
-
-      if (candles.length === 0) {
-        throw new Error(`No chart data available for ${cleanSym}`);
-      }
-
-      setLastCandle(candles[candles.length - 1]);
-
-      if (candlestickSeriesRef.current && volumeSeriesRef.current) {
-        // Format candlestick data
-        const candleData = candles.map((c) => ({
-          time: c.time as Time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }));
-
-        // Format volume histogram data
-        const volumeData = candles.map((c) => ({
-          time: c.time as Time,
-          value: c.volume,
-          color:
-            c.close >= c.open
-              ? "rgba(16, 185, 129, 0.4)" // Green for bullish
-              : "rgba(239, 68, 68, 0.4)", // Red for bearish
-        }));
-
-        candlestickSeriesRef.current.setData(candleData);
-        volumeSeriesRef.current.setData(volumeData);
-
-        if (chartRef.current) {
-          chartRef.current.timeScale().fitContent();
+  const fetchCandles = useCallback(
+    async (isSilentRefresh = false) => {
+      try {
+        if (!isSilentRefresh) {
+          setLoading(true);
         }
+        setError(null);
+
+        const res = await fetch(
+          `/api/mexc/kline?symbol=${encodeURIComponent(symbol)}&interval=${klineInterval}`
+        );
+        const json = await res.json();
+
+        if (!json.success || !Array.isArray(json.candles)) {
+          throw new Error(json.error || "Failed to load candlestick chart data");
+        }
+
+        const candles: CandleData[] = json.candles;
+
+        if (candles.length === 0) {
+          throw new Error(`No chart data available for ${cleanSym}`);
+        }
+
+        setLastCandle(candles[candles.length - 1]);
+
+        if (candlestickSeriesRef.current && volumeSeriesRef.current) {
+          // Format candlestick data
+          const candleData = candles.map((c) => ({
+            time: c.time as Time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          }));
+
+          // Format volume histogram data
+          const volumeData = candles.map((c) => ({
+            time: c.time as Time,
+            value: c.volume,
+            color:
+              c.close >= c.open
+                ? "rgba(16, 185, 129, 0.4)" // Green for bullish
+                : "rgba(239, 68, 68, 0.4)", // Red for bearish
+          }));
+
+          candlestickSeriesRef.current.setData(candleData);
+          volumeSeriesRef.current.setData(volumeData);
+
+          // Only fit content on initial load or timeframe switch, preserving user zoom/scroll
+          if (chartRef.current && isFirstLoadRef.current) {
+            chartRef.current.timeScale().fitContent();
+            isFirstLoadRef.current = false;
+          }
+        }
+      } catch (err) {
+        if (!isSilentRefresh) {
+          setError((err as Error).message);
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [symbol, klineInterval, cleanSym]);
+    },
+    [symbol, klineInterval, cleanSym]
+  );
 
   // Initialize TradingView chart instance
   useEffect(() => {
@@ -246,8 +257,9 @@ export function InteractiveCandlestickChart({
 
   // Load candle data whenever symbol or interval changes
   useEffect(() => {
-    fetchCandles();
-    const timer = setInterval(fetchCandles, 10_000); // 10s auto-refresh
+    isFirstLoadRef.current = true;
+    fetchCandles(false);
+    const timer = setInterval(() => fetchCandles(true), 10_000); // Silent background auto-refresh
     return () => clearInterval(timer);
   }, [fetchCandles]);
 
@@ -420,7 +432,10 @@ export function InteractiveCandlestickChart({
             {INTERVALS.map((tf) => (
               <button
                 key={tf.value}
-                onClick={() => setKlineInterval(tf.value)}
+                onClick={() => {
+                  isFirstLoadRef.current = true;
+                  setKlineInterval(tf.value);
+                }}
                 className={`px-2.5 py-1 text-xs font-mono font-medium rounded transition ${
                   klineInterval === tf.value
                     ? "bg-cyan-500 text-slate-950 font-bold shadow-sm"
@@ -433,7 +448,7 @@ export function InteractiveCandlestickChart({
           </div>
 
           <button
-            onClick={fetchCandles}
+            onClick={() => fetchCandles(false)}
             disabled={loading}
             title="Refresh Chart"
             className="p-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition disabled:opacity-50"
@@ -494,7 +509,7 @@ export function InteractiveCandlestickChart({
             <h4 className="text-sm font-bold text-white mb-1">Chart Data Unavailable</h4>
             <p className="text-xs text-slate-400 max-w-sm mb-4">{error}</p>
             <button
-              onClick={fetchCandles}
+              onClick={() => fetchCandles(false)}
               className="px-4 py-1.5 text-xs font-semibold bg-slate-800 text-white hover:bg-slate-700 rounded-lg border border-slate-700 transition"
             >
               Retry Connection
