@@ -88,7 +88,10 @@ export interface PublicShareItem {
   id: string;
   symbol: string;
   share_type?: "watchlist" | "trade";
+  trigger_price?: number | null;
   trigger_direction?: "above" | "below" | null;
+  order_type?: string | null;
+  alert_price?: number | null;
   entry_price?: number | null;
   stop_loss?: number | null;
   take_profit?: number | null;
@@ -105,10 +108,13 @@ export interface PublicShareLink {
   items?: PublicShareItem[];
   watchlist_item_id?: string | null;
   trade_alert_id?: string | null;
+  trigger_price?: number | null;
+  trigger_direction?: "above" | "below" | null;
+  order_type?: string | null;
+  alert_price?: number | null;
   entry_price?: number | null;
   stop_loss?: number | null;
   take_profit?: number | null;
-  trigger_direction?: "above" | "below" | null;
   notes?: string | null;
   is_active: boolean;
   view_count: number;

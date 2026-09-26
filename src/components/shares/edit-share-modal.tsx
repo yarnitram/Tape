@@ -34,7 +34,6 @@ export function EditShareModal({
   const [pageNotes, setPageNotes] = useState(share.notes || "");
   const [isActive, setIsActive] = useState(share.is_active);
 
-  // Initialize items array from share.items, or fallback to legacy single symbol item
   const initialItems: PublicShareItem[] = Array.isArray(share.items) && share.items.length > 0
     ? share.items
     : [
@@ -42,7 +41,9 @@ export function EditShareModal({
           id: "item-1",
           symbol: share.symbol,
           share_type: share.share_type,
+          trigger_price: share.trigger_price,
           trigger_direction: share.trigger_direction,
+          order_type: share.order_type,
           entry_price: share.entry_price,
           stop_loss: share.stop_loss,
           take_profit: share.take_profit,
@@ -64,7 +65,8 @@ export function EditShareModal({
     const newItem: PublicShareItem = {
       id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       symbol: formatted,
-      share_type: "watchlist",
+      share_type: share.share_type,
+      trigger_price: null,
       trigger_direction: "above",
       entry_price: null,
       stop_loss: null,
@@ -131,7 +133,7 @@ export function EditShareModal({
     "hairline bg-panel px-3 py-2 text-xs outline-none focus:border-accent w-full rounded";
 
   return (
-    <ModalShell title={`✏️ Edit Public Share Page`} onClose={onClose} maxWidth="max-w-2xl">
+    <ModalShell title={`✏️ Edit ${share.share_type === "watchlist" ? "Watchlist" : "Trade"} Share Page`} onClose={onClose} maxWidth="max-w-2xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs max-h-[80vh] overflow-y-auto pr-1">
         {/* Status Active Toggle */}
         <label className="flex items-center justify-between p-3 rounded bg-panel/60 border border-hairline cursor-pointer">
@@ -182,7 +184,7 @@ export function EditShareModal({
           </span>
         </div>
 
-        {/* Overall Thesis / Notes */}
+        {/* Overall Thesis */}
         <label className="flex flex-col gap-1 text-muted font-medium">
           Overall Page Thesis / Description
           <textarea
@@ -196,7 +198,7 @@ export function EditShareModal({
         {/* Multi-token Items List */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-text text-xs">Coins on this Share Page ({items.length})</span>
+            <span className="font-semibold text-text text-xs">Coins on this Page ({items.length})</span>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -221,21 +223,35 @@ export function EditShareModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-text">#{idx + 1} {cleanSymbol(item.symbol)}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleUpdateItem(item.id, {
-                          trigger_direction: item.trigger_direction === "below" ? "above" : "below",
-                        })
-                      }
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border cursor-pointer ${
-                        item.trigger_direction === "below"
-                          ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      }`}
-                    >
-                      {item.trigger_direction === "below" ? "SHORT" : "LONG"}
-                    </button>
+                    {share.share_type === "watchlist" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateItem(item.id, {
+                            trigger_direction: item.trigger_direction === "below" ? "above" : "below",
+                          })
+                        }
+                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-amber-300 cursor-pointer"
+                      >
+                        ALERT WHEN {item.trigger_direction === "below" ? "BELOW" : "ABOVE"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateItem(item.id, {
+                            trigger_direction: item.trigger_direction === "below" ? "above" : "below",
+                          })
+                        }
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border cursor-pointer ${
+                          item.trigger_direction === "below"
+                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        }`}
+                      >
+                        {item.trigger_direction === "below" ? "SHORT" : "LONG"}
+                      </button>
+                    )}
                   </div>
 
                   <button
@@ -247,55 +263,120 @@ export function EditShareModal({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="flex flex-col gap-1 text-[11px] text-muted">
-                    Entry Price ($)
-                    <input
-                      type="number"
-                      step="any"
-                      value={item.entry_price != null ? String(item.entry_price) : ""}
-                      onChange={(e) =>
-                        handleUpdateItem(item.id, {
-                          entry_price: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
-                      className={`${inputCls} font-mono`}
-                      placeholder="0.00"
-                    />
-                  </label>
+                {share.share_type === "watchlist" ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Trigger Price ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.trigger_price != null ? String(item.trigger_price) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            trigger_price: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Planned Entry ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.entry_price != null ? String(item.entry_price) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            entry_price: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Stop Loss ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.stop_loss != null ? String(item.stop_loss) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            stop_loss: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Take Profit ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.take_profit != null ? String(item.take_profit) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            take_profit: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Entry Price ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.entry_price != null ? String(item.entry_price) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            entry_price: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
 
-                  <label className="flex flex-col gap-1 text-[11px] text-muted">
-                    Stop Loss ($)
-                    <input
-                      type="number"
-                      step="any"
-                      value={item.stop_loss != null ? String(item.stop_loss) : ""}
-                      onChange={(e) =>
-                        handleUpdateItem(item.id, {
-                          stop_loss: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
-                      className={`${inputCls} font-mono`}
-                      placeholder="0.00"
-                    />
-                  </label>
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Stop Loss ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.stop_loss != null ? String(item.stop_loss) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            stop_loss: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
 
-                  <label className="flex flex-col gap-1 text-[11px] text-muted">
-                    Take Profit ($)
-                    <input
-                      type="number"
-                      step="any"
-                      value={item.take_profit != null ? String(item.take_profit) : ""}
-                      onChange={(e) =>
-                        handleUpdateItem(item.id, {
-                          take_profit: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
-                      className={`${inputCls} font-mono`}
-                      placeholder="0.00"
-                    />
-                  </label>
-                </div>
+                    <label className="flex flex-col gap-1 text-[11px] text-muted">
+                      Take Profit ($)
+                      <input
+                        type="number"
+                        step="any"
+                        value={item.take_profit != null ? String(item.take_profit) : ""}
+                        onChange={(e) =>
+                          handleUpdateItem(item.id, {
+                            take_profit: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                        className={`${inputCls} font-mono`}
+                        placeholder="0.00"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 <input
                   type="text"

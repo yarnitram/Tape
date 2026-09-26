@@ -81,8 +81,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!data || !data.share.is_active) {
     return {
-      title: "Private Setup | Tape",
-      description: "This trade setup is private or no longer available.",
+      title: "Private Page | Tape",
+      description: "This shared page is private or no longer available.",
     };
   }
 
@@ -91,8 +91,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? share.items.map((i) => `$${cleanSymbol(i.symbol)}`).join(", ")
     : `$${cleanSymbol(share.symbol)}`;
 
-  const title = `🚀 ${symbols} Setups | @${username} on Tape`;
-  const description = `${share.title} — Shared watchlist & trade setups on Tape.`;
+  const pageCategory = share.share_type === "watchlist" ? "Watchlist Radar" : "Trade Setups";
+  const title = `📡 ${symbols} ${pageCategory} | @${username} on Tape`;
+  const description = `${share.title} — Public ${share.share_type} page on Tape.`;
 
   return {
     title,
@@ -123,10 +124,10 @@ export default async function PublicSharePage({ params }: PageProps) {
 
   if (!share.is_active) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6 font-sans">
         <div className="max-w-md w-full text-center border border-zinc-800 bg-zinc-900/60 rounded-2xl p-8 backdrop-blur">
           <span className="text-4xl mb-3 block">🔒</span>
-          <h1 className="text-xl font-bold mb-2">Private or Paused Setup Page</h1>
+          <h1 className="text-xl font-bold mb-2">Private or Paused Page</h1>
           <p className="text-xs text-zinc-400 mb-6">
             The owner of this page (@{username}) has set it to private or paused visibility.
           </p>
@@ -157,7 +158,9 @@ export default async function PublicSharePage({ params }: PageProps) {
           id: "item-1",
           symbol: share.symbol,
           share_type: share.share_type,
+          trigger_price: share.trigger_price,
           trigger_direction: share.trigger_direction,
+          order_type: share.order_type,
           entry_price: share.entry_price,
           stop_loss: share.stop_loss,
           take_profit: share.take_profit,
@@ -189,6 +192,8 @@ export default async function PublicSharePage({ params }: PageProps) {
     })
   );
 
+  const isWatchlist = share.share_type === "watchlist";
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-start p-4 sm:p-8 font-sans selection:bg-emerald-500 selection:text-zinc-950">
       <div className="w-full max-w-3xl flex flex-col gap-6 my-auto">
@@ -201,8 +206,17 @@ export default async function PublicSharePage({ params }: PageProps) {
             <span className="text-zinc-600 font-mono">/</span>
             <span className="text-xs text-zinc-400 font-mono">@{username}</span>
           </div>
-          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono">
-            {items.length} {items.length === 1 ? "Coin Setup" : "Coin Setups"}
+
+          <span
+            className={`text-[11px] px-3 py-1 rounded-full border font-mono font-medium flex items-center gap-1.5 ${
+              isWatchlist
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+            }`}
+          >
+            <span>{isWatchlist ? "📡 Public Watchlist" : "🎯 Public Trade Setups"}</span>
+            <span className="opacity-40">·</span>
+            <span>{items.length} {items.length === 1 ? "Coin" : "Coins"}</span>
           </span>
         </div>
 
@@ -210,139 +224,292 @@ export default async function PublicSharePage({ params }: PageProps) {
         <div className="flex flex-col gap-1.5 border-b border-zinc-800/80 pb-4">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100">{share.title}</h1>
           {share.notes && (
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">{share.notes}</p>
+            <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl whitespace-pre-wrap">{share.notes}</p>
           )}
         </div>
 
-        {/* Setups Cards List */}
-        <div className="flex flex-col gap-5">
-          {items.map((item) => {
-            const sym = cleanSymbol(item.symbol);
-            const side = item.trigger_direction === "below" ? "SHORT" : "LONG";
-            const ticker = tickers[item.symbol.toUpperCase()];
-            const lastPrice = ticker?.lastPrice ?? null;
-            const riseFallRate = ticker?.riseFallRate ?? null;
+        {/* ========================================================================= */}
+        {/* TEMPLATE 1: PUBLIC WATCHLIST RADAR (share_type === 'watchlist')          */}
+        {/* ========================================================================= */}
+        {isWatchlist ? (
+          <div className="flex flex-col gap-5">
+            {items.map((item) => {
+              const sym = cleanSymbol(item.symbol);
+              const ticker = tickers[item.symbol.toUpperCase()];
+              const lastPrice = ticker?.lastPrice ?? null;
+              const riseFallRate = ticker?.riseFallRate ?? null;
+              const trigPrice = item.trigger_price;
+              const trigDir = (item.trigger_direction || "above").toLowerCase();
 
-            let rrRatio: string | null = null;
-            if (item.entry_price && item.stop_loss && item.take_profit) {
-              const risk = Math.abs(item.entry_price - item.stop_loss);
-              const reward = Math.abs(item.take_profit - item.entry_price);
-              if (risk > 0) {
-                rrRatio = (reward / risk).toFixed(2);
+              // Calculate Distance to Trigger (% away)
+              let distText: string | null = null;
+              let distPctVal: number | null = null;
+              if (lastPrice != null && trigPrice != null && trigPrice > 0) {
+                if (trigDir === "above") {
+                  distPctVal = ((trigPrice - lastPrice) / lastPrice) * 100;
+                  distText =
+                    distPctVal <= 0
+                      ? "Trigger reached! 🔥"
+                      : `${distPctVal.toFixed(2)}% above current price`;
+                } else {
+                  distPctVal = ((lastPrice - trigPrice) / lastPrice) * 100;
+                  distText =
+                    distPctVal <= 0
+                      ? "Trigger reached! 🔥"
+                      : `${distPctVal.toFixed(2)}% below current price`;
+                }
               }
-            }
 
-            let pnlPct: number | null = null;
-            if (lastPrice && item.entry_price && item.entry_price > 0) {
-              const dir = side === "LONG" ? 1 : -1;
-              pnlPct = dir * ((lastPrice / item.entry_price) - 1) * 100;
-            }
+              return (
+                <div
+                  key={item.id}
+                  className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
+                >
+                  <div className="absolute -right-16 -top-16 w-44 h-44 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
 
-            return (
-              <div
-                key={item.id}
-                className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
-              >
-                {/* Header Row */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-zinc-100">{sym}</span>
-                    <span className="text-xs font-mono text-zinc-500">USDT</span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                        side === "LONG"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                      }`}
-                    >
-                      {side}
-                    </span>
+                  {/* Watchlist Header Row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-zinc-100">{sym}</span>
+                      <span className="text-xs font-mono text-zinc-500">USDT</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-amber-400 font-mono uppercase">
+                        Radar Ongoing
+                      </span>
+                    </div>
+
+                    {lastPrice != null && (
+                      <div className="flex flex-col items-end">
+                        <span className="text-base font-mono font-bold text-zinc-100 tabular-nums">
+                          ${lastPrice}
+                        </span>
+                        {riseFallRate != null && (
+                          <span
+                            className={`text-[11px] font-mono tabular-nums ${
+                              riseFallRate >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {riseFallRate >= 0 ? "+" : ""}
+                            {(riseFallRate * 100).toFixed(2)}% (24h)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {lastPrice != null && (
-                    <div className="flex flex-col items-end">
-                      <span className="text-base font-mono font-bold text-zinc-100 tabular-nums">
-                        ${lastPrice}
+                  {/* Trigger Radar Level Box */}
+                  <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+                        Alert Trigger Level
                       </span>
-                      {riseFallRate != null && (
-                        <span
-                          className={`text-[11px] font-mono tabular-nums ${
-                            riseFallRate >= 0 ? "text-emerald-400" : "text-rose-400"
-                          }`}
-                        >
-                          {riseFallRate >= 0 ? "+" : ""}
-                          {(riseFallRate * 100).toFixed(2)}%
+                      <span className="text-sm font-mono font-bold text-zinc-100">
+                        Alert when price goes{" "}
+                        <span className="text-amber-300 font-extrabold uppercase">
+                          {trigDir}
+                        </span>{" "}
+                        ${trigPrice != null ? fmtPlanPx(trigPrice) : "N/A"}
+                      </span>
+                    </div>
+
+                    {distText && (
+                      <div className="flex flex-col items-start sm:items-end">
+                        <span className="text-[10px] uppercase font-medium text-zinc-400">Distance to Alert</span>
+                        <span className="text-xs font-mono font-bold text-amber-300">
+                          {distText}
                         </span>
-                      )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Optional Planned Setup Targets (EP / SL / TP) */}
+                  {(item.entry_price != null || item.stop_loss != null || item.take_profit != null) && (
+                    <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Planned Entry</span>
+                        <span className="font-mono text-xs font-bold text-zinc-100">
+                          {fmtPlanPx(item.entry_price)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Stop Loss</span>
+                        <span className="font-mono text-xs font-bold text-rose-400">
+                          {fmtPlanPx(item.stop_loss)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Take Profit</span>
+                        <span className="font-mono text-xs font-bold text-emerald-400">
+                          {fmtPlanPx(item.take_profit)}
+                        </span>
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {/* Live PnL Bar */}
-                {pnlPct != null && (
-                  <div
-                    className={`px-3 py-2 rounded-lg border flex items-center justify-between text-xs font-mono font-semibold ${
-                      pnlPct >= 0
-                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        : "bg-rose-500/10 border-rose-500/20 text-rose-400"
-                    }`}
-                  >
-                    <span className="text-[11px] font-sans font-medium text-zinc-300">Live PnL vs Entry</span>
-                    <span>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
-                  </div>
-                )}
+                  {/* Pre-trade Thesis */}
+                  {item.notes && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-zinc-400">Pre-Trade Thesis & Key Levels</span>
+                      <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/50 whitespace-pre-wrap">
+                        {item.notes}
+                      </p>
+                    </div>
+                  )}
 
-                {/* Plan Targets Grid */}
-                <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase font-semibold text-zinc-500">Entry Price</span>
-                    <span className="font-mono text-xs font-bold text-zinc-100">
-                      {fmtPlanPx(item.entry_price)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase font-semibold text-zinc-500">Stop Loss</span>
-                    <span className="font-mono text-xs font-bold text-rose-400">
-                      {fmtPlanPx(item.stop_loss)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase font-semibold text-zinc-500">Take Profit</span>
-                    <span className="font-mono text-xs font-bold text-emerald-400">
-                      {fmtPlanPx(item.take_profit)}
-                    </span>
+                  {/* Action Link */}
+                  <div className="flex items-center justify-end pt-1 border-t border-zinc-800/60">
+                    <a
+                      href={mexcChartUrl(item.symbol)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>📈 View {sym} Chart on MEXC</span>
+                    </a>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ========================================================================= */
+          /* TEMPLATE 2: PUBLIC TRADES PERFORMANCE (share_type === 'trade')            */
+          /* ========================================================================= */
+          <div className="flex flex-col gap-5">
+            {items.map((item) => {
+              const sym = cleanSymbol(item.symbol);
+              const side = item.trigger_direction === "below" ? "SHORT" : "LONG";
+              const ticker = tickers[item.symbol.toUpperCase()];
+              const lastPrice = ticker?.lastPrice ?? null;
+              const riseFallRate = ticker?.riseFallRate ?? null;
 
-                {/* Notes & Actions Row */}
-                {item.notes && (
-                  <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/50">
-                    {item.notes}
-                  </p>
-                )}
+              let rrRatio: string | null = null;
+              if (item.entry_price && item.stop_loss && item.take_profit) {
+                const risk = Math.abs(item.entry_price - item.stop_loss);
+                const reward = Math.abs(item.take_profit - item.entry_price);
+                if (risk > 0) {
+                  rrRatio = (reward / risk).toFixed(2);
+                }
+              }
 
-                <div className="flex items-center justify-between pt-1">
-                  {rrRatio ? (
-                    <span className="text-[11px] font-mono text-zinc-400">
-                      R:R Ratio: <span className="text-emerald-400 font-bold">{rrRatio} : 1</span>
-                    </span>
-                  ) : <div />}
+              let pnlPct: number | null = null;
+              if (lastPrice && item.entry_price && item.entry_price > 0) {
+                const dir = side === "LONG" ? 1 : -1;
+                pnlPct = dir * ((lastPrice / item.entry_price) - 1) * 100;
+              }
 
-                  <a
-                    href={mexcChartUrl(item.symbol)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>📈 View {sym} Chart</span>
-                  </a>
+              return (
+                <div
+                  key={item.id}
+                  className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
+                >
+                  <div className="absolute -right-16 -top-16 w-44 h-44 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-zinc-100">{sym}</span>
+                      <span className="text-xs font-mono text-zinc-500">USDT</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          side === "LONG"
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                        }`}
+                      >
+                        {side}
+                      </span>
+                    </div>
+
+                    {lastPrice != null && (
+                      <div className="flex flex-col items-end">
+                        <span className="text-base font-mono font-bold text-zinc-100 tabular-nums">
+                          ${lastPrice}
+                        </span>
+                        {riseFallRate != null && (
+                          <span
+                            className={`text-[11px] font-mono tabular-nums ${
+                              riseFallRate >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {riseFallRate >= 0 ? "+" : ""}
+                            {(riseFallRate * 100).toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Position PnL Bar */}
+                  {pnlPct != null && (
+                    <div
+                      className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between text-xs font-mono font-semibold ${
+                        pnlPct >= 0
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                      }`}
+                    >
+                      <span className="text-[11px] font-sans font-medium text-zinc-300">Live PnL vs Entry</span>
+                      <span className="text-sm font-bold">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
+                    </div>
+                  )}
+
+                  {/* Executed Plan Targets Grid */}
+                  <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Entry Price</span>
+                      <span className="font-mono text-xs font-bold text-zinc-100">
+                        {fmtPlanPx(item.entry_price)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Stop Loss</span>
+                      <span className="font-mono text-xs font-bold text-rose-400">
+                        {fmtPlanPx(item.stop_loss)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Take Profit</span>
+                      <span className="font-mono text-xs font-bold text-emerald-400">
+                        {fmtPlanPx(item.take_profit)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Post-entry Notes & Actions */}
+                  {item.notes && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-zinc-400">Trade Review & Analysis</span>
+                      <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/50 whitespace-pre-wrap">
+                        {item.notes}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                    {rrRatio ? (
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        R:R Ratio: <span className="text-emerald-400 font-bold">{rrRatio} : 1</span>
+                      </span>
+                    ) : <div />}
+
+                    <a
+                      href={mexcChartUrl(item.symbol)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>📈 View {sym} Chart on MEXC</span>
+                    </a>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-zinc-800 text-[11px] text-zinc-500">
