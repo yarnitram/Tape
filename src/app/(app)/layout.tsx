@@ -27,6 +27,9 @@ export default async function AppLayout({
         {children}
       </main>
       <AudioAlarmNotifier />
+      <footer className="hairline-t py-6 text-center text-xs text-muted">
+        <span className="brand">MOCHEX</span> — crypto trading setup journal
+      </footer>
     </div>
   );
 }

@@ -47,9 +47,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col bg-paper text-text">
         <div className="flex-1 flex flex-col w-full">{children}</div>
-        <footer className="hairline-t py-6 text-center text-xs text-muted">
-          <span className="brand">MOCHEX</span> — crypto trading setup journal
-        </footer>
       </body>
     </html>
   );
