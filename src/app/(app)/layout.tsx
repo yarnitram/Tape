@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppNav } from "@/components/app-nav";
+import { AudioAlarmNotifier } from "@/components/notifications/audio-alarm-notifier";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function AppLayout({
       <main className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 sm:py-8 flex-1">
         {children}
       </main>
+      <AudioAlarmNotifier />
     </div>
   );
 }

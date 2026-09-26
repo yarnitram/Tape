@@ -11,6 +11,7 @@ import {
   playTpSound,
   playSlSound,
 } from "@/lib/audio";
+import { playAlarmSound, AlarmSoundPreset } from "@/lib/audio-alarm-engine";
 
 interface Props {
   userEmail: string;
@@ -28,6 +29,10 @@ interface Props {
     notify_telegram: boolean;
     notify_desktop: boolean;
     refresh_interval_sec: number;
+    sound_enabled?: boolean;
+    proximity_alarm_enabled?: boolean;
+    proximity_threshold_pct?: number;
+    alarm_sound_preset?: string;
   };
 }
 
@@ -54,6 +59,17 @@ export function SettingsForm({ userEmail, initial }: Props) {
   const [notifyDesktop, setNotifyDesktop] = useState(initial.notify_desktop);
   const [refreshInterval, setRefreshInterval] = useState(
     String(initial.refresh_interval_sec)
+  );
+
+  // ---- Audio Alarm Proximity State ----
+  const [proximityEnabled, setProximityEnabled] = useState(
+    initial.proximity_alarm_enabled !== false
+  );
+  const [proximityThreshold, setProximityThreshold] = useState(
+    String(initial.proximity_threshold_pct ?? 0.5)
+  );
+  const [alarmPreset, setAlarmPreset] = useState<AlarmSoundPreset>(
+    (initial.alarm_sound_preset as AlarmSoundPreset) || "radar_ping"
   );
 
   // ---- Audio Sound FX State ----
@@ -230,6 +246,10 @@ export function SettingsForm({ userEmail, initial }: Props) {
           notify_telegram: notifyTelegram,
           notify_desktop: notifyDesktop,
           refresh_interval_sec: Number(refreshInterval) || 10,
+          sound_enabled: audioEnabled,
+          proximity_alarm_enabled: proximityEnabled,
+          proximity_threshold_pct: Number(proximityThreshold) || 0.5,
+          alarm_sound_preset: alarmPreset,
         }),
       });
 
@@ -588,10 +608,10 @@ export function SettingsForm({ userEmail, initial }: Props) {
           </div>
         </fieldset>
 
-        {/* ---- Audio Sound FX Section ---- */}
+        {/* ---- Audio Sound FX & Proximity Alarms Section ---- */}
         <fieldset className="hairline p-5 flex flex-col gap-4 rounded-lg bg-panel/40">
           <legend className="px-1 text-sm font-semibold flex items-center gap-2">
-            <span>🔊 Audio FX & Alerts</span>
+            <span>🔊 Web Audio FX & Price Proximity Alarms</span>
           </legend>
 
           <label className="flex items-center justify-between gap-3 cursor-pointer hairline-b pb-3">
@@ -608,6 +628,67 @@ export function SettingsForm({ userEmail, initial }: Props) {
               className="accent-accent h-4 w-4 cursor-pointer"
             />
           </label>
+
+          {/* Web Audio Price Proximity Alarm Controls */}
+          <div className="hairline-b pb-4 flex flex-col gap-3">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <span className="text-sm font-medium block">Web Audio Price Proximity Alarms</span>
+                <span className="text-xs text-muted">
+                  Synthesize real-time audio warnings when market prices approach Watchlist triggers.
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={proximityEnabled}
+                onChange={(e) => setProximityEnabled(e.target.checked)}
+                className="accent-accent h-4 w-4 cursor-pointer"
+              />
+            </label>
+
+            {proximityEnabled && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 bg-panel/60 p-3 rounded-lg border border-slate-800">
+                <label className="flex flex-col gap-1 text-xs text-muted">
+                  Proximity Threshold Distance
+                  <select
+                    value={proximityThreshold}
+                    onChange={(e) => setProximityThreshold(e.target.value)}
+                    className={`${inputCls} font-mono`}
+                  >
+                    <option value="0.25">0.25% (Ultra Tight)</option>
+                    <option value="0.5">0.50% (Default - Recommended)</option>
+                    <option value="1.0">1.00% (Medium Distance)</option>
+                    <option value="2.0">2.00% (Wide Distance)</option>
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1 text-xs text-muted">
+                  Alarm Sound Tone Preset
+                  <select
+                    value={alarmPreset}
+                    onChange={(e) => setAlarmPreset(e.target.value as AlarmSoundPreset)}
+                    className={`${inputCls} font-mono`}
+                  >
+                    <option value="radar_ping">📡 Radar Ping (Dual High Tone)</option>
+                    <option value="breakout_bell">🔔 Breakout Bell (Triad Chord)</option>
+                    <option value="sonar_pulse">🌊 Sonar Pulse (Deep Echo)</option>
+                    <option value="chime">✨ Soft Chime (Gentle Alert)</option>
+                  </select>
+                </label>
+
+                <div className="sm:col-span-2 flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+                  <span className="text-xs text-slate-400">Audition synthesized sound tone:</span>
+                  <button
+                    type="button"
+                    onClick={() => playAlarmSound(alarmPreset)}
+                    className="px-3 py-1.5 text-xs font-bold bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/60 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🔊 Test Alarm Tone</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-1 text-xs text-muted">

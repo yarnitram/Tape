@@ -107,7 +107,9 @@ allowing public visitors to open the contract chart directly on MEXC in a new br
    - Embedded TradingView canvas candlestick chart engine (`lightweight-charts`) with real-time MEXC Futures K-line API proxy (`/api/mexc/kline`).
    - Dynamic interactive horizontal price line overlays directly on the candles for **Trigger Price** (Orange/Gold), **Entry Price** (Cyan), **Stop Loss** (Red with % risk label), and **Take Profit** (Green with % target label).
    - Timeframe bar selection (`1m`, `5m`, `15m`, `1h`, `4h`, `1d`), live auto-refresh (10s), crosshair tooltips, and dedicated full-screen technical analysis page at `/chart/[symbol]`.
-4. **🔊 Web Audio Price Proximity Alarms** *(Planned 🔮)*:
-   - Real-time browser audio engine with customizable sound chimes (Radar Ping, Breakout Bell) firing when live price gets within 0.5% of trigger levels.
+4. **🔊 Web Audio Price Proximity Alarms** *(Implemented ✅)*:
+   - Pure Web Audio synthesizer engine (`src/lib/audio-alarm-engine.ts`) with zero external MP3 asset dependency.
+   - 4 synthesized sound presets (`Radar Ping`, `Breakout Bell`, `Sonar Pulse`, `Soft Chime`) with live audition testing button in Settings.
+   - Background proximity monitoring component (`AudioAlarmNotifier`) checking live MEXC market prices against Watchlist triggers, firing audio alarms + floating warning toasts when price is within configured threshold distance (`0.25%`, `0.5%`, `1.0%`, `2.0%`).
 5. **📜 Trade Setup Revision History & Timeline Log** *(Planned 🔮)*:
    - Audit log tracking setup adjustments (e.g. moving SL to Breakeven, TP1 hit), providing full public transparency on setup evolution.

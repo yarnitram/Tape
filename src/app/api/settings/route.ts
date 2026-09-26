@@ -45,6 +45,10 @@ export async function GET() {
       notify_telegram: data?.notify_telegram ?? true,
       notify_desktop: data?.notify_desktop ?? true,
       refresh_interval_sec: data?.refresh_interval_sec ?? 10,
+      sound_enabled: data?.sound_enabled ?? true,
+      proximity_alarm_enabled: data?.proximity_alarm_enabled ?? true,
+      proximity_threshold_pct: Number(data?.proximity_threshold_pct ?? 0.5),
+      alarm_sound_preset: data?.alarm_sound_preset ?? "radar_ping",
     },
   });
 }
@@ -142,6 +146,10 @@ export async function PUT(request: Request) {
     ? Math.min(3600, Math.max(3, Math.round(rawInterval)))
     : 10;
 
+  // Normalize audio proximity settings
+  const proximityThreshold = Number(b.proximity_threshold_pct) || 0.5;
+  const alarmPreset = typeof b.alarm_sound_preset === "string" ? b.alarm_sound_preset : "radar_ping";
+
   const { error } = await supabase.from("user_settings").upsert(
     {
       user_id: user.id,
@@ -158,6 +166,10 @@ export async function PUT(request: Request) {
       notify_telegram: b.notify_telegram !== false,
       notify_desktop: b.notify_desktop !== false,
       refresh_interval_sec: refreshInterval,
+      sound_enabled: b.sound_enabled !== false,
+      proximity_alarm_enabled: b.proximity_alarm_enabled !== false,
+      proximity_threshold_pct: proximityThreshold,
+      alarm_sound_preset: alarmPreset,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
