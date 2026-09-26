@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TriggeredWatchlistItem, WatchlistItem, ArchivedWatchlistItem } from "@/lib/types";
 import { cleanSymbol, fmtPx, fmtPlanPx, mexcChartUrl } from "@/lib/format";
+import { ChartModal } from "@/components/charts/chart-modal";
 
 interface Props {
   triggeredItems: TriggeredWatchlistItem[];
@@ -17,6 +18,7 @@ export function WatchlistTriggeredTab({
 }: Props) {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [chartItem, setChartItem] = useState<TriggeredWatchlistItem | null>(null);
 
   const handleMoveBack = async (item: TriggeredWatchlistItem) => {
     if (restoringId) return;
@@ -216,12 +218,11 @@ export function WatchlistTriggeredTab({
                 </td>
                 <td className="py-3 px-3 text-right">
                   <div className="flex items-center justify-end gap-1.5">
-                    <a
-                      href={mexcChartUrl(item.symbol)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={`Open ${cleanSymbol(item.symbol)} chart on MEXC`}
-                      className="px-2 py-1 rounded text-[11px] font-mono font-medium text-accent hover:bg-accent/10 border border-accent/20 transition-colors flex items-center gap-1 cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setChartItem(item)}
+                      title={`Open ${cleanSymbol(item.symbol)} interactive chart`}
+                      className="px-2 py-1 rounded text-[11px] font-mono font-medium text-cyan-400 hover:bg-cyan-950/40 border border-cyan-800/40 transition-colors flex items-center gap-1 cursor-pointer"
                     >
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 3v18h18" />
@@ -230,7 +231,7 @@ export function WatchlistTriggeredTab({
                         <path d="M8 17v-3" />
                       </svg>
                       Chart
-                    </a>
+                    </button>
                     <button
                       onClick={() => handleMoveBack(item)}
                       disabled={restoringId === item.id}
@@ -259,6 +260,22 @@ export function WatchlistTriggeredTab({
           })}
         </tbody>
       </table>
+
+      {chartItem && (
+        <ChartModal
+          isOpen={!!chartItem}
+          onClose={() => setChartItem(null)}
+          symbol={chartItem.symbol}
+          setup={{
+            symbol: chartItem.symbol,
+            trigger_price: chartItem.trigger_price,
+            entry_price: chartItem.entry_price,
+            stop_loss: chartItem.stop_loss,
+            take_profit: chartItem.take_profit,
+            order_type: chartItem.order_type,
+          }}
+        />
+      )}
     </div>
   );
 }

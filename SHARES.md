@@ -103,8 +103,10 @@ allowing public visitors to open the contract chart directly on MEXC in a new br
    - High-resolution 2x retina PNG exporter (`SocialCardModal`) with theme presets (`Cyber Emerald`, `Radar Gold`, `Deep Space`), one-click `📋 Copy PNG to Clipboard` and `⬇️ Download PNG`.
 2. **🌐 Public Trader Profile Showcase (`/[username]`)** *(Implemented ✅)*:
    - Dedicated public profile landing page (`src/app/[username]/page.tsx`) showcasing trader handle, display name, bio, social links (Twitter/X, Telegram), verified trader badge, KPI stat cards, and interactive setup directory gallery.
-3. **📈 Interactive Candlestick Charts with Setup Overlay** *(Planned 🔮)*:
-   - Embedded TradingView Lightweight Candlestick Charts (`lightweight-charts`) with visual horizontal level overlays for Trigger Price, Entry Price, Stop Loss, and Take Profit.
+3. **📈 Interactive Candlestick Charts with Setup Overlay** *(Implemented ✅)*:
+   - Embedded TradingView canvas candlestick chart engine (`lightweight-charts`) with real-time MEXC Futures K-line API proxy (`/api/mexc/kline`).
+   - Dynamic interactive horizontal price line overlays directly on the candles for **Trigger Price** (Orange/Gold), **Entry Price** (Cyan), **Stop Loss** (Red with % risk label), and **Take Profit** (Green with % target label).
+   - Timeframe bar selection (`1m`, `5m`, `15m`, `1h`, `4h`, `1d`), live auto-refresh (10s), crosshair tooltips, and dedicated full-screen technical analysis page at `/chart/[symbol]`.
 4. **🔊 Web Audio Price Proximity Alarms** *(Planned 🔮)*:
    - Real-time browser audio engine with customizable sound chimes (Radar Ping, Breakout Bell) firing when live price gets within 0.5% of trigger levels.
 5. **📜 Trade Setup Revision History & Timeline Log** *(Planned 🔮)*:
