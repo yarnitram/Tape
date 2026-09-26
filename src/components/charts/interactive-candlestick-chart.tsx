@@ -16,6 +16,8 @@ import {
 import { toPng } from "html-to-image";
 import { CandleData } from "@/app/api/mexc/kline/route";
 import { fmtPx, cleanSymbol } from "@/lib/format";
+import { ChartScriptEditorModal } from "./chart-script-editor-modal";
+import { ScriptPlot, executeChartScript } from "@/lib/chart-script-engine";
 
 export interface TradeSetupOverlay {
   symbol: string;
@@ -285,6 +287,13 @@ export function InteractiveCandlestickChart({
   const cleanSym = cleanSymbol(symbol);
   const storageKey = `mochex_drawings_${cleanSym}`;
 
+  // Custom Formula / PineScript Indicator Studio State
+  const [isScriptModalOpen, setIsScriptModalOpen] = useState<boolean>(false);
+  const [customScript, setCustomScript] = useState<string>("");
+  const [customPlots, setCustomPlots] = useState<ScriptPlot[]>([]);
+  const customSeriesRefs = useRef<Array<ISeriesApi<"Line">>>([]);
+  const scriptStorageKey = `mochex_custom_script_${cleanSym}`;
+
   // Load saved drawings from LocalStorage
   useEffect(() => {
     try {
@@ -298,6 +307,28 @@ export function InteractiveCandlestickChart({
       setDrawings([]);
     }
   }, [storageKey]);
+
+  // Load saved custom script from LocalStorage
+  useEffect(() => {
+    try {
+      const savedScript = localStorage.getItem(scriptStorageKey);
+      if (savedScript) {
+        setCustomScript(savedScript);
+        if (candlesRef.current && candlesRef.current.length > 0) {
+          const res = executeChartScript(savedScript, candlesRef.current);
+          if (res.success) {
+            setCustomPlots(res.plots);
+          }
+        }
+      } else {
+        setCustomScript("");
+        setCustomPlots([]);
+      }
+    } catch {
+      setCustomScript("");
+      setCustomPlots([]);
+    }
+  }, [scriptStorageKey]);
 
   // Save drawings to LocalStorage
   const saveDrawings = useCallback(
@@ -426,6 +457,19 @@ export function InteractiveCandlestickChart({
             if (ema50SeriesRef.current) ema50SeriesRef.current.setData(calculateEMA(candles, 50));
             if (ema100SeriesRef.current) ema100SeriesRef.current.setData(calculateEMA(candles, 100));
             if (ema200SeriesRef.current) ema200SeriesRef.current.setData(calculateEMA(candles, 200));
+
+            // Re-evaluate custom formula script if active
+            try {
+              const savedScript = localStorage.getItem(`mochex_custom_script_${cleanSym}`) || customScript;
+              if (savedScript && candles.length > 0) {
+                const res = executeChartScript(savedScript, candles);
+                if (res.success) {
+                  setCustomPlots(res.plots);
+                }
+              }
+            } catch (err) {
+              console.warn("Failed to re-execute custom script on candle update:", err);
+            }
 
             // Only fit content on initial load or timeframe switch, preserving user zoom/scroll
             if (chartRef.current && isFirstLoadRef.current) {
@@ -644,6 +688,15 @@ export function InteractiveCandlestickChart({
       ema50SeriesRef.current = null;
       ema100SeriesRef.current = null;
       ema200SeriesRef.current = null;
+      // Safely detach custom script series
+      customSeriesRefs.current.forEach((series) => {
+        try {
+          chartInstance?.removeSeries(series);
+        } catch {
+          // Ignore if already removed
+        }
+      });
+      customSeriesRefs.current = [];
       if (chartInstance) {
         try {
           chartInstance.remove();
@@ -653,6 +706,40 @@ export function InteractiveCandlestickChart({
       }
     };
   }, []);
+
+  // Synchronize dynamic custom formula/indicator script series with chart
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    // Safely remove any previously attached custom script series
+    customSeriesRefs.current.forEach((series) => {
+      try {
+        chartRef.current?.removeSeries(series);
+      } catch {
+        // Series might be disposed already
+      }
+    });
+    customSeriesRefs.current = [];
+
+    // Add new series for each custom plot
+    if (customPlots && customPlots.length > 0) {
+      customPlots.forEach((plot) => {
+        try {
+          const series = chartRef.current!.addSeries(LineSeries, {
+            color: plot.color,
+            lineWidth: (plot.lineWidth || 2) as 1 | 2 | 3 | 4,
+            title: plot.title,
+            priceLineVisible: false,
+            crosshairMarkerVisible: true,
+          });
+          series.setData(plot.data);
+          customSeriesRefs.current.push(series);
+        } catch (e) {
+          console.warn("Failed to add custom script series:", e);
+        }
+      });
+    }
+  }, [customPlots]);
 
   // Dynamically apply height changes without disposing/recreating the chart
   useEffect(() => {
@@ -1367,6 +1454,25 @@ export function InteractiveCandlestickChart({
               <span>200</span>
             </button>
           </div>
+
+          {/* Custom Formula & PineScript Indicator Studio */}
+          <button
+            onClick={() => setIsScriptModalOpen(true)}
+            className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
+              customPlots.length > 0
+                ? "bg-accent/20 text-accent font-bold border-accent/40 shadow-xs"
+                : "bg-panel border-line text-muted hover:text-text hover:bg-panel-soft"
+            }`}
+            title="Custom Formula & Indicator Studio (PineScript-equivalent)"
+          >
+            <span>📜</span>
+            <span>Script</span>
+            {customPlots.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-accent text-white text-[10px] rounded-full font-bold">
+                {customPlots.length}
+              </span>
+            )}
+          </button>
 
           {/* Drawing Tools Selector Bar */}
           <div className="flex items-center bg-panel p-1 rounded-lg border border-line gap-1">
@@ -2547,6 +2653,27 @@ export function InteractiveCandlestickChart({
           </svg>
         </div>
       </div>
+
+      {/* Custom Formula / PineScript Indicator Studio Modal */}
+      <ChartScriptEditorModal
+        isOpen={isScriptModalOpen}
+        onClose={() => setIsScriptModalOpen(false)}
+        candles={candlesRef.current}
+        symbol={symbol}
+        currentScript={customScript}
+        onApplyScript={(code, plots) => {
+          setCustomScript(code);
+          setCustomPlots(plots);
+        }}
+        onClearScript={() => {
+          setCustomPlots([]);
+          setCustomScript("");
+          try {
+            localStorage.removeItem(scriptStorageKey);
+          } catch {}
+        }}
+        hasActiveScript={customPlots.length > 0}
+      />
     </div>
   );
 }

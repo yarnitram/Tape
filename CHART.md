@@ -41,6 +41,28 @@ The MOCHEX chart station is a high-performance technical analysis workspace inte
 - **Watchlist Modal Zoom**: Integrated `ResizeObserver` ensures the chart canvas smoothly resizes both horizontally and vertically when toggling between standard and maximized modal sizes (`96vw × 94vh`).
 - **Dedicated Chart Page (`/chart/[symbol]`)**: Full-width container (`max-w-screen-2xl`) with an expansive `700px` height and 24h market stats grid (Last Price, 24h Change, High, Low, Funding Rate, Volume).
 
+### 7. Custom Formula & PineScript Indicator Studio (`📜 Script`)
+- **Real-Time Client-Side Math Engine**: Write custom algorithmic indicators and formulas directly inside the browser using PineScript-equivalent mathematical functions.
+- **Built-In Math Library**:
+  - `sma(source, period)`: Simple Moving Average.
+  - `ema(source, period)`: Exponential Moving Average.
+  - `stddev(source, period)`: Standard Deviation calculation.
+  - `highest(source, period)` & `lowest(source, period)`: Price channel extremes.
+  - `rsi(source, period=14)`: Wilder-smoothed Relative Strength Index.
+  - `crossover(s1, s2)` & `crossunder(s1, s2)`: Dynamic series crossing detection.
+  - `plot(series, { title, color, lineWidth })`: Instantly renders dynamic `LineSeries` overlays on the chart canvas.
+- **Pre-Built Indicator Templates**:
+  - **EMA Ribbon (9 & 21)**: Fast momentum and pullback confirmation.
+  - **Bollinger Bands (20, 2)**: 20 SMA basis line with +2/-2 standard deviation upper and lower envelope bands.
+  - **Donchian Channels (20)**: 20-bar breakout channel with upper, mid, and lower bounds.
+  - **Triple Moving Average (10, 30, 100)**: Multi-timeframe trend filter.
+- **Developer Studio UI**:
+  - Dark-mode code editor with line numbers and monospace formatting.
+  - Quick Reference drawer with 1-click syntax snippet insertion.
+  - Keyboard shortcut: <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to compile and run instantly on the chart.
+  - Status / Error banner displaying compilation feedback or execution errors.
+  - Persistent storage: Saved formulas automatically persist to `localStorage` per token symbol (`mochex_custom_script_${symbol}`).
+
 ---
 
 ## 📐 Supported Technical Indicators & Timeframes
@@ -52,6 +74,8 @@ The MOCHEX chart station is a high-performance technical analysis workspace inte
 | **EMA 50** | `#3b82f6`, width 2 | Intermediate trend support |
 | **EMA 100** | `#eab308`, width 3 | Structural medium-term baseline |
 | **EMA 200** | `#f97316`, width 4 | Macro bull/bear regime filter |
+| **Custom Formula Studio** | PineScript-equivalent syntax | Real-time browser compilation & dynamic plot rendering |
 | **Trade Setup Overlay** | Trigger (Amber), Entry (Violet), SL (Rose), TP (Emerald) | Visual order level lines with % gain/loss |
 | **Countdown Timer** | Format: `MM:SS` (or `Hh Mm Ss`) | Ticks every 1,000ms until bar close |
 | **Snapshot Export** | Format: PNG (2x pixel ratio) | Exports via `html-to-image` |
+
