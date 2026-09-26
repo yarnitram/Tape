@@ -53,6 +53,20 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
   - **Telegram Bot Integration**: Configure single or multiple Telegram bot destinations (`Bot Token` + `Chat ID`).
   - **In-App & Desktop Toasts**: Instant notifications via bell menu and Windows PowerShell toasts.
 
+### 6. TradingView Automated Webhook Ingestion (`/api/webhooks/tradingview`)
+- **Direct Automation**: Pipe TradingView alerts (PineScript indicators, strategy executions, price crossings) straight into MOCHEX with zero manual input.
+- **Unique Webhook Secrets**: Each user receives a dedicated webhook endpoint URL (`https://mochex.app/api/webhooks/tradingview?key=YOUR_SECRET`) with 1-click secret rolling.
+- **Smart Payload Normalizer**: Automatically parses tickers (`BINANCE:BTCUSDT.P`, `BTCUSDT` → `BTC_USDT`), position sides (`buy`/`sell` → `long`/`short`), and targets.
+- **Dual Destination Modes**: Supports both pending Watchlist setups (Radar) and immediate Trade executions.
+- **Interactive Alert Generator**: Live generator in [⚙️ Settings](/settings) with 1-click copyable JSON for TradingView alert message boxes and live "Send Test Alert" verification.
+
+> 📖 **Full TradingView Documentation**: See [`TRADINGVIEW.md`](TRADINGVIEW.md) for PineScript code snippets, alert payload formats, and integration guides.
+
+### 7. Mobile & Tablet Optimization
+- **Responsive Navigation Drawer**: Thumb-friendly mobile navigation with slide-out sheet, quick tabs, theme toggle, and mobile Sign Out button.
+- **Sticky Token Headers**: Coin icons and tickers remain pinned to the left (`sticky left-0`) when scrolling wide tables horizontally on phones and tablets.
+- **Compact Modal Architecture**: Optimized dialog padding and internal vertical scrolling ensuring zero button cutoffs on small mobile viewports.
+
 ---
 
 ## 🛠 Getting Started
@@ -69,7 +83,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ### 2. Run Database Migrations
 
-Apply all SQL migrations located in `supabase/migrations/` (migrations `001` through `020_soft_delete_public_share_links.sql`) in your Supabase SQL Editor.
+Apply all SQL migrations located in `supabase/migrations/` (migrations `001` through `024_tradingview_webhooks.sql`) in your Supabase SQL Editor.
 
 ### 3. Development Server
 

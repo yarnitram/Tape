@@ -48,9 +48,7 @@ export function WatchlistTable({
         <table className="w-full text-sm border-collapse min-w-[1240px]">
           <thead>
             <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
-              <th className="px-2 py-2.5 w-8" />
-              <th className="px-2 py-2.5 w-10" />
-              <th className="px-3 py-2.5">Coin</th>
+              <th className="px-3 py-2.5 text-left sticky left-0 z-20 bg-panel-soft/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Coin</th>
               {colVisible("position") && (
                 <th className="px-3 py-2.5">Position</th>
               )}

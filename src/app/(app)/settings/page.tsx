@@ -37,7 +37,16 @@ export default async function SettingsPage() {
     notify_telegram?: boolean;
     notify_desktop?: boolean;
     refresh_interval_sec?: number | null;
+    webhook_secret?: string | null;
   } | null);
+
+  let webhookSecret = d?.webhook_secret;
+  if (!webhookSecret) {
+    webhookSecret = `tv_sec_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    await supabase
+      .from("user_settings")
+      .upsert({ user_id: user.id, webhook_secret: webhookSecret }, { onConflict: "user_id" });
+  }
 
   const discordWebhooks = Array.isArray(d?.discord_webhooks) && d.discord_webhooks.length > 0
     ? d.discord_webhooks
@@ -74,6 +83,7 @@ export default async function SettingsPage() {
           notify_telegram: d?.notify_telegram ?? true,
           notify_desktop: d?.notify_desktop ?? true,
           refresh_interval_sec: d?.refresh_interval_sec ?? 10,
+          webhook_secret: webhookSecret,
         }}
       />
 

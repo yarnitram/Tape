@@ -28,6 +28,14 @@ export async function GET() {
     ? data.telegram_destinations
     : [];
 
+  let webhookSecret = data?.webhook_secret;
+  if (!webhookSecret) {
+    webhookSecret = `tv_sec_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    await supabase
+      .from("user_settings")
+      .upsert({ user_id: user.id, webhook_secret: webhookSecret }, { onConflict: "user_id" });
+  }
+
   return NextResponse.json({
     settings: {
       user_id: user.id,
@@ -49,6 +57,7 @@ export async function GET() {
       proximity_alarm_enabled: data?.proximity_alarm_enabled ?? true,
       proximity_threshold_pct: Number(data?.proximity_threshold_pct ?? 0.5),
       alarm_sound_preset: data?.alarm_sound_preset ?? "radar_ping",
+      webhook_secret: webhookSecret,
     },
   });
 }

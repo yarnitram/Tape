@@ -93,7 +93,7 @@ export function WatchlistArchiveTab({
       <table className="w-full text-left border-collapse text-xs">
         <thead>
           <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
-            <th className="py-2.5 px-3">Coin</th>
+            <th className="py-2.5 px-3 sticky left-0 z-20 bg-panel-soft/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Coin</th>
             <th className="py-2.5 px-3">Source</th>
             <th className="py-2.5 px-3">Side</th>
             <th className="py-2.5 px-3">Order Type</th>
@@ -136,7 +136,7 @@ export function WatchlistArchiveTab({
 
             return (
               <tr key={item.id} className="hover:bg-panel-soft/50 transition-colors">
-                <td className="py-3 px-3 font-semibold font-mono text-text">
+                <td className="py-3 px-3 font-semibold font-mono text-text sticky left-0 z-10 bg-panel/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                   {sym}
                   <span className="text-[10px] font-normal text-muted ml-1">USDT</span>
                 </td>

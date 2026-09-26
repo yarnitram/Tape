@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { TelegramDestination } from "@/lib/types";
 import {
   isAudioEnabled,
@@ -33,6 +33,7 @@ interface Props {
     proximity_alarm_enabled?: boolean;
     proximity_threshold_pct?: number;
     alarm_sound_preset?: string;
+    webhook_secret?: string;
   };
 }
 
@@ -85,6 +86,135 @@ export function SettingsForm({ userEmail, initial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+
+  // ---- TradingView Webhook State ----
+  const [webhookSecret, setWebhookSecret] = useState(initial.webhook_secret || "");
+  const [showSecret, setShowSecret] = useState(false);
+  const [regeneratingSecret, setRegeneratingSecret] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [copiedPayload, setCopiedPayload] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testWebhookStatus, setTestWebhookStatus] = useState<string | null>(null);
+
+  // TradingView Generator state
+  const [genType, setGenType] = useState<"watchlist" | "trade">("watchlist");
+  const [genSymbol, setGenSymbol] = useState("{{ticker}}");
+  const [genSide, setGenSide] = useState<"long" | "short">("long");
+  const [genOrderType, setGenOrderType] = useState<"limit" | "market">("limit");
+  const [genTrigger, setGenTrigger] = useState("{{close}}");
+  const [genEntry, setGenEntry] = useState("{{close}}");
+  const [genStopLoss, setGenStopLoss] = useState("62500");
+  const [genTakeProfit, setGenTakeProfit] = useState("68000");
+  const [genNotes, setGenNotes] = useState("4H EMA 200 Rebound");
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://mochex.app";
+  const webhookUrl = `${origin}/api/webhooks/tradingview?key=${webhookSecret}`;
+
+  function copyWebhookUrl() {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2000);
+  }
+
+  async function handleRegenerateSecret() {
+    if (!window.confirm("Regenerate your TradingView webhook secret? Any TradingView alerts using your old secret will stop working.")) {
+      return;
+    }
+    setRegeneratingSecret(true);
+    try {
+      const res = await fetch("/api/settings/webhook-secret", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to regenerate secret");
+      const d = await res.json();
+      setWebhookSecret(d.webhook_secret);
+      setStatus("TradingView webhook secret regenerated successfully ✓");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRegeneratingSecret(false);
+    }
+  }
+
+  const generatedJsonString = useMemo(() => {
+    if (genType === "watchlist") {
+      const obj = {
+        symbol: genSymbol,
+        position: genSide,
+        order_type: genOrderType,
+        trigger_price: genTrigger,
+        entry_price: genEntry,
+        stop_loss: Number(genStopLoss) || 62500,
+        take_profit: Number(genTakeProfit) || 68000,
+        notes: genNotes,
+      };
+      return JSON.stringify(obj, null, 2);
+    } else {
+      const obj = {
+        action: "trade",
+        symbol: genSymbol,
+        side: genSide,
+        order_type: genOrderType,
+        entry_price: genEntry,
+        stop_loss: Number(genStopLoss) || 62500,
+        take_profit: Number(genTakeProfit) || 68000,
+        leverage: 10,
+        margin_usd: 100,
+        notes: genNotes,
+      };
+      return JSON.stringify(obj, null, 2);
+    }
+  }, [genType, genSymbol, genSide, genOrderType, genTrigger, genEntry, genStopLoss, genTakeProfit, genNotes]);
+
+  function copyGeneratedPayload() {
+    navigator.clipboard.writeText(generatedJsonString);
+    setCopiedPayload(true);
+    setTimeout(() => setCopiedPayload(false), 2000);
+  }
+
+  async function handleSendTestWebhook() {
+    setTestingWebhook(true);
+    setTestWebhookStatus(null);
+    try {
+      const testPayload = genType === "watchlist" ? {
+        symbol: "BTC_USDT",
+        position: genSide,
+        order_type: genOrderType,
+        trigger_price: 64200,
+        entry_price: 64000,
+        stop_loss: 62500,
+        take_profit: 68000,
+        notes: "Test Alert triggered from MOCHEX Settings",
+      } : {
+        action: "trade",
+        symbol: "BTC_USDT",
+        side: genSide,
+        order_type: genOrderType,
+        entry_price: 64000,
+        stop_loss: 62500,
+        take_profit: 68000,
+        leverage: 10,
+        margin_usd: 50,
+        notes: "Test Trade Execution from MOCHEX Settings",
+      };
+
+      const res = await fetch(`/api/webhooks/tradingview?key=${webhookSecret}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testPayload),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Webhook test failed");
+      }
+
+      const resJson = await res.json();
+      setTestWebhookStatus(`✓ Test ${resJson.action} alert received! Added ${resJson.symbol} to your ${resJson.action === "trade" ? "Trades" : "Watchlist"}.`);
+    } catch (err) {
+      setTestWebhookStatus(`✕ Test error: ${(err as Error).message}`);
+    } finally {
+      setTestingWebhook(false);
+    }
+  }
 
   const inputCls =
     "hairline bg-panel px-3 py-2 text-sm outline-none focus:border-accent w-full rounded";
@@ -556,6 +686,232 @@ export function SettingsForm({ userEmail, initial }: Props) {
             >
               + Add Telegram Destination
             </button>
+          </div>
+        </fieldset>
+
+        {/* ---- TradingView Automated Webhook Ingestion ---- */}
+        <fieldset className="hairline p-5 flex flex-col gap-5 rounded-lg bg-panel/40 border border-line">
+          <legend className="px-1 text-sm font-semibold flex items-center gap-2">
+            <span>📡 TradingView Webhook Automation</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25 font-mono uppercase">
+              Feature 3
+            </span>
+          </legend>
+
+          <p className="text-xs text-muted leading-relaxed">
+            Automate your trading setup radar. Pipe TradingView alerts (PineScript indicators, strategy executions, or price crossings) directly into your MOCHEX Watchlist or Trades table with zero manual entry.
+          </p>
+
+          {/* Webhook Endpoint URL */}
+          <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-panel-soft/60 border border-line">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-semibold text-text flex items-center gap-1.5">
+                <span>🔗</span> Your Personal Webhook URL
+              </span>
+              <button
+                type="button"
+                onClick={copyWebhookUrl}
+                className="px-3 py-1 rounded-lg text-xs font-semibold bg-accent text-white hover:opacity-90 transition-all cursor-pointer shadow-sm flex items-center gap-1"
+              >
+                {copiedWebhook ? "✓ Copied!" : "📋 Copy Webhook URL"}
+              </button>
+            </div>
+            <input
+              type="text"
+              readOnly
+              value={webhookUrl}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="w-full px-3 py-2 text-xs font-mono rounded bg-panel border border-line text-accent select-all outline-none"
+            />
+            <span className="text-[11px] text-muted">
+              Paste this URL into the <strong>Webhook URL</strong> field in your TradingView Alert configuration dialog.
+            </span>
+          </div>
+
+          {/* Secret Key & Roll */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-panel-soft/40 border border-line">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-text">Webhook Secret Key</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type={showSecret ? "text" : "password"}
+                  readOnly
+                  value={webhookSecret}
+                  className="font-mono text-xs px-2.5 py-1 rounded bg-panel border border-line text-muted w-48 sm:w-64 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret((p) => !p)}
+                  className="text-xs text-muted hover:text-text px-2 py-1 rounded hover:bg-panel border border-line cursor-pointer"
+                >
+                  {showSecret ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRegenerateSecret}
+              disabled={regeneratingSecret}
+              className="text-xs text-muted hover:text-loss border border-line hover:border-loss/40 px-3 py-1.5 rounded-lg transition-colors cursor-pointer self-start sm:self-auto disabled:opacity-50"
+            >
+              {regeneratingSecret ? "Regenerating…" : "🔄 Roll Secret"}
+            </button>
+          </div>
+
+          {/* Interactive TradingView Alert Message Generator */}
+          <div className="flex flex-col gap-3 p-4 rounded-xl bg-panel/60 border border-line">
+            <div className="flex items-center justify-between flex-wrap gap-2 hairline-b pb-2.5">
+              <div>
+                <h4 className="text-xs font-semibold text-text flex items-center gap-1.5">
+                  <span>🛠️</span> TradingView Alert Message Generator
+                </h4>
+                <p className="text-[11px] text-muted">
+                  Configure and copy ready-to-paste JSON into your TradingView Alert Message box.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={copyGeneratedPayload}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-panel hover:bg-panel-soft border border-line text-text hover:text-accent transition-colors cursor-pointer flex items-center gap-1"
+              >
+                {copiedPayload ? "✓ Copied JSON!" : "📋 Copy Alert JSON"}
+              </button>
+            </div>
+
+            {/* Generator Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Destination</span>
+                <select
+                  value={genType}
+                  onChange={(e) => setGenType(e.target.value as "watchlist" | "trade")}
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs outline-none focus:border-accent cursor-pointer"
+                >
+                  <option value="watchlist">Watchlist Setup (Radar)</option>
+                  <option value="trade">Direct Trade (Execute)</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Symbol / Ticker</span>
+                <input
+                  type="text"
+                  value={genSymbol}
+                  onChange={(e) => setGenSymbol(e.target.value)}
+                  placeholder="{{ticker}}"
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Position Side</span>
+                <select
+                  value={genSide}
+                  onChange={(e) => setGenSide(e.target.value as "long" | "short")}
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs outline-none focus:border-accent cursor-pointer"
+                >
+                  <option value="long">↗ LONG</option>
+                  <option value="short">↘ SHORT</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Order Type</span>
+                <select
+                  value={genOrderType}
+                  onChange={(e) => setGenOrderType(e.target.value as "limit" | "market")}
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs outline-none focus:border-accent cursor-pointer"
+                >
+                  <option value="limit">Limit Order</option>
+                  <option value="market">Market Order</option>
+                </select>
+              </label>
+
+              {genType === "watchlist" && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted">Trigger Price</span>
+                  <input
+                    type="text"
+                    value={genTrigger}
+                    onChange={(e) => setGenTrigger(e.target.value)}
+                    placeholder="{{close}} or 64200"
+                    className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                  />
+                </label>
+              )}
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Entry Price</span>
+                <input
+                  type="text"
+                  value={genEntry}
+                  onChange={(e) => setGenEntry(e.target.value)}
+                  placeholder="{{close}} or 64000"
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Stop Loss (SL)</span>
+                <input
+                  type="text"
+                  value={genStopLoss}
+                  onChange={(e) => setGenStopLoss(e.target.value)}
+                  placeholder="62500"
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted">Take Profit (TP)</span>
+                <input
+                  type="text"
+                  value={genTakeProfit}
+                  onChange={(e) => setGenTakeProfit(e.target.value)}
+                  placeholder="68000"
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 sm:col-span-3">
+                <span className="text-[11px] text-muted">Thesis / Notes</span>
+                <input
+                  type="text"
+                  value={genNotes}
+                  onChange={(e) => setGenNotes(e.target.value)}
+                  placeholder="e.g. 4H SuperTrend Bullish Flip"
+                  className="hairline bg-panel px-2.5 py-1.5 rounded text-xs font-mono outline-none focus:border-accent"
+                />
+              </label>
+            </div>
+
+            {/* Live Generated JSON Codebox */}
+            <div className="relative mt-1">
+              <pre className="p-3 rounded-lg bg-panel-soft/80 border border-line text-accent font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
+                {generatedJsonString}
+              </pre>
+            </div>
+
+            {/* Test Webhook Action */}
+            <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendTestWebhook}
+                  disabled={testingWebhook}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-panel hover:bg-panel-soft border border-accent/40 text-accent transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span>⚡</span>
+                  <span>{testingWebhook ? "Sending Test Alert…" : "Send Test Alert Now"}</span>
+                </button>
+              </div>
+              {testWebhookStatus && (
+                <span className={`text-xs font-mono ${testWebhookStatus.startsWith("✓") ? "text-gain" : "text-loss"}`}>
+                  {testWebhookStatus}
+                </span>
+              )}
+            </div>
           </div>
         </fieldset>
 

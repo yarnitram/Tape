@@ -104,36 +104,37 @@ export function WatchlistRow({
   return (
     <>
       <tr className="hairline-b hover:bg-panel-soft/50 transition-colors">
-        {/* Spacer */}
-        <td className="px-2 py-2.5 w-8" aria-hidden="true" />
-
-        {/* Icon */}
-        <td className="px-2 py-2.5 text-center">
-          {iconUrl && (
-            <img
-              src={iconUrl}
-              alt={label}
-              draggable={false}
-              className="h-5 w-5 rounded-full object-contain inline-block"
-            />
-          )}
-        </td>
-
-        {/* Coin name */}
-        <td className="px-3 py-2.5">
-          <button
-            type="button"
-            onClick={onModify}
-            className="text-left group"
-            title={`View ${label} details`}
-          >
-            <span className="font-medium group-hover:text-accent group-hover:underline">
-              {label}
+        {/* Coin with Icon — Sticky on horizontal scroll */}
+        <td className="px-3 py-2.5 sticky left-0 z-10 bg-panel/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
+              {iconUrl ? (
+                <img
+                  src={iconUrl}
+                  alt={label}
+                  draggable={false}
+                  className="size-5 rounded-full object-contain inline-block"
+                />
+              ) : (
+                <span className="flex size-5 items-center justify-center rounded-full bg-panel-soft text-[10px] font-semibold text-muted">
+                  {label.charAt(0).toUpperCase()}
+                </span>
+              )}
             </span>
-            <span className="text-xs text-muted ml-1 block">
-              {sym.replace("_USDT", "")}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={onModify}
+              className="text-left group flex flex-col leading-tight"
+              title={`View ${label} details`}
+            >
+              <span className="font-semibold text-text group-hover:text-accent group-hover:underline">
+                {label}
+              </span>
+              <span className="text-[10px] text-muted font-mono">
+                {sym.replace("_USDT", "")}
+              </span>
+            </button>
+          </div>
         </td>
 
         {/* Position */}
