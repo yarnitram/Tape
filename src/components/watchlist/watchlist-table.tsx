@@ -51,6 +51,9 @@ export function WatchlistTable({
               <th className="px-2 py-2.5 w-8" />
               <th className="px-2 py-2.5 w-10" />
               <th className="px-3 py-2.5">Coin</th>
+              {colVisible("position") && (
+                <th className="px-3 py-2.5">Position</th>
+              )}
               {colVisible("change") && (
                 <th className="px-3 py-2.5 text-right">24h %</th>
               )}

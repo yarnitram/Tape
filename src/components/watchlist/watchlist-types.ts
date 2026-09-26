@@ -60,6 +60,7 @@ export function sortConfigKey(c: SortConfig): string {
 
 /** Toggleable table columns — Coin and Actions are always shown. */
 export type ColKey =
+  | "position"
   | "change"
   | "volume"
   | "price"
@@ -71,6 +72,7 @@ export type ColKey =
   | "status";
 
 export const COLUMNS: { key: ColKey; label: string }[] = [
+  { key: "position", label: "Position" },
   { key: "change", label: "24h %" },
   { key: "volume", label: "Volume (24h)" },
   { key: "price", label: "Last Price" },
@@ -83,6 +85,7 @@ export const COLUMNS: { key: ColKey; label: string }[] = [
 ];
 
 export const DEFAULT_COLS: Record<ColKey, boolean> = {
+  position: true,
   change: true,
   volume: true,
   price: true,

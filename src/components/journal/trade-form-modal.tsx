@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Tag, TradeWithExtras } from "@/lib/types";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { CoinPicker, type SelectedCoin } from "@/components/ui/coin-picker";
+import { fmtPx } from "@/lib/format";
 
 interface Props {
   trade: TradeWithExtras | null;
   tags: Tag[];
   onClose: () => void;
   onSave: (values: Record<string, unknown>, id?: string) => Promise<void>;
+  icons?: Record<string, string>;
 }
 
 function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
+  const d = iso ? new Date(iso) : new Date();
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
@@ -21,8 +23,17 @@ function toLocalInput(iso: string | null): string {
   )}:${pad(d.getMinutes())}`;
 }
 
-export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
+export function TradeFormModal({ trade, tags, onClose, onSave, icons = {} }: Props) {
   const editing = !!trade;
+
+  const [selectedCoin, setSelectedCoin] = useState<SelectedCoin | null>(() => {
+    if (!trade) return null;
+    return {
+      symbol: trade.symbol,
+      label: trade.symbol.replace("_USDT", ""),
+      isCustom: !trade.symbol.endsWith("_USDT"),
+    };
+  });
 
   const [symbol, setSymbol] = useState(trade?.symbol ?? "");
   const [direction, setDirection] = useState<"long" | "short">(
@@ -61,6 +72,47 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Sync state if editing trade changes
+  useEffect(() => {
+    if (trade) {
+      setSelectedCoin({
+        symbol: trade.symbol,
+        label: trade.symbol.replace("_USDT", ""),
+        isCustom: !trade.symbol.endsWith("_USDT"),
+      });
+      setSymbol(trade.symbol);
+      setDirection(trade.direction);
+      setSize(String(trade.size));
+      setEntryPrice(String(trade.entry_price));
+      setExitPrice(trade.exit_price != null ? String(trade.exit_price) : "");
+      setStopPrice(trade.stop_price != null ? String(trade.stop_price) : "");
+      setFees(String(trade.fees));
+      setEntryTime(toLocalInput(trade.entry_time));
+      setThesis(trade.notes?.pre_trade_thesis ?? "");
+      setReview(trade.notes?.post_trade_review ?? "");
+      setDiscipline(
+        trade.notes?.discipline_score != null
+          ? String(trade.notes.discipline_score)
+          : ""
+      );
+      setSelectedTags(trade.tags.map((t) => t.name));
+    }
+  }, [trade]);
+
+  function handleSelectCoin(coin: SelectedCoin) {
+    setSelectedCoin(coin);
+    setSymbol(coin.symbol);
+    if (!entryPrice && coin.lastPrice) {
+      setEntryPrice(String(coin.lastPrice));
+    }
+    setError(null);
+  }
+
+  function handleClearCoin() {
+    setSelectedCoin(null);
+    setSymbol("");
+  }
+
   const suggestions = useMemo(() => {
     const known = new Set(tags.map((t) => t.name));
     return Array.from(new Set([...selectedTags, ...known])).filter((n) =>
@@ -94,15 +146,15 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
     const exit = num(exitPrice);
 
     if (!symbol.trim()) {
-      setError("Symbol is required");
+      setError("Please select or enter a coin symbol.");
       return;
     }
-    if (size.trim() === "" || entry == null || Number.isNaN(entry)) {
-      setError("Size and entry price are required");
+    if (size.trim() === "" || entry == null || Number.isNaN(entry) || entry <= 0) {
+      setError("Valid size and entry price are required.");
       return;
     }
     if (!entryTime) {
-      setError("Entry time is required");
+      setError("Entry time is required.");
       return;
     }
 
@@ -110,7 +162,7 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
     try {
       await onSave(
         {
-          symbol,
+          symbol: symbol.toUpperCase(),
           direction,
           size: num(size),
           entry_price: entry,
@@ -119,8 +171,8 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
           fees: num(fees) ?? 0,
           entry_time: new Date(entryTime).toISOString(),
           tags: selectedTags,
-          pre_trade_thesis: thesis || null,
-          post_trade_review: review || null,
+          pre_trade_thesis: thesis.trim() || null,
+          post_trade_review: review.trim() || null,
           discipline_score: discipline.trim() === "" ? null : Number(discipline),
         },
         trade?.id
@@ -132,112 +184,186 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
   }
 
   const inputCls =
-    "hairline bg-panel px-3 py-2 text-sm outline-none focus:border-accent w-full";
+    "w-full px-3 py-2 rounded-xl bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all font-mono";
+
+  const lastPx = selectedCoin?.lastPrice;
 
   return (
-    <ModalShell title={editing ? "Edit trade" : "New trade"} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <ModalShell
+      title={editing ? `Edit ${trade?.symbol} Trade` : "⚡ New Journal Trade"}
+      onClose={onClose}
+      maxWidth="max-w-xl"
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs">
         {error && (
-          <div className="hairline border-loss text-loss px-3 py-2 text-sm">
-            {error}
+          <div className="p-3 rounded-xl bg-loss/10 border border-loss/20 text-loss text-xs flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-loss/70 hover:text-loss p-1 cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Symbol
-            <input
-              className={inputCls}
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              placeholder="SPY"
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Direction
-            <select
-              className={inputCls}
-              value={direction}
-              onChange={(e) =>
-                setDirection(e.target.value as "long" | "short")
-              }
-            >
-              <option value="long">Long</option>
-              <option value="short">Short</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Size
-            <input
-              className={inputCls}
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              placeholder="100"
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Entry time
-            <input
-              type="datetime-local"
-              className={inputCls}
-              value={entryTime}
-              onChange={(e) => setEntryTime(e.target.value)}
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Entry price
-            <input
-              className={inputCls}
-              value={entryPrice}
-              onChange={(e) => setEntryPrice(e.target.value)}
-              placeholder="420.50"
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Exit price{" "}
-            <span className="normal-case text-muted/70 font-normal">
-              (blank = still open)
-            </span>
-            <input
-              className={inputCls}
-              value={exitPrice}
-              onChange={(e) => setExitPrice(e.target.value)}
-              placeholder="425.00"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Stop price (for R)
-            <input
-              className={inputCls}
-              value={stopPrice}
-              onChange={(e) => setStopPrice(e.target.value)}
-              placeholder="418.00"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Fees
-            <input
-              className={inputCls}
-              value={fees}
-              onChange={(e) => setFees(e.target.value)}
-              placeholder="0.00"
-            />
-          </label>
+        {/* 1. Coin Selection */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+            Asset / Coin <span className="text-loss">*</span>
+          </span>
+          <CoinPicker
+            selectedCoin={selectedCoin}
+            onSelectCoin={handleSelectCoin}
+            onClearCoin={handleClearCoin}
+            allowCustomSymbol={true}
+            icons={icons}
+            autoFocus={!selectedCoin}
+          />
         </div>
 
-        {/* Tags */}
-        <fieldset>
-          <legend className="text-xs text-muted mb-1">
-            Tags{" "}
-            <span className="text-muted/70 font-normal">
-              (selected: {selectedTags.length})
-            </span>
+        {/* 2. Position / Direction */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+            Direction <span className="text-loss">*</span>
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setDirection("long")}
+              className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                direction === "long"
+                  ? "bg-gain/20 text-gain border-gain shadow-sm"
+                  : "bg-panel-soft/60 hover:bg-panel-soft text-muted border-line"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 17L17 7M17 7H7M17 7V17" />
+              </svg>
+              <span>↗ LONG</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDirection("short")}
+              className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                direction === "short"
+                  ? "bg-loss/20 text-loss border-loss shadow-sm"
+                  : "bg-panel-soft/60 hover:bg-panel-soft text-muted border-line"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 7l10 10M17 7v10H7" />
+              </svg>
+              <span>↘ SHORT</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3. Execution Levels: Size, Entry Time, Entry Price */}
+        <div className="p-3.5 rounded-xl bg-panel/40 border border-line flex flex-col gap-3">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider font-semibold">
+            Execution Details
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Position Size (Units) <span className="text-loss">*</span></span>
+              <input
+                type="number"
+                step="any"
+                className={inputCls}
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                placeholder="e.g. 100"
+                required
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <div className="flex items-center justify-between">
+                <span>Entry Price <span className="text-loss">*</span></span>
+                {lastPx != null && (
+                  <button
+                    type="button"
+                    onClick={() => setEntryPrice(String(lastPx))}
+                    className="text-[10px] font-mono text-accent hover:underline cursor-pointer"
+                  >
+                    Use Last ({fmtPx(lastPx)})
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="any"
+                className={inputCls}
+                value={entryPrice}
+                onChange={(e) => setEntryPrice(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Entry Timestamp <span className="text-loss">*</span></span>
+              <input
+                type="datetime-local"
+                className={`${inputCls} py-1.5`}
+                value={entryTime}
+                onChange={(e) => setEntryTime(e.target.value)}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <div className="flex items-center justify-between">
+                <span>Exit Price</span>
+                <span className="text-[10px] text-muted/60 font-normal">Blank = Open</span>
+              </div>
+              <input
+                type="number"
+                step="any"
+                className={inputCls}
+                value={exitPrice}
+                onChange={(e) => setExitPrice(e.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Stop Price (for R Calc)</span>
+              <input
+                type="number"
+                step="any"
+                className={inputCls}
+                value={stopPrice}
+                onChange={(e) => setStopPrice(e.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Trading Fees ($)</span>
+              <input
+                type="number"
+                step="any"
+                className={inputCls}
+                value={fees}
+                onChange={(e) => setFees(e.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* 4. Tags */}
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="text-[10px] font-mono uppercase text-muted tracking-wider">
+            Tags ({selectedTags.length} selected)
           </legend>
-          <div className="flex flex-wrap gap-1.5 mb-2">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {suggestions.map((name) => {
               const active = selectedTags.includes(name);
               return (
@@ -245,10 +371,10 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
                   key={name}
                   type="button"
                   onClick={() => toggleTag(name)}
-                  className={`px-2 py-1 text-xs cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs rounded-lg cursor-pointer transition-colors border ${
                     active
-                      ? "hairline border-accent text-accent"
-                      : "hairline text-muted hover:text-text"
+                      ? "bg-accent/15 border-accent text-accent font-semibold"
+                      : "bg-panel-soft/60 border-line text-muted hover:text-text"
                   }`}
                 >
                   {name} {active ? "✓" : ""}
@@ -257,7 +383,7 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
             })}
             <div className="flex gap-1 items-center">
               <input
-                className="hairline bg-panel px-2 py-1 text-xs outline-none w-32 focus:border-accent"
+                className="w-28 px-2.5 py-1 rounded-lg bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent"
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
                 onKeyDown={(e) => {
@@ -266,70 +392,107 @@ export function TradeFormModal({ trade, tags, onClose, onSave }: Props) {
                     commitNewTag();
                   }
                 }}
-                placeholder="create tag…"
+                placeholder="+ tag..."
               />
-              <button
-                type="button"
-                onClick={commitNewTag}
-                className="px-2 py-1 text-xs btn-ghost cursor-pointer"
-              >
-                +
-              </button>
+              {newTag.trim() && (
+                <button
+                  type="button"
+                  onClick={commitNewTag}
+                  className="px-2 py-1 text-xs rounded-lg bg-accent/20 text-accent font-bold cursor-pointer"
+                >
+                  +
+                </button>
+              )}
             </div>
           </div>
         </fieldset>
 
-        {/* Notes */}
-        <fieldset className="grid grid-cols-1 gap-3">
+        {/* 5. Notes & Review */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Pre-trade thesis
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+              Pre-Trade Thesis
+            </span>
             <textarea
-              className={`${inputCls} min-h-20 resize-y`}
+              className="w-full px-3 py-2 rounded-xl bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent resize-none font-mono"
+              rows={2}
               value={thesis}
               onChange={(e) => setThesis(e.target.value)}
-              placeholder="Why am I taking this trade?"
+              placeholder="Why are you taking this setup?"
             />
           </label>
+
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Post-trade review
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+              Post-Trade Review
+            </span>
             <textarea
-              className={`${inputCls} min-h-20 resize-y`}
+              className="w-full px-3 py-2 rounded-xl bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent resize-none font-mono"
+              rows={2}
               value={review}
               onChange={(e) => setReview(e.target.value)}
-              placeholder="How did it go? Lessons?"
+              placeholder="Execution review, emotions, lessons..."
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-muted w-40">
-            Discipline (1–5)
-            <select
-              className={inputCls}
-              value={discipline}
-              onChange={(e) => setDiscipline(e.target.value)}
-            >
-              <option value="">—</option>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-        </fieldset>
+        </div>
 
-        <div className="flex justify-end gap-2 pt-2 hairline-t">
+        {/* 6. Discipline Score */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+            Discipline Score (1 = Bad, 5 = Flawless)
+          </span>
+          <div className="flex items-center gap-1.5">
+            {[1, 2, 3, 4, 5].map((num) => {
+              const active = discipline === String(num);
+              return (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setDiscipline(active ? "" : String(num))}
+                  className={`w-9 h-8 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer border ${
+                    active
+                      ? "bg-accent/25 border-accent text-accent shadow-sm"
+                      : "bg-panel-soft/60 border-line text-muted hover:text-text"
+                  }`}
+                >
+                  {num}★
+                </button>
+              );
+            })}
+            {discipline && (
+              <button
+                type="button"
+                onClick={() => setDiscipline("")}
+                className="text-[11px] text-muted hover:text-text ml-2 cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 7. Action Buttons */}
+        <div className="flex justify-between items-center pt-2 border-t border-line">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm btn-ghost cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-panel-soft hover:bg-panel text-text text-xs font-medium border border-line transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving}
-            className="px-4 py-2 text-sm accent-btn font-semibold cursor-pointer disabled:opacity-60"
+            disabled={saving || !symbol.trim()}
+            className="accent-btn px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            {saving ? "Saving…" : editing ? "Save changes" : "Add trade"}
+            {saving ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-panel border-t-transparent rounded-full animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <span>{editing ? "Save Changes" : "+ Add to Journal"}</span>
+            )}
           </button>
         </div>
       </form>

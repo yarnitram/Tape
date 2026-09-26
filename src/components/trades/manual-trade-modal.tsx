@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import type { OrderType } from "@/lib/types";
 import { calculateTradePnl } from "@/lib/trade-calc";
+import { CoinPicker, type SelectedCoin } from "@/components/ui/coin-picker";
+import { fmtPx } from "@/lib/format";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  icons?: Record<string, string>;
 }
 
-export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
+export function ManualTradeModal({
+  open,
+  onClose,
+  onSuccess,
+  icons = {},
+}: Props) {
+  const [selectedCoin, setSelectedCoin] = useState<SelectedCoin | null>(null);
   const [symbol, setSymbol] = useState("");
   const [direction, setDirection] = useState<"below" | "above">("below"); // below = long, above = short
   const [triggerPrice, setTriggerPrice] = useState("");
@@ -33,7 +42,51 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset form when modal opens
+  useEffect(() => {
+    if (open) {
+      setSelectedCoin(null);
+      setSymbol("");
+      setDirection("below");
+      setTriggerPrice("");
+      setFiredPrice("");
+      setEntryPrice("");
+      setStopLoss("");
+      setTakeProfit("");
+      setLeverage("");
+      setMarginUsd("1");
+      setOrderType("market");
+      setNotes("");
+      setStatus("active");
+      setExitPrice("");
+      setClosedReason("manual_close");
+      setCloseNotes("");
+      setError(null);
+      setSaving(false);
+    }
+  }, [open]);
+
   if (!open) return null;
+
+  function handleSelectCoin(coin: SelectedCoin) {
+    setSelectedCoin(coin);
+    setSymbol(coin.symbol);
+    if (!entryPrice && coin.lastPrice) {
+      setEntryPrice(String(coin.lastPrice));
+    }
+    if (!firedPrice && coin.lastPrice) {
+      setFiredPrice(String(coin.lastPrice));
+    }
+    if (!triggerPrice && coin.lastPrice) {
+      setTriggerPrice(String(coin.lastPrice));
+    }
+    setError(null);
+  }
+
+  function handleClearCoin() {
+    setSelectedCoin(null);
+    setSymbol("");
+  }
 
   const numEntry = entryPrice ? Number(entryPrice) : firedPrice ? Number(firedPrice) : null;
   const numExit = exitPrice ? Number(exitPrice) : null;
@@ -45,18 +98,48 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
     leverage ? Number(leverage) : 1
   );
 
+  // Live Risk/Reward Calculation
+  const epNum = entryPrice ? parseFloat(entryPrice) : null;
+  const slNum = stopLoss ? parseFloat(stopLoss) : null;
+  const tpNum = takeProfit ? parseFloat(takeProfit) : null;
+
+  let rrRatio: string | null = null;
+  let riskWarning: string | null = null;
+
+  if (epNum != null && slNum != null && tpNum != null && !isNaN(epNum) && !isNaN(slNum) && !isNaN(tpNum)) {
+    const risk = Math.abs(epNum - slNum);
+    const reward = Math.abs(tpNum - epNum);
+    if (risk > 0) {
+      rrRatio = (reward / risk).toFixed(2);
+    }
+    const isLong = direction === "below";
+    if (isLong) {
+      if (slNum >= epNum) {
+        riskWarning = "For a LONG trade, Stop Loss is normally below Entry Price.";
+      } else if (tpNum <= epNum) {
+        riskWarning = "For a LONG trade, Take Profit is normally above Entry Price.";
+      }
+    } else {
+      if (slNum <= epNum) {
+        riskWarning = "For a SHORT trade, Stop Loss is normally above Entry Price.";
+      } else if (tpNum >= epNum) {
+        riskWarning = "For a SHORT trade, Take Profit is normally below Entry Price.";
+      }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!symbol.trim()) {
-      setError("Please enter a coin symbol (e.g. BTC, ETH)");
+      setError("Please select a coin first.");
       return;
     }
     if (!entryPrice || Number(entryPrice) <= 0) {
-      setError("Please enter a valid entry price");
+      setError("Please enter a valid entry price.");
       return;
     }
     if (status === "closed" && (!exitPrice || Number(exitPrice) <= 0)) {
-      setError("Exit price is required when creating a closed trade");
+      setError("Exit price is required when creating a closed trade.");
       return;
     }
 
@@ -93,19 +176,6 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
 
       onSuccess();
       onClose();
-      // Reset form
-      setSymbol("");
-      setTriggerPrice("");
-      setFiredPrice("");
-      setEntryPrice("");
-      setStopLoss("");
-      setTakeProfit("");
-      setLeverage("");
-      setMarginUsd("1");
-      setNotes("");
-      setStatus("active");
-      setExitPrice("");
-      setCloseNotes("");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error creating trade");
     } finally {
@@ -113,192 +183,251 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
     }
   }
 
+  const inputCls =
+    "w-full px-3 py-2 rounded-xl bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all font-mono";
+
+  const lastPx = selectedCoin?.lastPrice;
+
   return (
-    <ModalShell onClose={onClose} title="Add Manual Trade">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <ModalShell onClose={onClose} title="⚡ Add Manual Trade" maxWidth="max-w-xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs">
         {error && (
-          <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-xs text-rose-400">
-            {error}
+          <div className="p-3 rounded-xl bg-loss/10 border border-loss/20 text-loss text-xs flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-loss/70 hover:text-loss p-1 cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Symbol <span className="text-loss">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. BTC or BTC_USDT"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="input-base w-full"
-              required
-            />
-          </div>
+        {/* 1. Token Selection (Reusable CoinPicker) */}
+        <CoinPicker
+          selectedCoin={selectedCoin}
+          onSelectCoin={handleSelectCoin}
+          onClearCoin={handleClearCoin}
+          icons={icons}
+          autoFocus={!selectedCoin}
+        />
 
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Direction <span className="text-loss">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-1 bg-panel-soft border border-line p-1 rounded-lg">
+        {/* 2. Position / Direction & Order Type */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+              Position / Direction <span className="text-loss">*</span>
+            </span>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setDirection("below")}
-                className={`py-1.5 text-xs font-semibold rounded cursor-pointer transition-colors ${
+                className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                   direction === "below"
-                    ? "bg-gain/20 text-gain border border-gain/30"
-                    : "text-muted hover:text-text"
+                    ? "bg-gain/20 text-gain border-gain shadow-sm"
+                    : "bg-panel-soft/60 hover:bg-panel-soft text-muted border-line"
                 }`}
               >
-                LONG
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 17L17 7M17 7H7M17 7V17" />
+                </svg>
+                <span>↗ LONG</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDirection("above")}
-                className={`py-1.5 text-xs font-semibold rounded cursor-pointer transition-colors ${
+                className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                   direction === "above"
-                    ? "bg-loss/20 text-loss border border-loss/30"
-                    : "text-muted hover:text-text"
+                    ? "bg-loss/20 text-loss border-loss shadow-sm"
+                    : "bg-panel-soft/60 hover:bg-panel-soft text-muted border-line"
                 }`}
               >
-                SHORT
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 7l10 10M17 7v10H7" />
+                </svg>
+                <span>↘ SHORT</span>
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Trigger Price
-            </label>
-            <input
-              type="number"
-              step="any"
-              placeholder="0.00"
-              value={triggerPrice}
-              onChange={(e) => setTriggerPrice(e.target.value)}
-              className="input-base w-full font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Fired Price
-            </label>
-            <input
-              type="number"
-              step="any"
-              placeholder="0.00"
-              value={firedPrice}
-              onChange={(e) => setFiredPrice(e.target.value)}
-              className="input-base w-full font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
               Order Type
-            </label>
+            </span>
             <select
               value={orderType}
               onChange={(e) => setOrderType(e.target.value as OrderType)}
-              className="input-base w-full"
+              className={`${inputCls} cursor-pointer py-2.5`}
             >
               <option value="market">Market</option>
               <option value="limit">Limit</option>
               <option value="trigger_limit">Trigger Limit</option>
             </select>
-          </div>
+          </label>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Entry Price <span className="text-loss">*</span>
+        {/* 3. Execution Levels: Entry, Trigger, Fired */}
+        <div className="p-3.5 rounded-xl bg-panel/40 border border-line flex flex-col gap-3">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider font-semibold">
+            Price &amp; Execution Details
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <div className="flex items-center justify-between">
+                <span>Entry Price <span className="text-loss">*</span></span>
+                {lastPx != null && (
+                  <button
+                    type="button"
+                    onClick={() => setEntryPrice(String(lastPx))}
+                    className="text-[10px] font-mono text-accent hover:underline cursor-pointer"
+                  >
+                    Use Last
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={entryPrice}
+                onChange={(e) => setEntryPrice(e.target.value)}
+                className={inputCls}
+                required
+              />
             </label>
-            <input
-              type="number"
-              step="any"
-              placeholder="0.00"
-              value={entryPrice}
-              onChange={(e) => setEntryPrice(e.target.value)}
-              className="input-base w-full font-mono"
-              required
-            />
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <div className="flex items-center justify-between">
+                <span>Trigger Price</span>
+                {lastPx != null && (
+                  <button
+                    type="button"
+                    onClick={() => setTriggerPrice(String(lastPx))}
+                    className="text-[10px] font-mono text-accent hover:underline cursor-pointer"
+                  >
+                    Use Last
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={triggerPrice}
+                onChange={(e) => setTriggerPrice(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <div className="flex items-center justify-between">
+                <span>Fired Price</span>
+                {lastPx != null && (
+                  <button
+                    type="button"
+                    onClick={() => setFiredPrice(String(lastPx))}
+                    className="text-[10px] font-mono text-accent hover:underline cursor-pointer"
+                  >
+                    Use Last
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={firedPrice}
+                onChange={(e) => setFiredPrice(e.target.value)}
+                className={inputCls}
+              />
+            </label>
           </div>
 
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Stop Loss (SL)
+          {/* SL & TP */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Stop Loss (SL)</span>
+              <input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={stopLoss}
+                onChange={(e) => setStopLoss(e.target.value)}
+                className={inputCls}
+              />
             </label>
-            <input
-              type="number"
-              step="any"
-              placeholder="0.00"
-              value={stopLoss}
-              onChange={(e) => setStopLoss(e.target.value)}
-              className="input-base w-full font-mono"
-            />
+
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              <span>Take Profit (TP)</span>
+              <input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={takeProfit}
+                onChange={(e) => setTakeProfit(e.target.value)}
+                className={inputCls}
+              />
+            </label>
           </div>
 
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
-              Take Profit (TP)
-            </label>
-            <input
-              type="number"
-              step="any"
-              placeholder="0.00"
-              value={takeProfit}
-              onChange={(e) => setTakeProfit(e.target.value)}
-              className="input-base w-full font-mono"
-            />
-          </div>
+          {/* Live R:R Ratio Badge or Warning */}
+          {rrRatio && (
+            <div className="p-2 rounded-lg bg-accent/10 border border-accent/25 flex items-center justify-between text-xs font-mono text-accent">
+              <span className="font-semibold">🎯 Risk : Reward</span>
+              <span>1 : {rrRatio} R:R</span>
+            </div>
+          )}
+          {riskWarning && (
+            <div className="text-[11px] text-amber-400 font-mono">
+              {riskWarning}
+            </div>
+          )}
         </div>
 
+        {/* 4. Position Sizing: Margin & Leverage */}
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
               Margin ($)
-            </label>
+            </span>
             <input
               type="number"
               step="any"
               placeholder="1"
               value={marginUsd}
               onChange={(e) => setMarginUsd(e.target.value)}
-              className="input-base w-full font-mono"
+              className={inputCls}
             />
-          </div>
+          </label>
 
-          <div>
-            <label className="block text-xs text-muted font-medium mb-1">
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
               Leverage (x)
-            </label>
+            </span>
             <input
               type="number"
               step="any"
-              placeholder="Max / Custom"
+              placeholder="e.g. 10"
               value={leverage}
               onChange={(e) => setLeverage(e.target.value)}
-              className="input-base w-full font-mono"
+              className={inputCls}
             />
-          </div>
+          </label>
         </div>
 
-        {/* Status Option: Active vs Closed */}
-        <div className="p-3 bg-panel-soft/60 border border-line rounded-lg space-y-3">
+        {/* 5. Status: Active vs Closed */}
+        <div className="p-3.5 rounded-xl bg-panel-soft/60 border border-line flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-text">
-              Initial Status
+              Initial Trade Status
             </span>
-            <div className="grid grid-cols-2 gap-1 bg-panel p-1 rounded-lg border border-line">
+            <div className="grid grid-cols-2 gap-1 bg-panel p-1 rounded-xl border border-line">
               <button
                 type="button"
                 onClick={() => setStatus("active")}
-                className={`px-3 py-1 text-xs font-semibold rounded cursor-pointer transition-colors ${
+                className={`px-3 py-1 text-xs font-semibold rounded-lg cursor-pointer transition-colors ${
                   status === "active"
                     ? "bg-gain/20 text-gain border border-gain/30"
                     : "text-muted hover:text-text"
@@ -309,7 +438,7 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
               <button
                 type="button"
                 onClick={() => setStatus("closed")}
-                className={`px-3 py-1 text-xs font-semibold rounded cursor-pointer transition-colors ${
+                className={`px-3 py-1 text-xs font-semibold rounded-lg cursor-pointer transition-colors ${
                   status === "closed"
                     ? "bg-accent/20 text-accent border border-accent/30"
                     : "text-muted hover:text-text"
@@ -322,26 +451,33 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
 
           {status === "closed" && (
             <div className="space-y-3 pt-2 border-t border-line">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-muted font-medium mb-1">
-                    Exit Price <span className="text-loss">*</span>
-                  </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-xs text-muted">
+                  <div className="flex items-center justify-between">
+                    <span>Exit Price <span className="text-loss">*</span></span>
+                    {lastPx != null && (
+                      <button
+                        type="button"
+                        onClick={() => setExitPrice(String(lastPx))}
+                        className="text-[10px] font-mono text-accent hover:underline cursor-pointer"
+                      >
+                        Use Last ({fmtPx(lastPx)})
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="number"
                     step="any"
                     placeholder="0.00"
                     value={exitPrice}
                     onChange={(e) => setExitPrice(e.target.value)}
-                    className="input-base w-full font-mono"
+                    className={inputCls}
                     required={status === "closed"}
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-xs text-muted font-medium mb-1">
-                    Closed Reason
-                  </label>
+                <label className="flex flex-col gap-1 text-xs text-muted">
+                  <span>Closed Reason</span>
                   <select
                     value={closedReason}
                     onChange={(e) =>
@@ -349,18 +485,18 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
                         e.target.value as "manual_close" | "tp_hit" | "sl_hit"
                       )
                     }
-                    className="input-base w-full"
+                    className={`${inputCls} cursor-pointer`}
                   >
                     <option value="manual_close">Manual Close</option>
-                    <option value="tp_hit">TP Hit</option>
-                    <option value="sl_hit">SL Hit</option>
+                    <option value="tp_hit">Take Profit Hit (TP)</option>
+                    <option value="sl_hit">Stop Loss Hit (SL)</option>
                   </select>
-                </div>
+                </label>
               </div>
 
               {pnl.realizedPnlUsd != null && pnl.realizedPnlPct != null && (
                 <div
-                  className={`p-2.5 rounded-lg border flex items-center justify-between text-xs font-semibold ${
+                  className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-semibold ${
                     pnl.realizedPnlUsd >= 0
                       ? "bg-gain/15 border-gain/25 text-gain"
                       : "bg-loss/15 border-loss/25 text-loss"
@@ -379,33 +515,45 @@ export function ManualTradeModal({ open, onClose, onSuccess }: Props) {
           )}
         </div>
 
-        <div>
-          <label className="block text-xs text-muted font-medium mb-1">
-            Notes
-          </label>
+        {/* 6. Notes */}
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          <span className="text-[10px] font-mono uppercase text-muted tracking-wider">
+            Notes / Strategy Thesis
+          </span>
           <textarea
             rows={2}
-            placeholder="Pre-trade notes or strategy..."
+            placeholder="Pre-trade thesis, reasoning, or trade review..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="input-base w-full"
+            className="w-full px-3 py-2 rounded-xl bg-panel-soft/80 border border-line text-text placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all resize-none font-mono"
           />
-        </div>
+        </label>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
+        {/* 7. Action Buttons */}
+        <div className="flex items-center justify-between pt-2 border-t border-line">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-panel-soft hover:bg-panel text-text text-xs font-medium border border-line transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving}
-            className="accent-btn px-4 py-2 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            disabled={saving || !symbol.trim()}
+            className="accent-btn px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            {saving ? "Adding..." : "Add Trade"}
+            {saving ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-panel border-t-transparent rounded-full animate-spin" />
+                <span>Creating Trade...</span>
+              </>
+            ) : (
+              <>
+                <span>+</span>
+                <span>Add Trade</span>
+              </>
+            )}
           </button>
         </div>
       </form>

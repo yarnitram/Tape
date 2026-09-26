@@ -6,6 +6,7 @@ import { cleanSymbol, fmtPx, fmtPct, fmtPlanPx } from "@/lib/format";
 import { useMexcMarketData } from "@/hooks/use-mexc-market-data";
 import { playTriggerSound } from "@/lib/audio";
 import { CoinDetailModal } from "./coin-detail-modal";
+import { AddTokenModal, type AddSetupPayload } from "./add-token-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { WatchlistToolbar } from "./watchlist-toolbar";
 import { WatchlistTable } from "./watchlist-table";
@@ -49,12 +50,8 @@ export function WatchlistClient({
     "active"
   );
 
-  // ---- Search state ----
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Ticker[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ---- Add Token Modal state ----
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   // ---- Sort ----
   // NOTE: always initialized to the default so the server and client render
@@ -113,6 +110,11 @@ export function WatchlistClient({
     }
     return map;
   }, [mexcMarketData.details]);
+
+  const existingSymbols = useMemo(
+    () => new Set(items.map((i) => i.symbol.toUpperCase())),
+    [items]
+  );
 
   const sortedItems = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -349,64 +351,39 @@ export function WatchlistClient({
     });
   }
 
-  // ---- Search handlers ----
-
-  async function doSearch(q: string) {
-    const trimmed = q.trim();
-    if (!trimmed) {
-      setResults(null);
-      return;
-    }
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const res = await fetch(
-        `/api/mexc/futures?q=${encodeURIComponent(trimmed)}`
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Search failed");
-      setResults(data.tickers ?? []);
-    } catch (err) {
-      setSearchError((err as Error).message);
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  function handleQuery(e: React.ChangeEvent<HTMLInputElement>) {
-    setQuery(e.target.value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(e.target.value), 300);
-  }
-
   // ---- CRUD operations ----
 
-  async function addCoin(symbol: string) {
+  async function addWatchlistSetup(
+    payload: AddSetupPayload
+  ): Promise<WatchlistItem | void> {
     setNote(null);
-    const sym = symbol.toUpperCase();
-    setQuery("");
-    setResults(null);
+    const sym = payload.symbol.toUpperCase();
 
     try {
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: sym }),
+        body: JSON.stringify({
+          ...payload,
+          symbol: sym,
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Failed to add");
+        throw new Error(d.error || "Failed to add setup");
       }
       const { item } = await res.json();
-      setItems([...items, item]);
+      setItems((prev) => [...prev, item]);
       setNote(`Added ${cleanSymbol(sym)} to watchlist.`);
-      // Open the detail modal right away so the user can set the price
-      // trigger and trade plan without hunting for the Modify button.
-      setDetails({ symbol: item.symbol.toUpperCase(), item });
+      return item as WatchlistItem;
     } catch (err) {
-      setSearchError((err as Error).message);
+      setNote((err as Error).message);
+      throw err;
     }
+  }
+
+  async function addCoin(symbol: string): Promise<WatchlistItem | void> {
+    return addWatchlistSetup({ symbol });
   }
 
   async function removeCoin(id: string) {
@@ -455,75 +432,39 @@ export function WatchlistClient({
     }
   }
 
-  // ---- Render ----
-
-  const inputCls =
-    "hairline bg-panel px-2 py-1.5 text-xs outline-none focus:border-accent";
-
   return (
     <div className="flex flex-col gap-6">
-      {/* ---- Header + MEXC search ---- */}
+      {/* ---- Header + Add Token Button ---- */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <p className="eyebrow mb-1">Market radar</p>
           <h1 className="text-2xl font-semibold mb-1">Futures watchlist</h1>
           <p className="text-sm text-muted">
-            MEXC USDT-perpetual coins Â· live data Â· {items.length} saved
+            MEXC USDT-perpetual coins · live data · {items.length} saved
           </p>
         </div>
 
-        {/* MEXC coin search */}
-        <div className="flex flex-col gap-1 relative">
-          <span className="text-xs text-muted">Search MEXC futures</span>
-          <input
-            className={`${inputCls} w-64`}
-            value={query}
-            onChange={handleQuery}
-            placeholder="e.g. BTC, SOL, DOGEâ€¦"
-          />
-          {searching && (
-            <span className="absolute -bottom-4 text-xs text-muted">
-              searchingâ€¦
-            </span>
-          )}
-
-          {results !== null && query.trim() !== "" && !searching && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-30 max-h-72 overflow-auto bg-panel border border-line shadow-lg">
-              {results.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-muted">
-                  {searchError || "No matches"}
-                </div>
-              ) : (
-                results.slice(0, 25).map((t) => (
-                  <button
-                    key={t.symbol}
-                    type="button"
-                    onClick={() => addCoin(t.symbol)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-paper cursor-pointer"
-                  >
-                    <span className="font-medium">{cleanSymbol(t.symbol)}</span>
-                    <span className="num text-xs text-muted">
-                      {fmtPx(t.lastPrice)}{" "}
-                      <span
-                        className={
-                          t.riseFallRate >= 0 ? "text-gain" : "text-loss"
-                        }
-                      >
-                        {fmtPct(t.riseFallRate)}
-                      </span>
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          className="accent-btn px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+        >
+          <span>+ Add Token</span>
+        </button>
       </div>
 
       {/* ---- Status messages ---- */}
-      {note && <div className="text-sm text-gain">{note}</div>}
-      {searchError && !query && (
-        <div className="text-sm text-loss">{searchError}</div>
+      {note && (
+        <div className="p-3 rounded-lg bg-gain/10 border border-gain/20 text-gain text-xs flex items-center justify-between">
+          <span>{note}</span>
+          <button
+            type="button"
+            onClick={() => setNote(null)}
+            className="text-muted hover:text-text cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {/* ---- Tab Navigation ---- */}
@@ -605,8 +546,18 @@ export function WatchlistClient({
           }}
         />
       ) : items.length === 0 ? (
-        <div className="hairline text-muted p-10 text-center text-sm">
-          No coins saved yet. Search a MEXC futures coin above to add it.
+        <div className="hairline text-muted p-12 text-center text-sm rounded-xl bg-panel/30 flex flex-col items-center gap-3">
+          <p className="font-mono text-muted uppercase tracking-wider text-xs">Watchlist is empty</p>
+          <p className="text-xs text-muted/70 max-w-sm">
+            Track MEXC futures contracts with real-time pricing, audio proximity alerts, and trade execution plans.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAddModalOpen(true)}
+            className="accent-btn px-4 py-2 text-xs font-semibold rounded-lg cursor-pointer"
+          >
+            + Add Your First Token
+          </button>
         </div>
       ) : (
         <>
@@ -713,6 +664,18 @@ export function WatchlistClient({
             </ModalShell>
           );
         })()}
+
+      <AddTokenModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onAddSetup={addWatchlistSetup}
+        onAddCoin={addCoin}
+        existingSymbols={existingSymbols}
+        icons={icons}
+        onConfigurePlan={(item) =>
+          setDetails({ symbol: item.symbol.toUpperCase(), item })
+        }
+      />
     </div>
   );
 }

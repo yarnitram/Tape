@@ -280,6 +280,18 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [closingAlert, setClosingAlert] = useState<TradeAlert | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const icons = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (details) {
+      for (const [sym, d] of Object.entries(details)) {
+        if (d?.baseCoinIconUrl) {
+          map[sym] = d.baseCoinIconUrl;
+        }
+      }
+    }
+    return map;
+  }, [details]);
+
   // Split active and closed trade alerts
   const activeAlerts = useMemo(
     () => alerts.filter((a) => a.status !== "closed"),
@@ -1066,6 +1078,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
         open={manualModalOpen}
         onClose={() => setManualModalOpen(false)}
         onSuccess={refreshAllAlerts}
+        icons={icons}
       />
 
       <CloseTradeModal

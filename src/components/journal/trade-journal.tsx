@@ -185,9 +185,10 @@ export function TradeJournal({
         <button
           type="button"
           onClick={openAdd}
-          className="accent-btn px-4 py-2 text-sm font-semibold cursor-pointer"
+          className="accent-btn px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
         >
-          + New trade
+          <span>+</span>
+          <span>Add Trade</span>
         </button>
       </div>
 

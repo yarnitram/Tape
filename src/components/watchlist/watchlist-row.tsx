@@ -85,6 +85,22 @@ export function WatchlistRow({
   const label = cleanSymbol(sym);
   const colVisible = (key: ColKey) => cols[key] !== false;
 
+  const side =
+    item.trigger_direction === "above"
+      ? "short"
+      : item.trigger_direction === "below"
+      ? "long"
+      : item.entry_price != null && item.stop_loss != null
+      ? item.entry_price >= item.stop_loss
+        ? "long"
+        : "short"
+      : item.entry_price != null && item.take_profit != null
+      ? item.take_profit >= item.entry_price
+        ? "long"
+        : "short"
+      : null;
+  const isLong = side === "long";
+
   return (
     <>
       <tr className="hairline-b hover:bg-panel-soft/50 transition-colors">
@@ -119,6 +135,34 @@ export function WatchlistRow({
             </span>
           </button>
         </td>
+
+        {/* Position */}
+        {colVisible("position") && (
+          <td className="px-3 py-2.5">
+            {side ? (
+              <span
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
+                  isLong
+                    ? "bg-gain/15 text-gain border border-gain/20"
+                    : "bg-loss/15 text-loss border border-loss/20"
+                }`}
+              >
+                {isLong ? (
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 17L17 7M17 7H7M17 7V17" />
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 7l10 10M17 7v10H7" />
+                  </svg>
+                )}
+                {side.toUpperCase()}
+              </span>
+            ) : (
+              <span className="text-muted">—</span>
+            )}
+          </td>
+        )}
 
         {/* 24 h % change */}
         {colVisible("change") && (
