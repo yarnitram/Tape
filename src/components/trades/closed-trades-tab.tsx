@@ -7,6 +7,7 @@ interface Props {
   closedAlerts: TradeAlert[];
   onEdit: (alert: TradeAlert) => void;
   onArchive: (alert: TradeAlert) => void;
+  onShare?: (alert: TradeAlert) => void;
 }
 
 function formatSymbol(sym: string): string {
@@ -28,7 +29,7 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
-export function ClosedTradesTab({ closedAlerts, onEdit, onArchive }: Props) {
+export function ClosedTradesTab({ closedAlerts, onEdit, onArchive, onShare }: Props) {
   if (closedAlerts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-950/40">
@@ -135,6 +136,16 @@ export function ClosedTradesTab({ closedAlerts, onEdit, onArchive }: Props) {
                   >
                     📈
                   </a>
+                  {onShare && (
+                    <button
+                      type="button"
+                      onClick={() => onShare(row)}
+                      title="Share Setup"
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-accent hover:bg-accent/10 transition-colors"
+                    >
+                      🔗
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onEdit(row)}

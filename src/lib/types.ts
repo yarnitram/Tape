@@ -107,6 +107,9 @@ export interface WatchlistItem {
   tp2_price?: number | null;
   tp3_price?: number | null;
   auto_be_on_tp1?: boolean;
+  // Public sharing fields (added by migration 017).
+  share_token?: string | null;
+  is_public?: boolean;
 }
 
 /** The order type the user intends to place (aligns with MEXC order types). */
@@ -154,6 +157,9 @@ export interface TradeAlert {
   tp3_price?: number | null;
   tp1_hit?: boolean;
   auto_be_on_tp1?: boolean;
+  // Public sharing fields (added by migration 017).
+  share_token?: string | null;
+  is_public?: boolean;
 }
 
 export interface ArchivedTradeAlert {
@@ -187,6 +193,8 @@ export interface ArchivedTradeAlert {
   tp2_price?: number | null;
   tp3_price?: number | null;
   auto_be_on_tp1?: boolean;
+  share_token?: string | null;
+  is_public?: boolean;
 }
 
 export interface TriggeredWatchlistItem {

@@ -11,6 +11,7 @@ import { ArchivedTradesTab } from "./archived-trades-tab";
 import { useLivePrices, formatLastRefreshed } from "./use-live-prices";
 import { mexcChartUrl } from "@/lib/format";
 import { PositionCalculatorModal } from "@/components/calculator/position-calculator-modal";
+import { ShareModal } from "@/components/share/share-modal";
 
 interface Props {
   initialAlerts: TradeAlert[];
@@ -278,6 +279,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [calcModalOpen, setCalcModalOpen] = useState(false);
   const [closingAlert, setClosingAlert] = useState<TradeAlert | null>(null);
+  const [sharingAlert, setSharingAlert] = useState<TradeAlert | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Split active and closed trade alerts
@@ -926,6 +928,14 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                             </a>
                             <button
                               type="button"
+                              onClick={() => setSharingAlert(a)}
+                              className="text-accent hover:underline text-xs cursor-pointer inline-flex items-center gap-1"
+                              title="Share trade setup"
+                            >
+                              🔗 Share
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setClosingAlert(a)}
                               className="text-rose-400 hover:underline text-xs font-semibold cursor-pointer"
                               title="Close trade"
@@ -994,6 +1004,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
             setEditingIsArchived(false);
           }}
           onArchive={(alert) => archiveTradeAlert(alert.id)}
+          onShare={(alert) => setSharingAlert(alert)}
         />
       )}
 
@@ -1097,6 +1108,28 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           onClose={() => setCalcModalOpen(false)}
           onApply={() => {
             setManualModalOpen(true);
+          }}
+        />
+      )}
+
+      {sharingAlert && (
+        <ShareModal
+          open={Boolean(sharingAlert)}
+          onClose={() => setSharingAlert(null)}
+          item={{
+            id: sharingAlert.id,
+            symbol: sharingAlert.symbol,
+            type: "trade",
+            is_public: sharingAlert.is_public,
+            share_token: sharingAlert.share_token,
+            entry_price: sharingAlert.entry_price ?? sharingAlert.fired_price,
+            stop_loss: sharingAlert.stop_loss,
+            take_profit: sharingAlert.take_profit,
+          }}
+          onUpdate={(updated) => {
+            setAlerts((prev) =>
+              prev.map((a) => (a.id === sharingAlert.id ? { ...a, ...updated } : a))
+            );
           }}
         />
       )}

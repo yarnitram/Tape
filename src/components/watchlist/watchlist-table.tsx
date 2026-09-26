@@ -19,6 +19,8 @@ export interface WatchlistTableProps {
   onModify: (item: WatchlistItem) => void;
   /** Open the remove-confirmation for a given item id. */
   onRemove: (id: string) => void;
+  /** Open the share modal for a given item. */
+  onShare?: (item: WatchlistItem) => void;
   // ---- Pagination ----
   hasPaging: boolean;
   safePage: number;
@@ -34,6 +36,7 @@ export function WatchlistTable({
   cols,
   onModify,
   onRemove,
+  onShare,
   hasPaging,
   safePage,
   pageCount,
@@ -94,6 +97,7 @@ export function WatchlistTable({
                   cols={cols}
                   onModify={() => onModify(item)}
                   onRemove={() => onRemove(item.id)}
+                  onShare={onShare ? () => onShare(item) : undefined}
                 />
               );
             })}
