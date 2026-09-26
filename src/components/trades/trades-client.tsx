@@ -780,7 +780,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                 <table className="w-full text-sm border-collapse min-w-[1240px]">
                   <thead>
                     <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
-                      <th className="px-3 py-2 text-left sticky left-0 z-20 bg-panel-soft/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Coin</th>
+                      <th className="px-3 py-2 text-left">Coin</th>
                       {colVisible("position") && <th className="px-2 py-1.5 text-left">Position</th>}
                       {colVisible("leverage") && <th className="px-2 py-1.5 text-left">Leverage</th>}
                       {colVisible("pnl") && <th className="px-2 py-1.5 text-left">UPNL</th>}
@@ -800,7 +800,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       const sym = a.symbol.toUpperCase();
                       return (
                         <tr key={a.id} className="hairline-b hover:bg-panel-soft/50 transition-colors">
-                          <td className="px-3 py-2.5 sticky left-0 z-10 bg-panel/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                          <td className="px-3 py-2.5">
                             <div className="flex items-center gap-2">
                               <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
                                 {details[sym]?.baseCoinIconUrl ? (

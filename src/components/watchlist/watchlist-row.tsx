@@ -104,8 +104,8 @@ export function WatchlistRow({
   return (
     <>
       <tr className="hairline-b hover:bg-panel-soft/50 transition-colors">
-        {/* Coin with Icon — Sticky on horizontal scroll */}
-        <td className="px-3 py-2.5 sticky left-0 z-10 bg-panel/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+        {/* Coin with Icon */}
+        <td className="px-3 py-2.5">
           <div className="flex items-center gap-2.5">
             <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
               {iconUrl ? (

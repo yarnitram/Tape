@@ -82,8 +82,15 @@ export function WatchlistClient({
   // ---- Derived data ----
 
   const symbolsToTrack = useMemo(
-    () => Array.from(new Set(items.map((i) => i.symbol.toUpperCase()))),
-    [items]
+    () =>
+      Array.from(
+        new Set([
+          ...items.map((i) => i.symbol.toUpperCase()),
+          ...triggeredItems.map((i) => i.symbol.toUpperCase()),
+          ...archivedItems.map((i) => i.symbol.toUpperCase()),
+        ])
+      ),
+    [items, triggeredItems, archivedItems]
   );
 
   // ---- Unified MEXC Market Data Hook ----
@@ -519,6 +526,7 @@ export function WatchlistClient({
       {activeTab === "triggered" ? (
         <WatchlistTriggeredTab
           triggeredItems={triggeredItems}
+          icons={icons}
           onItemRestored={(restored, triggeredId) => {
             setItems((prev) => [...prev, restored]);
             setTriggeredItems((prev) =>
@@ -536,6 +544,7 @@ export function WatchlistClient({
       ) : activeTab === "archive" ? (
         <WatchlistArchiveTab
           archivedItems={archivedItems}
+          icons={icons}
           onItemRestored={(restored, archivedId) => {
             setItems((prev) => [...prev, restored]);
             setArchivedItems((prev) => prev.filter((x) => x.id !== archivedId));

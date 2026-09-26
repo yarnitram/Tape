@@ -7,12 +7,14 @@ import { ChartModal } from "@/components/charts/chart-modal";
 
 interface Props {
   triggeredItems: TriggeredWatchlistItem[];
+  icons?: Record<string, string>;
   onItemRestored: (item: WatchlistItem, triggeredId: string) => void;
   onItemDeleted: (id: string, archivedItem?: ArchivedWatchlistItem) => void;
 }
 
 export function WatchlistTriggeredTab({
   triggeredItems,
+  icons = {},
   onItemRestored,
   onItemDeleted,
 }: Props) {
@@ -122,7 +124,7 @@ export function WatchlistTriggeredTab({
       <table className="w-full text-left border-collapse text-xs">
         <thead>
           <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
-            <th className="py-2.5 px-3 sticky left-0 z-20 bg-panel-soft/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Coin</th>
+            <th className="py-2.5 px-3">Coin</th>
             <th className="py-2.5 px-3">Side</th>
             <th className="py-2.5 px-3">Order Type</th>
             <th className="py-2.5 px-3 text-right">Trigger Px</th>
@@ -157,11 +159,31 @@ export function WatchlistTriggeredTab({
               hour12: false,
             });
 
+            const iconUrl = icons[item.symbol.toUpperCase()] || icons[sym];
+
             return (
               <tr key={item.id} className="hover:bg-panel-soft/50 transition-colors">
-                <td className="py-3 px-3 font-semibold font-mono text-text sticky left-0 z-10 bg-panel/95 backdrop-blur-sm shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                  {sym}
-                  <span className="text-[10px] font-normal text-muted ml-1">USDT</span>
+                <td className="py-3 px-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                      {iconUrl ? (
+                        <img
+                          src={iconUrl}
+                          alt={sym}
+                          draggable={false}
+                          className="size-5 rounded-full object-contain inline-block"
+                        />
+                      ) : (
+                        <span className="flex size-5 items-center justify-center rounded-full bg-panel-soft text-[10px] font-semibold text-muted">
+                          {sym.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold font-mono text-text">
+                      {sym}
+                      <span className="text-[10px] font-normal text-muted ml-1">USDT</span>
+                    </span>
+                  </div>
                 </td>
                 <td className="py-3 px-3">
                   <span
