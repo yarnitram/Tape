@@ -14,9 +14,10 @@ interface Props {
   onClose: () => void;
   symbol: string;
   setup?: TradeSetupOverlay | null;
+  isPublic?: boolean;
 }
 
-export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
+export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }: Props) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -63,15 +64,17 @@ export function ChartModal({ isOpen, onClose, symbol, setup }: Props) {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Open Dedicated Page Link */}
-            <Link
-              href={`/chart/${encodeURIComponent(cleanSym)}`}
-              target="_blank"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 rounded-xl transition"
-              title="Open dedicated full-screen chart page in new tab"
-            >
-              <span>↗️ Dedicated Page</span>
-            </Link>
+            {/* Open Dedicated Page Link (Private logged-in users only) */}
+            {!isPublic && (
+              <Link
+                href={`/chart/${encodeURIComponent(cleanSym)}`}
+                target="_blank"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 rounded-xl transition"
+                title="Open dedicated full-screen chart page in new tab"
+              >
+                <span>↗️ Dedicated Page</span>
+              </Link>
+            )}
 
             {/* External MEXC Link */}
             <a

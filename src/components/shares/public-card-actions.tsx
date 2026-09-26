@@ -82,6 +82,7 @@ export function PublicCardActions({
           isOpen={chartModalOpen}
           onClose={() => setChartModalOpen(false)}
           symbol={item.symbol}
+          isPublic={true}
           setup={{
             symbol: item.symbol,
             side: (item as any).side || null,
