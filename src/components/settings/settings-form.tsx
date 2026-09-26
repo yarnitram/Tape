@@ -16,6 +16,12 @@ interface Props {
   userEmail: string;
   initial: {
     username?: string;
+    display_name?: string | null;
+    bio?: string | null;
+    avatar_url?: string | null;
+    twitter_handle?: string | null;
+    telegram_channel?: string | null;
+    is_profile_public?: boolean | null;
     discord_webhooks: string[];
     notify_discord: boolean;
     telegram_destinations: TelegramDestination[];
@@ -27,6 +33,12 @@ interface Props {
 
 export function SettingsForm({ userEmail, initial }: Props) {
   const [username, setUsername] = useState(initial.username || "");
+  const [displayName, setDisplayName] = useState(initial.display_name || "");
+  const [bio, setBio] = useState(initial.bio || "");
+  const [twitterHandle, setTwitterHandle] = useState(initial.twitter_handle || "");
+  const [telegramChannel, setTelegramChannel] = useState(initial.telegram_channel || "");
+  const [isProfilePublic, setIsProfilePublic] = useState(initial.is_profile_public !== false);
+
   const [discordWebhooks, setDiscordWebhooks] = useState<string[]>(
     initial.discord_webhooks.length > 0 ? initial.discord_webhooks : [""]
   );
@@ -207,6 +219,11 @@ export function SettingsForm({ userEmail, initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: username.trim() || null,
+          display_name: displayName.trim() || null,
+          bio: bio.trim() || null,
+          twitter_handle: twitterHandle.trim() || null,
+          telegram_channel: telegramChannel.trim() || null,
+          is_profile_public: isProfilePublic,
           discord_webhooks: filteredWebhooks,
           notify_discord: notifyDiscord,
           telegram_destinations: filteredTelegram,
@@ -241,30 +258,111 @@ export function SettingsForm({ userEmail, initial }: Props) {
         {/* ---- Public Trader Profile & Handle ---- */}
         <fieldset className="hairline p-5 flex flex-col gap-4 rounded-lg bg-panel/40">
           <legend className="px-1 text-sm font-semibold flex items-center gap-2">
-            <span>👤 Public Trader Profile & Handle</span>
+            <span>👤 Public Trader Profile & Branding</span>
           </legend>
-          <div className="flex flex-col gap-2">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="text-xs font-medium text-text flex flex-col gap-1">
-              Username / Handle
+              Display Name
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="e.g. Sam Trading or Crypto Setup Pro"
+                className={inputCls}
+                maxLength={40}
+              />
+            </label>
+
+            <label className="text-xs font-medium text-text flex flex-col gap-1">
+              Username / Handle (Vanity URL)
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted font-mono select-none">/</span>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                  placeholder="e.g. matt or crypto_trader"
+                  placeholder="e.g. samsam"
                   className={`${inputCls} font-mono`}
                   maxLength={20}
                 />
               </div>
             </label>
-            <span className="text-[11px] text-muted">
-              Used as your vanity brand for shareable setup URLs:{" "}
-              <span className="font-mono text-accent">
-                {typeof window !== "undefined" ? window.location.origin : ""}/{username || "your-handle"}/[slug]
-              </span>
-            </span>
           </div>
+
+          <label className="text-xs font-medium text-text flex flex-col gap-1">
+            Trader Bio & Market Outlook
+            <textarea
+              rows={2}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="e.g. Solana & BTC momentum setup trader. Sharing high-probability breakouts."
+              className={`${inputCls} resize-none`}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="text-xs font-medium text-text flex flex-col gap-1">
+              Twitter / X Handle
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted font-mono select-none">@</span>
+                <input
+                  type="text"
+                  value={twitterHandle}
+                  onChange={(e) => setTwitterHandle(e.target.value)}
+                  placeholder="e.g. sam_crypto"
+                  className={inputCls}
+                />
+              </div>
+            </label>
+
+            <label className="text-xs font-medium text-text flex flex-col gap-1">
+              Telegram Channel URL / Username
+              <input
+                type="text"
+                value={telegramChannel}
+                onChange={(e) => setTelegramChannel(e.target.value)}
+                placeholder="e.g. https://t.me/sam_setups or sam_setups"
+                className={inputCls}
+              />
+            </label>
+          </div>
+
+          <label className="flex items-center justify-between p-3 rounded bg-panel border border-hairline cursor-pointer">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-xs text-text">Enable Public Trader Showcase Page</span>
+              <span className="text-[11px] text-muted">
+                {isProfilePublic
+                  ? `Your profile landing page will be public at /${username || "handle"}`
+                  : "Your profile landing page will be hidden."}
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={isProfilePublic}
+              onChange={(e) => setIsProfilePublic(e.target.checked)}
+              className="accent-accent h-4 w-4 cursor-pointer"
+            />
+          </label>
+
+          {username && (
+            <div className="p-3 rounded bg-panel/80 border border-hairline flex items-center justify-between">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] text-muted">Public Profile Showcase URL:</span>
+                <span className="font-mono text-accent text-xs font-bold">
+                  /{username}
+                </span>
+              </div>
+              <a
+                href={`/${username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>👁 View Profile Page</span>
+              </a>
+            </div>
+          )}
         </fieldset>
 
         {/* ---- Discord Webhooks Section ---- */}

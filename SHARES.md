@@ -101,8 +101,8 @@ allowing public visitors to open the contract chart directly on MEXC in a new br
 
 1. **📸 One-Click Social Card PNG Generator** *(Implemented ✅)*:
    - High-resolution 2x retina PNG exporter (`SocialCardModal`) with theme presets (`Cyber Emerald`, `Radar Gold`, `Deep Space`), one-click `📋 Copy PNG to Clipboard` and `⬇️ Download PNG`.
-2. **🌐 Public Trader Profile Showcase (`/[username]`)** *(Planned 🔮)*:
-   - Personal public profile landing page showcasing trader bio, social channels, total published setup directory, and verified prediction accuracy score.
+2. **🌐 Public Trader Profile Showcase (`/[username]`)** *(Implemented ✅)*:
+   - Dedicated public profile landing page (`src/app/[username]/page.tsx`) showcasing trader handle, display name, bio, social links (Twitter/X, Telegram), verified trader badge, KPI stat cards, and interactive setup directory gallery.
 3. **📈 Interactive Candlestick Charts with Setup Overlay** *(Planned 🔮)*:
    - Embedded TradingView Lightweight Candlestick Charts (`lightweight-charts`) with visual horizontal level overlays for Trigger Price, Entry Price, Stop Loss, and Take Profit.
 4. **🔊 Web Audio Price Proximity Alarms** *(Planned 🔮)*:

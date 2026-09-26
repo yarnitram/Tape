@@ -75,6 +75,12 @@ export interface TelegramDestination {
 export interface UserSettings {
   user_id: string;
   username?: string | null;
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  twitter_handle?: string | null;
+  telegram_channel?: string | null;
+  is_profile_public?: boolean;
   discord_webhook_url?: string | null;
   discord_webhooks: string[];
   notify_discord: boolean;

@@ -24,6 +24,12 @@ export default async function SettingsPage() {
 
   const d = (data as {
     username?: string | null;
+    display_name?: string | null;
+    bio?: string | null;
+    avatar_url?: string | null;
+    twitter_handle?: string | null;
+    telegram_channel?: string | null;
+    is_profile_public?: boolean | null;
     discord_webhook_url?: string | null;
     discord_webhooks?: string[] | null;
     notify_discord?: boolean;
@@ -56,6 +62,12 @@ export default async function SettingsPage() {
         userEmail={user.email ?? ""}
         initial={{
           username: d?.username ?? "",
+          display_name: d?.display_name ?? null,
+          bio: d?.bio ?? null,
+          avatar_url: d?.avatar_url ?? null,
+          twitter_handle: d?.twitter_handle ?? null,
+          telegram_channel: d?.telegram_channel ?? null,
+          is_profile_public: d?.is_profile_public !== false,
           discord_webhooks: discordWebhooks,
           notify_discord: d?.notify_discord ?? true,
           telegram_destinations: telegramDestinations,

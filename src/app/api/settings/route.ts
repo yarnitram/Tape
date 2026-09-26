@@ -32,6 +32,12 @@ export async function GET() {
     settings: {
       user_id: user.id,
       username: data?.username ?? null,
+      display_name: data?.display_name ?? null,
+      bio: data?.bio ?? null,
+      avatar_url: data?.avatar_url ?? null,
+      twitter_handle: data?.twitter_handle ?? null,
+      telegram_channel: data?.telegram_channel ?? null,
+      is_profile_public: data?.is_profile_public ?? true,
       discord_webhook_url: data?.discord_webhook_url ?? null,
       discord_webhooks: discordWebhooks,
       notify_discord: data?.notify_discord ?? true,
@@ -97,6 +103,13 @@ export async function PUT(request: Request) {
     }
   }
 
+  // Process profile fields
+  const displayName = typeof b.display_name === "string" ? b.display_name.trim() || null : null;
+  const bio = typeof b.bio === "string" ? b.bio.trim() || null : null;
+  const twitterHandle = typeof b.twitter_handle === "string" ? b.twitter_handle.trim().replace(/^@/, "") || null : null;
+  const telegramChannel = typeof b.telegram_channel === "string" ? b.telegram_channel.trim() || null : null;
+  const isProfilePublic = b.is_profile_public !== false;
+
   // Process discord_webhooks array
   const rawWebhooks = Array.isArray(b.discord_webhooks)
     ? b.discord_webhooks.map((x) => String(x).trim()).filter(Boolean)
@@ -133,6 +146,11 @@ export async function PUT(request: Request) {
     {
       user_id: user.id,
       username: username,
+      display_name: displayName,
+      bio: bio,
+      twitter_handle: twitterHandle,
+      telegram_channel: telegramChannel,
+      is_profile_public: isProfilePublic,
       discord_webhook_url: rawWebhooks[0] || null,
       discord_webhooks: rawWebhooks,
       notify_discord: b.notify_discord !== false,
