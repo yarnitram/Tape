@@ -6,11 +6,14 @@ import {
   ColorType,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   LineStyle,
   IChartApi,
   ISeriesApi,
   Time,
+  Logical,
 } from "lightweight-charts";
+import { toPng } from "html-to-image";
 import { CandleData } from "@/app/api/mexc/kline/route";
 import { fmtPx, cleanSymbol } from "@/lib/format";
 
@@ -41,9 +44,61 @@ export interface PathShape {
   color: string;
 }
 
-export type ChartDrawing = RectangleShape | PathShape;
+export interface TrendlineShape {
+  id: string;
+  type: "trendline";
+  time1: number;
+  price1: number;
+  time2: number;
+  price2: number;
+  color: string;
+}
 
-export type DrawingTool = "select" | "rectangle" | "path";
+export interface RayShape {
+  id: string;
+  type: "ray";
+  price: number;
+  color: string;
+}
+
+export interface FibShape {
+  id: string;
+  type: "fibonacci";
+  time1: number;
+  price1: number;
+  time2: number;
+  price2: number;
+  color: string;
+}
+
+export interface RiskRewardShape {
+  id: string;
+  type: "risk_reward";
+  side: "LONG" | "SHORT";
+  entryPrice: number;
+  takeProfit: number;
+  stopLoss: number;
+  time1: number;
+  time2: number;
+  color: string;
+}
+
+export type ChartDrawing =
+  | RectangleShape
+  | PathShape
+  | TrendlineShape
+  | RayShape
+  | FibShape
+  | RiskRewardShape;
+
+export type DrawingTool =
+  | "select"
+  | "rectangle"
+  | "path"
+  | "trendline"
+  | "ray"
+  | "fibonacci"
+  | "risk_reward";
 
 interface Props {
   symbol: string;
@@ -70,6 +125,103 @@ const DRAWING_COLORS = [
   { label: "Amber", hex: "#f59e0b" },
 ];
 
+const FIB_LEVELS = [
+  { level: 0.0, label: "0.0", color: "#94a3b8" },
+  { level: 0.236, label: "0.236", color: "#fb7185" },
+  { level: 0.382, label: "0.382", color: "#f59e0b" },
+  { level: 0.5, label: "0.5", color: "#34d399" },
+  { level: 0.618, label: "0.618 (Golden Pocket)", color: "#facc15" },
+  { level: 0.786, label: "0.786", color: "#06b6d4" },
+  { level: 1.0, label: "1.0", color: "#8b5cf6" },
+];
+
+function getIntervalSeconds(interval: string, candles: CandleData[]): number {
+  if (candles.length >= 2) {
+    const diff = Number(candles[candles.length - 1].time) - Number(candles[candles.length - 2].time);
+    if (diff > 0) return diff;
+  }
+  switch (interval) {
+    case "1m":
+      return 60;
+    case "5m":
+      return 300;
+    case "15m":
+      return 900;
+    case "1h":
+      return 3600;
+    case "4h":
+      return 14400;
+    case "1d":
+      return 86400;
+    default:
+      return 900;
+  }
+}
+
+function calculateEMA(candles: CandleData[], period: number): Array<{ time: Time; value: number }> {
+  if (candles.length < period) return [];
+  const k = 2 / (period + 1);
+  const result: Array<{ time: Time; value: number }> = [];
+
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += candles[i].close;
+  }
+  let prevEma = sum / period;
+  result.push({ time: candles[period - 1].time as Time, value: prevEma });
+
+  for (let i = period; i < candles.length; i++) {
+    const currentEma = candles[i].close * k + prevEma * (1 - k);
+    result.push({ time: candles[i].time as Time, value: currentEma });
+    prevEma = currentEma;
+  }
+
+  return result;
+}
+
+export type DragState =
+  | {
+      mode: "move_shape";
+      shapeId: string;
+      startPoint: { time: number; price: number };
+      initialShape: ChartDrawing;
+    }
+  | {
+      mode: "rect_corner";
+      shapeId: string;
+      corner: "c1" | "c2" | "c3" | "c4";
+      initialShape: RectangleShape;
+    }
+  | {
+      mode: "path_vertex";
+      shapeId: string;
+      pointIndex: number;
+      initialShape: PathShape;
+    }
+  | {
+      mode: "trendline_endpoint";
+      shapeId: string;
+      endpoint: "p1" | "p2";
+      initialShape: TrendlineShape;
+    }
+  | {
+      mode: "ray_price";
+      shapeId: string;
+      initialShape: RayShape;
+    }
+  | {
+      mode: "fib_endpoint";
+      shapeId: string;
+      endpoint: "p1" | "p2";
+      initialShape: FibShape;
+    }
+  | {
+      mode: "rr_handle";
+      shapeId: string;
+      handle: "tp" | "entry" | "sl" | "right";
+      initialShape: RiskRewardShape;
+    };
+
 export function InteractiveCandlestickChart({
   symbol,
   setup,
@@ -81,6 +233,28 @@ export function InteractiveCandlestickChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const candlesRef = useRef<CandleData[]>([]);
+
+  // Multi-EMA line series refs (User-specified: 20, 50, 100, 200, white/blue/yellow/orange)
+  const ema20SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ema50SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ema100SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ema200SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+
+  const [activeEmas, setActiveEmas] = useState<{
+    ema20: boolean;
+    ema50: boolean;
+    ema100: boolean;
+    ema200: boolean;
+  }>({
+    ema20: true,
+    ema50: true,
+    ema100: false,
+    ema200: true,
+  });
+
+  const [countdownText, setCountdownText] = useState<string>("");
+  const [isCapturing, setIsCapturing] = useState<boolean>(false);
 
   const [klineInterval, setKlineInterval] = useState<string>(initialInterval);
   const [loading, setLoading] = useState<boolean>(true);
@@ -93,10 +267,19 @@ export function InteractiveCandlestickChart({
   const [activeTool, setActiveTool] = useState<DrawingTool>("select");
   const [drawingColor, setDrawingColor] = useState<string>("#8b5cf6");
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Drafting start points
   const [rectStart, setRectStart] = useState<{ time: number; price: number } | null>(null);
+  const [trendlineStart, setTrendlineStart] = useState<{ time: number; price: number } | null>(null);
+  const [fibStart, setFibStart] = useState<{ time: number; price: number } | null>(null);
   const [pathPoints, setPathPoints] = useState<Array<{ time: number; price: number }>>([]);
   const [mousePos, setMousePos] = useState<{ time: number; price: number } | null>(null);
   const [, setRenderTick] = useState<number>(0);
+
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  dragStateRef.current = dragState;
 
   const isFirstLoadRef = useRef<boolean>(true);
   const cleanSym = cleanSymbol(symbol);
@@ -131,9 +314,61 @@ export function InteractiveCandlestickChart({
 
   const clearAllDrawings = () => {
     saveDrawings([]);
+    setSelectedId(null);
     setRectStart(null);
+    setTrendlineStart(null);
+    setFibStart(null);
     setPathPoints([]);
   };
+
+  // 1-Click Chart Snapshot (PNG Camera Export)
+  const captureSnapshot = async () => {
+    if (!chartContainerRef.current) return;
+    try {
+      setIsCapturing(true);
+      const dataUrl = await toPng(chartContainerRef.current, {
+        cacheBust: true,
+        backgroundColor: "#0c0a17",
+        pixelRatio: 2,
+      });
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      link.download = `MOCHEX_${cleanSym}_${klineInterval}_${dateStr}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error("Failed to capture chart snapshot:", err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  // Candle Close Countdown Timer
+  useEffect(() => {
+    const updateCountdown = () => {
+      if (!lastCandle) return;
+      const step = getIntervalSeconds(klineInterval, candlesRef.current);
+      const openTime = Number(lastCandle.time);
+      const closeTime = openTime + step;
+      const now = Math.floor(Date.now() / 1000);
+      const diff = Math.max(0, closeTime - now);
+
+      if (diff >= 3600) {
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        setCountdownText(`${h}h ${m}m ${s.toString().padStart(2, "0")}s`);
+      } else {
+        const m = Math.floor(diff / 60).toString().padStart(2, "0");
+        const s = (diff % 60).toString().padStart(2, "0");
+        setCountdownText(`${m}:${s}`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [lastCandle, klineInterval]);
 
   // Fetch Kline candles from API proxy
   const fetchCandles = useCallback(
@@ -159,6 +394,7 @@ export function InteractiveCandlestickChart({
           throw new Error(`No chart data available for ${cleanSym}`);
         }
 
+        candlesRef.current = candles;
         setLastCandle(candles[candles.length - 1]);
 
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
@@ -181,13 +417,23 @@ export function InteractiveCandlestickChart({
                 : "rgba(239, 68, 68, 0.4)", // Red for bearish
           }));
 
-          candlestickSeriesRef.current.setData(candleData);
-          volumeSeriesRef.current.setData(volumeData);
+          try {
+            candlestickSeriesRef.current.setData(candleData);
+            volumeSeriesRef.current.setData(volumeData);
 
-          // Only fit content on initial load or timeframe switch, preserving user zoom/scroll
-          if (chartRef.current && isFirstLoadRef.current) {
-            chartRef.current.timeScale().fitContent();
-            isFirstLoadRef.current = false;
+            // Populate EMA series with mathematical calculations
+            if (ema20SeriesRef.current) ema20SeriesRef.current.setData(calculateEMA(candles, 20));
+            if (ema50SeriesRef.current) ema50SeriesRef.current.setData(calculateEMA(candles, 50));
+            if (ema100SeriesRef.current) ema100SeriesRef.current.setData(calculateEMA(candles, 100));
+            if (ema200SeriesRef.current) ema200SeriesRef.current.setData(calculateEMA(candles, 200));
+
+            // Only fit content on initial load or timeframe switch, preserving user zoom/scroll
+            if (chartRef.current && isFirstLoadRef.current) {
+              chartRef.current.timeScale().fitContent();
+              isFirstLoadRef.current = false;
+            }
+          } catch (e) {
+            console.warn("Chart series setData skipped (disposed or unmounted):", e);
           }
         }
       } catch (err) {
@@ -201,7 +447,7 @@ export function InteractiveCandlestickChart({
     [symbol, klineInterval, cleanSym]
   );
 
-  // Initialize TradingView chart instance
+  // Initialize TradingView chart instance once on mount
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -269,49 +515,111 @@ export function InteractiveCandlestickChart({
       },
     });
 
+    // Add Multi-EMA Line Series (User specification: 20 white, 50 blue, 100 yellow, 200 orange, thin to thickest)
+    const ema20 = chart.addSeries(LineSeries, {
+      color: "#ffffff",
+      lineWidth: 1,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: activeEmas.ema20,
+    });
+    const ema50 = chart.addSeries(LineSeries, {
+      color: "#3b82f6",
+      lineWidth: 2,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: activeEmas.ema50,
+    });
+    const ema100 = chart.addSeries(LineSeries, {
+      color: "#eab308",
+      lineWidth: 3,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: activeEmas.ema100,
+    });
+    const ema200 = chart.addSeries(LineSeries, {
+      color: "#f97316",
+      lineWidth: 4,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: activeEmas.ema200,
+    });
+
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
+    ema20SeriesRef.current = ema20;
+    ema50SeriesRef.current = ema50;
+    ema100SeriesRef.current = ema100;
+    ema200SeriesRef.current = ema200;
 
     // Re-render SVG drawing overlays whenever chart pans or zooms
     chart.timeScale().subscribeVisibleTimeRangeChange(() => {
       setRenderTick((t) => t + 1);
     });
 
+    // Deselect drawing when clicking empty chart canvas
+    chart.subscribeClick(() => {
+      setSelectedId(null);
+    });
+
     // Crosshair move handler for legend tooltip
     chart.subscribeCrosshairMove((param) => {
-      if (
-        param.point === undefined ||
-        !param.time ||
-        param.point.x < 0 ||
-        param.point.x > chartContainerRef.current!.clientWidth ||
-        param.point.y < 0 ||
-        param.point.y > chartContainerRef.current!.clientHeight
-      ) {
-        setHoverData(null);
-      } else {
-        const data = param.seriesData.get(candlestickSeries) as {
-          open: number;
-          high: number;
-          low: number;
-          close: number;
-        } | undefined;
-        const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
+      try {
+        if (
+          param.point === undefined ||
+          !param.time ||
+          !chartContainerRef.current ||
+          param.point.x < 0 ||
+          param.point.x > chartContainerRef.current.clientWidth ||
+          param.point.y < 0 ||
+          param.point.y > chartContainerRef.current.clientHeight
+        ) {
+          setHoverData(null);
+        } else {
+          const data = param.seriesData.get(candlestickSeries) as {
+            open: number;
+            high: number;
+            low: number;
+            close: number;
+          } | undefined;
+          const volData = param.seriesData.get(volumeSeries) as { value: number } | undefined;
 
-        if (data) {
-          setHoverData({
-            time: Number(param.time),
-            open: data.open,
-            high: data.high,
-            low: data.low,
-            close: data.close,
-            volume: volData?.value || 0,
-          });
+          if (data) {
+            setHoverData({
+              time: Number(param.time),
+              open: data.open,
+              high: data.high,
+              low: data.low,
+              close: data.close,
+              volume: volData?.value || 0,
+            });
+          }
         }
+      } catch {
+        setHoverData(null);
       }
     });
 
-    // Handle container resize
+    // ResizeObserver dynamically detects modal zoom/maximize and layout adjustments
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && chartContainerRef.current) {
+      resizeObserver = new ResizeObserver((entries) => {
+        if (!entries || entries.length === 0) return;
+        const width = Math.floor(entries[0].contentRect.width);
+        if (width > 0 && chartRef.current) {
+          chartRef.current.applyOptions({ width });
+          setRenderTick((t) => t + 1);
+        }
+      });
+      resizeObserver.observe(chartContainerRef.current);
+    }
+
+    // Fallback window resize handler
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
@@ -324,13 +632,45 @@ export function InteractiveCandlestickChart({
     window.addEventListener("resize", handleResize);
 
     return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      const chartInstance = chartRef.current;
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      ema20SeriesRef.current = null;
+      ema50SeriesRef.current = null;
+      ema100SeriesRef.current = null;
+      ema200SeriesRef.current = null;
+      if (chartInstance) {
+        try {
+          chartInstance.remove();
+        } catch {
+          // Ignore if already removed
+        }
+      }
     };
+  }, []);
+
+  // Dynamically apply height changes without disposing/recreating the chart
+  useEffect(() => {
+    if (chartRef.current && height) {
+      chartRef.current.applyOptions({ height });
+      setRenderTick((t) => t + 1);
+    }
   }, [height]);
+
+  // Dynamically toggle EMA visibility
+  useEffect(() => {
+    try {
+      ema20SeriesRef.current?.applyOptions({ visible: activeEmas.ema20 });
+      ema50SeriesRef.current?.applyOptions({ visible: activeEmas.ema50 });
+      ema100SeriesRef.current?.applyOptions({ visible: activeEmas.ema100 });
+      ema200SeriesRef.current?.applyOptions({ visible: activeEmas.ema200 });
+    } catch {}
+  }, [activeEmas]);
 
   // Load candle data whenever symbol or interval changes
   useEffect(() => {
@@ -358,7 +698,13 @@ export function InteractiveCandlestickChart({
           axisLabelVisible: true,
           title: `⚡ TRIGGER: ${fmtPx(setup.trigger_price)}`,
         });
-        lines.push({ remove: () => series.removePriceLine(line) });
+        lines.push({
+          remove: () => {
+            try {
+              series.removePriceLine(line);
+            } catch {}
+          },
+        });
       }
 
       // 2. Entry Price Line
@@ -371,7 +717,13 @@ export function InteractiveCandlestickChart({
           axisLabelVisible: true,
           title: `🎯 ENTRY: ${fmtPx(setup.entry_price)}`,
         });
-        lines.push({ remove: () => series.removePriceLine(line) });
+        lines.push({
+          remove: () => {
+            try {
+              series.removePriceLine(line);
+            } catch {}
+          },
+        });
       }
 
       // 3. Stop Loss Line
@@ -392,7 +744,13 @@ export function InteractiveCandlestickChart({
           axisLabelVisible: true,
           title: `🛑 SL: ${fmtPx(setup.stop_loss)}${riskPctStr}`,
         });
-        lines.push({ remove: () => series.removePriceLine(line) });
+        lines.push({
+          remove: () => {
+            try {
+              series.removePriceLine(line);
+            } catch {}
+          },
+        });
       }
 
       // 4. Take Profit Line
@@ -413,41 +771,335 @@ export function InteractiveCandlestickChart({
           axisLabelVisible: true,
           title: `🏁 TP: ${fmtPx(setup.take_profit)}${rewardPctStr}`,
         });
-        lines.push({ remove: () => series.removePriceLine(line) });
+        lines.push({
+          remove: () => {
+            try {
+              series.removePriceLine(line);
+            } catch {}
+          },
+        });
       }
     }
 
     return () => {
       for (const l of lines) {
-        l.remove();
+        try {
+          l.remove();
+        } catch {}
       }
     };
   }, [setup, showSetup, loading]);
 
-  // Coordinate conversion helper: Pixel (x, y) -> Chart (time, price)
-  const getChartPoint = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!chartRef.current || !candlestickSeriesRef.current || !chartContainerRef.current) return null;
-    const rect = chartContainerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+  // Coordinate conversion helper: Pixel (x, y) -> Chart (time, price) with future extrapolation support
+  const getChartPoint = useCallback(
+    (e: React.MouseEvent<Element> | MouseEvent) => {
+      try {
+        if (!chartRef.current || !candlestickSeriesRef.current || !chartContainerRef.current)
+          return null;
+        const rect = chartContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
 
-    const time = chartRef.current.timeScale().coordinateToTime(x);
-    const price = candlestickSeriesRef.current.coordinateToPrice(y);
+        // 1. Time conversion (with future logical extrapolation)
+        let time: number | null = null;
+        const directTime = chartRef.current.timeScale().coordinateToTime(x);
+        if (directTime != null) {
+          time = Number(directTime);
+        } else {
+          // Point is past the latest candle (into the future) or before the first candle
+          const logical = chartRef.current.timeScale().coordinateToLogical(x);
+          if (logical != null && candlesRef.current.length > 0) {
+            const lastCandleItem = candlesRef.current[candlesRef.current.length - 1];
+            const step = getIntervalSeconds(klineInterval, candlesRef.current);
+            const lastIndex = candlesRef.current.length - 1;
+            const diffIndex = logical - lastIndex;
+            time = Number(lastCandleItem.time) + Math.round(diffIndex * step);
+          }
+        }
 
-    if (time == null || price == null) return null;
-    return { time: Number(time), price, x, y };
+        // 2. Price conversion
+        const price = candlestickSeriesRef.current.coordinateToPrice(y);
+
+        if (time == null || price == null) return null;
+        return { time, price, x, y };
+      } catch {
+        return null;
+      }
+    },
+    [klineInterval]
+  );
+
+  // Convert chart point (time, price) -> screen pixel (x, y) with future logical support
+  const toPixelCoords = useCallback(
+    (time: number, price: number): { x: number; y: number } | null => {
+      try {
+        if (!chartRef.current || !candlestickSeriesRef.current) return null;
+
+        // 1. Convert time to local x coordinate
+        let x: number | null = null;
+        const directX = chartRef.current.timeScale().timeToCoordinate(time as Time);
+        if (directX !== null) {
+          x = Number(directX);
+        } else if (candlesRef.current.length > 0) {
+          const lastCandleItem = candlesRef.current[candlesRef.current.length - 1];
+          const step = getIntervalSeconds(klineInterval, candlesRef.current);
+          const lastIndex = candlesRef.current.length - 1;
+          const diffSec = time - Number(lastCandleItem.time);
+          const futureLogical = lastIndex + diffSec / step;
+          const logicalX = chartRef.current.timeScale().logicalToCoordinate(futureLogical as Logical);
+          if (logicalX !== null) {
+            x = Number(logicalX);
+          }
+        }
+
+        // 2. Convert price to y coordinate
+        const y = candlestickSeriesRef.current.priceToCoordinate(price);
+        if (x === null || y === null) return null;
+        return { x: Number(x), y: Number(y) };
+      } catch {
+        return null;
+      }
+    },
+    [klineInterval]
+  );
+
+  // Interactive dragging of shapes and handles (window listeners ensure smooth tracking)
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handlePointerMove = (e: MouseEvent) => {
+      const pt = getChartPoint(e);
+      if (!pt || !dragStateRef.current) return;
+      const currentDrag = dragStateRef.current;
+
+      setDrawings((prev) =>
+        prev.map((shape) => {
+          if (shape.id !== currentDrag.shapeId) return shape;
+
+          if (currentDrag.mode === "move_shape") {
+            const dTime = pt.time - currentDrag.startPoint.time;
+            const dPrice = pt.price - currentDrag.startPoint.price;
+            if (shape.type === "rectangle" && currentDrag.initialShape.type === "rectangle") {
+              return {
+                ...shape,
+                time1: currentDrag.initialShape.time1 + dTime,
+                price1: currentDrag.initialShape.price1 + dPrice,
+                time2: currentDrag.initialShape.time2 + dTime,
+                price2: currentDrag.initialShape.price2 + dPrice,
+              };
+            } else if (shape.type === "path" && currentDrag.initialShape.type === "path") {
+              return {
+                ...shape,
+                points: currentDrag.initialShape.points.map((p) => ({
+                  time: p.time + dTime,
+                  price: p.price + dPrice,
+                })),
+              };
+            } else if (shape.type === "trendline" && currentDrag.initialShape.type === "trendline") {
+              return {
+                ...shape,
+                time1: currentDrag.initialShape.time1 + dTime,
+                price1: currentDrag.initialShape.price1 + dPrice,
+                time2: currentDrag.initialShape.time2 + dTime,
+                price2: currentDrag.initialShape.price2 + dPrice,
+              };
+            } else if (shape.type === "ray" && currentDrag.initialShape.type === "ray") {
+              return {
+                ...shape,
+                price: currentDrag.initialShape.price + dPrice,
+              };
+            } else if (shape.type === "fibonacci" && currentDrag.initialShape.type === "fibonacci") {
+              return {
+                ...shape,
+                time1: currentDrag.initialShape.time1 + dTime,
+                price1: currentDrag.initialShape.price1 + dPrice,
+                time2: currentDrag.initialShape.time2 + dTime,
+                price2: currentDrag.initialShape.price2 + dPrice,
+              };
+            } else if (shape.type === "risk_reward" && currentDrag.initialShape.type === "risk_reward") {
+              return {
+                ...shape,
+                time1: currentDrag.initialShape.time1 + dTime,
+                time2: currentDrag.initialShape.time2 + dTime,
+                entryPrice: currentDrag.initialShape.entryPrice + dPrice,
+                takeProfit: currentDrag.initialShape.takeProfit + dPrice,
+                stopLoss: currentDrag.initialShape.stopLoss + dPrice,
+              };
+            }
+          } else if (currentDrag.mode === "rect_corner") {
+            if (shape.type !== "rectangle") return shape;
+            const { corner } = currentDrag;
+            if (corner === "c1") return { ...shape, time1: pt.time, price1: pt.price };
+            if (corner === "c2") return { ...shape, time2: pt.time, price1: pt.price };
+            if (corner === "c3") return { ...shape, time2: pt.time, price2: pt.price };
+            if (corner === "c4") return { ...shape, time1: pt.time, price2: pt.price };
+          } else if (currentDrag.mode === "path_vertex") {
+            if (shape.type !== "path") return shape;
+            const newPoints = [...shape.points];
+            newPoints[currentDrag.pointIndex] = { time: pt.time, price: pt.price };
+            return { ...shape, points: newPoints };
+          } else if (currentDrag.mode === "trendline_endpoint") {
+            if (shape.type !== "trendline") return shape;
+            if (currentDrag.endpoint === "p1") {
+              return { ...shape, time1: pt.time, price1: pt.price };
+            } else {
+              return { ...shape, time2: pt.time, price2: pt.price };
+            }
+          } else if (currentDrag.mode === "ray_price") {
+            if (shape.type !== "ray") return shape;
+            return { ...shape, price: pt.price };
+          } else if (currentDrag.mode === "fib_endpoint") {
+            if (shape.type !== "fibonacci") return shape;
+            if (currentDrag.endpoint === "p1") {
+              return { ...shape, time1: pt.time, price1: pt.price };
+            } else {
+              return { ...shape, time2: pt.time, price2: pt.price };
+            }
+          } else if (currentDrag.mode === "rr_handle") {
+            if (shape.type !== "risk_reward") return shape;
+            if (currentDrag.handle === "tp") {
+              return { ...shape, takeProfit: pt.price };
+            } else if (currentDrag.handle === "entry") {
+              return { ...shape, entryPrice: pt.price };
+            } else if (currentDrag.handle === "sl") {
+              return { ...shape, stopLoss: pt.price };
+            } else if (currentDrag.handle === "right") {
+              return { ...shape, time2: pt.time };
+            }
+          }
+          return shape;
+        })
+      );
+    };
+
+    const handlePointerUp = () => {
+      setDragState(null);
+      // Persist latest drawings to localStorage
+      setDrawings((latest) => {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(latest));
+        } catch {}
+        return latest;
+      });
+    };
+
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", handlePointerUp);
+    };
+  }, [dragState, getChartPoint, storageKey]);
+
+  // Keyboard shortcuts: Delete/Backspace to delete selected shape, Escape to deselect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedId) return;
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        saveDrawings(drawings.filter((d) => d.id !== selectedId));
+        setSelectedId(null);
+      } else if (e.key === "Escape") {
+        setSelectedId(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedId, drawings, saveDrawings]);
+
+  // Quick actions for selected drawing
+  const deleteSelectedDrawing = () => {
+    if (!selectedId) return;
+    saveDrawings(drawings.filter((d) => d.id !== selectedId));
+    setSelectedId(null);
   };
 
-  // Convert chart point (time, price) -> screen pixel (x, y)
-  const toPixelCoords = (
-    time: number,
-    price: number
-  ): { x: number; y: number } | null => {
-    if (!chartRef.current || !candlestickSeriesRef.current) return null;
-    const x = chartRef.current.timeScale().timeToCoordinate(time as Time);
-    const y = candlestickSeriesRef.current.priceToCoordinate(price);
-    if (x === null || y === null) return null;
-    return { x: Number(x), y: Number(y) };
+  const updateSelectedColor = (newColor: string) => {
+    if (!selectedId) return;
+    saveDrawings(
+      drawings.map((d) => (d.id === selectedId ? { ...d, color: newColor } : d))
+    );
+  };
+
+  const duplicateSelectedDrawing = () => {
+    if (!selectedId) return;
+    const item = drawings.find((d) => d.id === selectedId);
+    if (!item) return;
+
+    const step = getIntervalSeconds(klineInterval, candlesRef.current);
+    const priceOffset =
+      (item as any).price1 && (item as any).price2
+        ? ((item as any).price1 - (item as any).price2) * 0.05
+        : 0;
+
+    let duplicate: ChartDrawing;
+    if (item.type === "rectangle") {
+      duplicate = {
+        ...item,
+        id: `rect_${Date.now()}`,
+        time1: item.time1 + step * 2,
+        time2: item.time2 + step * 2,
+        price1: item.price1 + priceOffset,
+        price2: item.price2 + priceOffset,
+      };
+    } else if (item.type === "path") {
+      duplicate = {
+        ...item,
+        id: `path_${Date.now()}`,
+        points: item.points.map((p) => ({
+          time: p.time + step * 2,
+          price: p.price,
+        })),
+      };
+    } else if (item.type === "trendline") {
+      duplicate = {
+        ...item,
+        id: `trend_${Date.now()}`,
+        time1: item.time1 + step * 2,
+        time2: item.time2 + step * 2,
+        price1: item.price1 + priceOffset,
+        price2: item.price2 + priceOffset,
+      };
+    } else if (item.type === "ray") {
+      duplicate = {
+        ...item,
+        id: `ray_${Date.now()}`,
+        price: item.price * 1.01,
+      };
+    } else if (item.type === "fibonacci") {
+      duplicate = {
+        ...item,
+        id: `fib_${Date.now()}`,
+        time1: item.time1 + step * 2,
+        time2: item.time2 + step * 2,
+        price1: item.price1 + priceOffset,
+        price2: item.price2 + priceOffset,
+      };
+    } else if (item.type === "risk_reward") {
+      duplicate = {
+        ...item,
+        id: `rr_${Date.now()}`,
+        time1: item.time1 + step * 2,
+        time2: item.time2 + step * 2,
+        entryPrice: item.entryPrice * 1.01,
+        takeProfit: item.takeProfit * 1.01,
+        stopLoss: item.stopLoss * 1.01,
+      };
+    } else {
+      return;
+    }
+
+    saveDrawings([...drawings, duplicate]);
+    setSelectedId(duplicate.id);
   };
 
   // Mouse interaction handlers for drawing tool SVG canvas
@@ -459,7 +1111,6 @@ export function InteractiveCandlestickChart({
       if (!rectStart) {
         setRectStart({ time: pt.time, price: pt.price });
       } else {
-        // Complete rectangle
         const newRect: RectangleShape = {
           id: `rect_${Date.now()}`,
           type: "rectangle",
@@ -471,9 +1122,77 @@ export function InteractiveCandlestickChart({
         };
         saveDrawings([...drawings, newRect]);
         setRectStart(null);
+        setActiveTool("select");
+        setSelectedId(newRect.id);
       }
     } else if (activeTool === "path") {
       setPathPoints((prev) => [...prev, { time: pt.time, price: pt.price }]);
+    } else if (activeTool === "trendline") {
+      if (!trendlineStart) {
+        setTrendlineStart({ time: pt.time, price: pt.price });
+      } else {
+        const newTrendline: TrendlineShape = {
+          id: `trend_${Date.now()}`,
+          type: "trendline",
+          time1: trendlineStart.time,
+          price1: trendlineStart.price,
+          time2: pt.time,
+          price2: pt.price,
+          color: drawingColor,
+        };
+        saveDrawings([...drawings, newTrendline]);
+        setTrendlineStart(null);
+        setActiveTool("select");
+        setSelectedId(newTrendline.id);
+      }
+    } else if (activeTool === "ray") {
+      const newRay: RayShape = {
+        id: `ray_${Date.now()}`,
+        type: "ray",
+        price: pt.price,
+        color: drawingColor,
+      };
+      saveDrawings([...drawings, newRay]);
+      setActiveTool("select");
+      setSelectedId(newRay.id);
+    } else if (activeTool === "fibonacci") {
+      if (!fibStart) {
+        setFibStart({ time: pt.time, price: pt.price });
+      } else {
+        const newFib: FibShape = {
+          id: `fib_${Date.now()}`,
+          type: "fibonacci",
+          time1: fibStart.time,
+          price1: fibStart.price,
+          time2: pt.time,
+          price2: pt.price,
+          color: drawingColor,
+        };
+        saveDrawings([...drawings, newFib]);
+        setFibStart(null);
+        setActiveTool("select");
+        setSelectedId(newFib.id);
+      }
+    } else if (activeTool === "risk_reward") {
+      const step = getIntervalSeconds(klineInterval, candlesRef.current);
+      const isShort = setup?.side === "SHORT";
+      const targetPct = 0.05;
+      const stopPct = 0.025;
+
+      const newRR: RiskRewardShape = {
+        id: `rr_${Date.now()}`,
+        type: "risk_reward",
+        side: isShort ? "SHORT" : "LONG",
+        entryPrice: pt.price,
+        takeProfit: isShort ? pt.price * (1 - targetPct) : pt.price * (1 + targetPct),
+        stopLoss: isShort ? pt.price * (1 + stopPct) : pt.price * (1 - stopPct),
+        time1: pt.time,
+        time2: pt.time + step * 25,
+        color: drawingColor,
+      };
+      saveDrawings([...drawings, newRR]);
+      setActiveTool("select");
+      setSelectedId(newRR.id);
     }
   };
 
@@ -493,17 +1212,43 @@ export function InteractiveCandlestickChart({
         color: drawingColor,
       };
       saveDrawings([...drawings, newPath]);
+      setActiveTool("select");
+      setSelectedId(newPath.id);
     }
     setPathPoints([]);
   };
 
+  const selectedDrawing = drawings.find((d) => d.id === selectedId) || null;
   const activeCandle = hoverData || lastCandle;
+
+  const getShapeLabel = (shape: ChartDrawing) => {
+    switch (shape.type) {
+      case "rectangle":
+        return "⬛ Rectangle";
+      case "path":
+        return `✏️ Path (${shape.points.length} pts)`;
+      case "trendline":
+        return "📏 Trendline";
+      case "ray":
+        return `⚡ Ray (${fmtPx(shape.price)})`;
+      case "fibonacci":
+        return "🌀 Fibonacci";
+      case "risk_reward": {
+        const risk = Math.abs(shape.entryPrice - shape.stopLoss);
+        const reward = Math.abs(shape.takeProfit - shape.entryPrice);
+        const rr = risk > 0 ? (reward / risk).toFixed(2) : "—";
+        return `⚖️ Position (R:R ${rr})`;
+      }
+      default:
+        return "Drawing";
+    }
+  };
 
   return (
     <div className="w-full bg-panel border border-line rounded-2xl overflow-hidden shadow-2xl flex flex-col">
       {/* Header Controls Bar */}
       <div className="px-4 py-2.5 bg-panel-soft/80 border-b border-line flex flex-wrap items-center justify-between gap-3">
-        {/* Symbol & Price Display */}
+        {/* Symbol, Price, & Countdown Timer Display */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="font-mono text-base font-bold text-text tracking-wide">
@@ -521,6 +1266,16 @@ export function InteractiveCandlestickChart({
                 }`}
               >
                 {setup.side}
+              </span>
+            )}
+            {/* Live Candle Close Countdown Timer */}
+            {countdownText && (
+              <span
+                className="font-mono text-xs text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/25 flex items-center gap-1.5"
+                title="Time remaining until active candle closes"
+              >
+                <span className="animate-pulse text-[10px]">⏱️</span>
+                <span>{countdownText}</span>
               </span>
             )}
           </div>
@@ -552,14 +1307,75 @@ export function InteractiveCandlestickChart({
           )}
         </div>
 
-        {/* Timeframe Selector & Drawing Tools */}
+        {/* Toolbar: EMAs, Drawing Tools, Colors, Timeframes, Snapshot */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* User Specification: 20, 50, 100, 200 EMAs (thin to thickest, white/blue/yellow/orange) */}
+          <div className="flex items-center bg-panel p-1 rounded-lg border border-line gap-1">
+            {/* EMA 20 */}
+            <button
+              onClick={() => setActiveEmas((prev) => ({ ...prev, ema20: !prev.ema20 }))}
+              className={`px-2 py-1 text-xs font-mono font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                activeEmas.ema20
+                  ? "bg-white/10 text-white border border-white/40 shadow-xs"
+                  : "text-muted hover:text-text opacity-60"
+              }`}
+              title="Toggle EMA 20 (Thin White Line)"
+            >
+              <span className="w-2 h-2 rounded-full bg-white shadow-xs" />
+              <span>20</span>
+            </button>
+
+            {/* EMA 50 */}
+            <button
+              onClick={() => setActiveEmas((prev) => ({ ...prev, ema50: !prev.ema50 }))}
+              className={`px-2 py-1 text-xs font-mono font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                activeEmas.ema50
+                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/40 shadow-xs"
+                  : "text-muted hover:text-text opacity-60"
+              }`}
+              title="Toggle EMA 50 (Blue Line)"
+            >
+              <span className="w-2 h-2 rounded-full bg-blue-500 shadow-xs" />
+              <span>50</span>
+            </button>
+
+            {/* EMA 100 */}
+            <button
+              onClick={() => setActiveEmas((prev) => ({ ...prev, ema100: !prev.ema100 }))}
+              className={`px-2 py-1 text-xs font-mono font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                activeEmas.ema100
+                  ? "bg-yellow-500/15 text-yellow-400 border border-yellow-500/40 shadow-xs"
+                  : "text-muted hover:text-text opacity-60"
+              }`}
+              title="Toggle EMA 100 (Thick Yellow Line)"
+            >
+              <span className="w-2 h-2 rounded-full bg-yellow-500 shadow-xs" />
+              <span>100</span>
+            </button>
+
+            {/* EMA 200 */}
+            <button
+              onClick={() => setActiveEmas((prev) => ({ ...prev, ema200: !prev.ema200 }))}
+              className={`px-2 py-1 text-xs font-mono font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                activeEmas.ema200
+                  ? "bg-orange-500/15 text-orange-400 border border-orange-500/40 shadow-xs"
+                  : "text-muted hover:text-text opacity-60"
+              }`}
+              title="Toggle EMA 200 (Thickest Orange Line)"
+            >
+              <span className="w-2 h-2 rounded-full bg-orange-500 shadow-xs" />
+              <span>200</span>
+            </button>
+          </div>
+
           {/* Drawing Tools Selector Bar */}
           <div className="flex items-center bg-panel p-1 rounded-lg border border-line gap-1">
             <button
               onClick={() => {
                 setActiveTool("select");
                 setRectStart(null);
+                setTrendlineStart(null);
+                setFibStart(null);
                 setPathPoints([]);
               }}
               className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
@@ -576,6 +1392,8 @@ export function InteractiveCandlestickChart({
               onClick={() => {
                 setActiveTool("rectangle");
                 setPathPoints([]);
+                setTrendlineStart(null);
+                setFibStart(null);
               }}
               className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
                 activeTool === "rectangle"
@@ -584,13 +1402,15 @@ export function InteractiveCandlestickChart({
               }`}
               title="Draw Rectangle Support/Demand Zone"
             >
-              <span>⬛ Rectangle</span>
+              <span>⬛ Rect</span>
             </button>
 
             <button
               onClick={() => {
                 setActiveTool("path");
                 setRectStart(null);
+                setTrendlineStart(null);
+                setFibStart(null);
               }}
               className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
                 activeTool === "path"
@@ -600,6 +1420,76 @@ export function InteractiveCandlestickChart({
               title="Draw Multi-Point Path / Wave Line"
             >
               <span>✏️ Path</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("trendline");
+                setRectStart(null);
+                setFibStart(null);
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                activeTool === "trendline"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
+              }`}
+              title="Draw Angled Trendline"
+            >
+              <span>📏 Trend</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("ray");
+                setRectStart(null);
+                setTrendlineStart(null);
+                setFibStart(null);
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                activeTool === "ray"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
+              }`}
+              title="Click to drop Horizontal Support/Resistance Ray"
+            >
+              <span>⚡ Ray</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("fibonacci");
+                setRectStart(null);
+                setTrendlineStart(null);
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                activeTool === "fibonacci"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
+              }`}
+              title="Draw Fibonacci Retracement (Golden Pocket 0.618)"
+            >
+              <span>🌀 Fib</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("risk_reward");
+                setRectStart(null);
+                setTrendlineStart(null);
+                setFibStart(null);
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                activeTool === "risk_reward"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
+              }`}
+              title="Click to place Long/Short Position Box with Risk-to-Reward ratio"
+            >
+              <span>⚖️ R:R</span>
             </button>
           </div>
 
@@ -673,6 +1563,24 @@ export function InteractiveCandlestickChart({
             ))}
           </div>
 
+          {/* Snapshot Camera Export Button */}
+          <button
+            onClick={captureSnapshot}
+            disabled={isCapturing}
+            title="Download Chart Snapshot (PNG)"
+            className="p-1.5 text-muted hover:text-text bg-panel border border-line hover:bg-panel-soft rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isCapturing ? (
+              <svg className="w-3.5 h-3.5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : (
+              <span className="text-xs">📸</span>
+            )}
+          </button>
+
+          {/* Refresh Button */}
           <button
             onClick={() => fetchCandles(false)}
             disabled={loading}
@@ -746,6 +1654,77 @@ export function InteractiveCandlestickChart({
         {/* Lightweight-charts Canvas Container */}
         <div ref={chartContainerRef} className="w-full h-full" />
 
+        {/* Floating TradingView-style Action Bar for Selected Drawing */}
+        {selectedDrawing && activeTool === "select" && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-panel/95 backdrop-blur-md border border-line px-3 py-1.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center gap-1.5 pr-2 text-xs font-bold font-mono text-text border-r border-line">
+              <span>{getShapeLabel(selectedDrawing)}</span>
+            </div>
+
+            {/* Quick Color Swatch */}
+            <div className="flex items-center gap-1.5 px-1">
+              {DRAWING_COLORS.map((c) => (
+                <button
+                  key={c.hex}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateSelectedColor(c.hex);
+                  }}
+                  className={`w-4 h-4 rounded-full transition-transform ${
+                    selectedDrawing.color === c.hex ? "scale-125 ring-2 ring-white" : "opacity-70 hover:opacity-100"
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.label}
+                />
+              ))}
+            </div>
+
+            <div className="h-4 w-px bg-line" />
+
+            {/* Duplicate Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateSelectedDrawing();
+              }}
+              className="p-1.5 text-muted hover:text-text hover:bg-panel-soft rounded-lg transition-colors"
+              title="Duplicate Shape"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteSelectedDrawing();
+              }}
+              className="p-1.5 text-muted hover:text-loss hover:bg-loss/15 rounded-lg transition-colors"
+              title="Delete Shape (Delete or Backspace)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+
+            {/* Deselect / Close */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedId(null);
+              }}
+              className="p-1.5 text-muted hover:text-text hover:bg-panel-soft rounded-lg transition-colors ml-0.5"
+              title="Deselect (Escape)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* SVG Drawing Overlay Layer */}
         <div
           onClick={handleSVGClick}
@@ -755,39 +1734,149 @@ export function InteractiveCandlestickChart({
             activeTool !== "select" ? "cursor-crosshair pointer-events-auto" : "pointer-events-none"
           }`}
         >
-          <svg className="w-full h-full">
-            {/* Render Saved Rectangle & Path Drawings */}
+          <svg className="w-full h-full pointer-events-none">
+            {/* Render Saved Drawings */}
             {drawings.map((shape) => {
+              // 1. Rectangle
               if (shape.type === "rectangle") {
-                const p1 = toPixelCoords(shape.time1, shape.price1);
-                const p2 = toPixelCoords(shape.time2, shape.price2);
-                if (!p1 || !p2) return null;
+                const c1 = toPixelCoords(shape.time1, shape.price1);
+                const c2 = toPixelCoords(shape.time2, shape.price1);
+                const c3 = toPixelCoords(shape.time2, shape.price2);
+                const c4 = toPixelCoords(shape.time1, shape.price2);
+                if (!c1 || !c3) return null;
 
-                const minX = Math.min(p1.x, p2.x);
-                const maxX = Math.max(p1.x, p2.x);
-                const minY = Math.min(p1.y, p2.y);
-                const maxY = Math.max(p1.y, p2.y);
-                const width = Math.max(maxX - minX, 4);
-                const height = Math.max(maxY - minY, 4);
+                const minX = Math.min(c1.x, c3.x);
+                const maxX = Math.max(c1.x, c3.x);
+                const minY = Math.min(c1.y, c3.y);
+                const maxY = Math.max(c1.y, c3.y);
+                const width = Math.max(maxX - minX, 6);
+                const height = Math.max(maxY - minY, 6);
+
+                const isSelected = shape.id === selectedId;
 
                 return (
                   <g key={shape.id}>
+                    {/* Rectangle Fill & Border */}
                     <rect
                       x={minX}
                       y={minY}
                       width={width}
                       height={height}
                       fill={shape.color}
-                      fillOpacity={0.2}
+                      fillOpacity={isSelected ? 0.35 : 0.2}
                       stroke={shape.color}
-                      strokeWidth={1.5}
-                      strokeDasharray="4 2"
+                      strokeWidth={isSelected ? 2.5 : 1.5}
+                      strokeDasharray={isSelected ? undefined : "4 2"}
                       rx={3}
+                      className={
+                        activeTool === "select"
+                          ? isSelected
+                            ? "cursor-move pointer-events-auto"
+                            : "cursor-pointer pointer-events-auto hover:stroke-white"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
                     />
+
+                    {/* 4 Corner Resize Handles when Selected */}
+                    {isSelected && activeTool === "select" && (
+                      <>
+                        <circle
+                          cx={c1.x}
+                          cy={c1.y}
+                          r={5}
+                          fill="#ffffff"
+                          stroke={shape.color}
+                          strokeWidth={2}
+                          className="cursor-nwse-resize pointer-events-auto shadow-md hover:scale-125 transition-transform"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "rect_corner",
+                              shapeId: shape.id,
+                              corner: "c1",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        {c2 && (
+                          <circle
+                            cx={c2.x}
+                            cy={c2.y}
+                            r={5}
+                            fill="#ffffff"
+                            stroke={shape.color}
+                            strokeWidth={2}
+                            className="cursor-nesw-resize pointer-events-auto shadow-md hover:scale-125 transition-transform"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              setDragState({
+                                mode: "rect_corner",
+                                shapeId: shape.id,
+                                corner: "c2",
+                                initialShape: shape,
+                              });
+                            }}
+                          />
+                        )}
+                        <circle
+                          cx={c3.x}
+                          cy={c3.y}
+                          r={5}
+                          fill="#ffffff"
+                          stroke={shape.color}
+                          strokeWidth={2}
+                          className="cursor-nwse-resize pointer-events-auto shadow-md hover:scale-125 transition-transform"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "rect_corner",
+                              shapeId: shape.id,
+                              corner: "c3",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        {c4 && (
+                          <circle
+                            cx={c4.x}
+                            cy={c4.y}
+                            r={5}
+                            fill="#ffffff"
+                            stroke={shape.color}
+                            strokeWidth={2}
+                            className="cursor-nesw-resize pointer-events-auto shadow-md hover:scale-125 transition-transform"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              setDragState({
+                                mode: "rect_corner",
+                                shapeId: shape.id,
+                                corner: "c4",
+                                initialShape: shape,
+                              });
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
                   </g>
                 );
               }
 
+              // 2. Path (Multi-Point)
               if (shape.type === "path") {
                 const rawPx = shape.points.map((pt) => toPixelCoords(pt.time, pt.price));
                 const pxPoints = rawPx.filter(
@@ -797,28 +1886,556 @@ export function InteractiveCandlestickChart({
                 if (pxPoints.length < 2) return null;
 
                 const pointsStr = pxPoints.map((p) => `${p.x},${p.y}`).join(" ");
+                const isSelected = shape.id === selectedId;
 
                 return (
                   <g key={shape.id}>
                     <polyline
                       points={pointsStr}
                       fill="none"
-                      stroke={shape.color}
-                      strokeWidth={2}
+                      stroke="transparent"
+                      strokeWidth={16}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      className={
+                        activeTool === "select"
+                          ? isSelected
+                            ? "cursor-move pointer-events-auto"
+                            : "cursor-pointer pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
+                    />
+                    <polyline
+                      points={pointsStr}
+                      fill="none"
+                      stroke={shape.color}
+                      strokeWidth={isSelected ? 3.5 : 2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="pointer-events-none"
                     />
                     {pxPoints.map((p, idx) => (
                       <circle
                         key={idx}
                         cx={p.x}
                         cy={p.y}
-                        r={3}
-                        fill={shape.color}
-                        stroke="#0b0e14"
-                        strokeWidth={1}
+                        r={isSelected ? 6 : 3}
+                        fill={isSelected ? "#ffffff" : shape.color}
+                        stroke={shape.color}
+                        strokeWidth={isSelected ? 2.5 : 1}
+                        className={
+                          isSelected && activeTool === "select"
+                            ? "cursor-move pointer-events-auto shadow-md hover:scale-125 transition-transform"
+                            : "pointer-events-none"
+                        }
+                        onMouseDown={(e) => {
+                          if (!isSelected || activeTool !== "select") return;
+                          e.stopPropagation();
+                          setDragState({
+                            mode: "path_vertex",
+                            shapeId: shape.id,
+                            pointIndex: idx,
+                            initialShape: shape,
+                          });
+                        }}
                       />
                     ))}
+                  </g>
+                );
+              }
+
+              // 3. Trendline
+              if (shape.type === "trendline") {
+                const p1 = toPixelCoords(shape.time1, shape.price1);
+                const p2 = toPixelCoords(shape.time2, shape.price2);
+                if (!p1 || !p2) return null;
+
+                const isSelected = shape.id === selectedId;
+
+                return (
+                  <g key={shape.id}>
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="transparent"
+                      strokeWidth={16}
+                      strokeLinecap="round"
+                      className={
+                        activeTool === "select"
+                          ? isSelected
+                            ? "cursor-move pointer-events-auto"
+                            : "cursor-pointer pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
+                    />
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke={shape.color}
+                      strokeWidth={isSelected ? 3 : 2}
+                      strokeLinecap="round"
+                      className="pointer-events-none"
+                    />
+                    {isSelected && activeTool === "select" ? (
+                      <>
+                        <circle
+                          cx={p1.x}
+                          cy={p1.y}
+                          r={5}
+                          fill="#ffffff"
+                          stroke={shape.color}
+                          strokeWidth={2}
+                          className="cursor-move pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "trendline_endpoint",
+                              shapeId: shape.id,
+                              endpoint: "p1",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        <circle
+                          cx={p2.x}
+                          cy={p2.y}
+                          r={5}
+                          fill="#ffffff"
+                          stroke={shape.color}
+                          strokeWidth={2}
+                          className="cursor-move pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "trendline_endpoint",
+                              shapeId: shape.id,
+                              endpoint: "p2",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <circle cx={p1.x} cy={p1.y} r={3} fill={shape.color} />
+                        <circle cx={p2.x} cy={p2.y} r={3} fill={shape.color} />
+                      </>
+                    )}
+                  </g>
+                );
+              }
+
+              // 4. Horizontal Ray
+              if (shape.type === "ray") {
+                if (!candlestickSeriesRef.current || !chartContainerRef.current) return null;
+                const y = candlestickSeriesRef.current.priceToCoordinate(shape.price);
+                if (y === null) return null;
+
+                const isSelected = shape.id === selectedId;
+                const width = chartContainerRef.current.clientWidth;
+
+                return (
+                  <g key={shape.id}>
+                    <line
+                      x1={0}
+                      y1={y}
+                      x2={width}
+                      y2={y}
+                      stroke="transparent"
+                      strokeWidth={16}
+                      className={
+                        activeTool === "select"
+                          ? "cursor-ns-resize pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        setDragState({
+                          mode: "ray_price",
+                          shapeId: shape.id,
+                          initialShape: shape,
+                        });
+                      }}
+                    />
+                    <line
+                      x1={0}
+                      y1={y}
+                      x2={width}
+                      y2={y}
+                      stroke={shape.color}
+                      strokeWidth={isSelected ? 2.5 : 1.5}
+                      strokeDasharray={isSelected ? undefined : "6 3"}
+                      className="pointer-events-none"
+                    />
+                    <g transform={`translate(${width - 80}, ${y - 10})`}>
+                      <rect
+                        width={75}
+                        height={20}
+                        rx={4}
+                        fill={shape.color}
+                        className="pointer-events-none shadow-md"
+                      />
+                      <text
+                        x={37.5}
+                        y={14}
+                        textAnchor="middle"
+                        fill="#0c0a17"
+                        fontSize={10}
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                        className="pointer-events-none"
+                      >
+                        {fmtPx(shape.price)}
+                      </text>
+                    </g>
+                  </g>
+                );
+              }
+
+              // 5. Fibonacci Retracement
+              if (shape.type === "fibonacci") {
+                const p1 = toPixelCoords(shape.time1, shape.price1);
+                const p2 = toPixelCoords(shape.time2, shape.price2);
+                if (!p1 || !p2 || !chartContainerRef.current) return null;
+
+                const minX = Math.min(p1.x, p2.x);
+                const width = chartContainerRef.current.clientWidth - minX;
+                const isSelected = shape.id === selectedId;
+                const priceRange = shape.price2 - shape.price1;
+
+                return (
+                  <g key={shape.id}>
+                    {FIB_LEVELS.map((fib) => {
+                      const levelPrice = shape.price1 + priceRange * fib.level;
+                      if (!candlestickSeriesRef.current) return null;
+                      const y = candlestickSeriesRef.current.priceToCoordinate(levelPrice);
+                      if (y === null) return null;
+
+                      return (
+                        <g key={fib.level}>
+                          <line
+                            x1={minX}
+                            y1={y}
+                            x2={minX + width}
+                            y2={y}
+                            stroke={fib.color}
+                            strokeWidth={fib.level === 0.618 ? 2 : 1}
+                            strokeDasharray={fib.level === 0 || fib.level === 1 ? undefined : "3 3"}
+                            className="pointer-events-none opacity-80"
+                          />
+                          <text
+                            x={minX + 6}
+                            y={y - 4}
+                            fill={fib.color}
+                            fontSize={10}
+                            fontWeight={fib.level === 0.618 ? "bold" : "normal"}
+                            fontFamily="monospace"
+                            className="pointer-events-none"
+                          >
+                            {fib.label} ({fmtPx(levelPrice)})
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="rgba(255, 255, 255, 0.4)"
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                      className="pointer-events-none"
+                    />
+
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="transparent"
+                      strokeWidth={20}
+                      className={
+                        activeTool === "select"
+                          ? "cursor-move pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
+                    />
+
+                    {isSelected && activeTool === "select" && (
+                      <>
+                        <circle
+                          cx={p1.x}
+                          cy={p1.y}
+                          r={6}
+                          fill="#ffffff"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          className="cursor-move pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "fib_endpoint",
+                              shapeId: shape.id,
+                              endpoint: "p1",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        <circle
+                          cx={p2.x}
+                          cy={p2.y}
+                          r={6}
+                          fill="#ffffff"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          className="cursor-move pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "fib_endpoint",
+                              shapeId: shape.id,
+                              endpoint: "p2",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                      </>
+                    )}
+                  </g>
+                );
+              }
+
+              // 6. Risk-Reward Position Box
+              if (shape.type === "risk_reward") {
+                const pEntry = toPixelCoords(shape.time1, shape.entryPrice);
+                const pTP = toPixelCoords(shape.time1, shape.takeProfit);
+                const pSL = toPixelCoords(shape.time1, shape.stopLoss);
+                const pRight = toPixelCoords(shape.time2, shape.entryPrice);
+                if (!pEntry || !pTP || !pSL || !pRight) return null;
+
+                const leftX = pEntry.x;
+                const rightX = pRight.x;
+                const width = Math.max(rightX - leftX, 24);
+
+                const topTP = Math.min(pEntry.y, pTP.y);
+                const heightTP = Math.max(Math.abs(pEntry.y - pTP.y), 4);
+
+                const topSL = Math.min(pEntry.y, pSL.y);
+                const heightSL = Math.max(Math.abs(pEntry.y - pSL.y), 4);
+
+                const risk = Math.abs(shape.entryPrice - shape.stopLoss);
+                const reward = Math.abs(shape.takeProfit - shape.entryPrice);
+                const rr = risk > 0 ? (reward / risk).toFixed(2) : "—";
+                const isSelected = shape.id === selectedId;
+
+                return (
+                  <g key={shape.id}>
+                    {/* Target (Profit) Zone - Green */}
+                    <rect
+                      x={leftX}
+                      y={topTP}
+                      width={width}
+                      height={heightTP}
+                      fill="rgba(52, 211, 153, 0.2)"
+                      stroke="#34d399"
+                      strokeWidth={1.5}
+                      className={
+                        activeTool === "select"
+                          ? "cursor-move pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
+                    />
+
+                    {/* Stop (Risk) Zone - Red */}
+                    <rect
+                      x={leftX}
+                      y={topSL}
+                      width={width}
+                      height={heightSL}
+                      fill="rgba(251, 113, 133, 0.2)"
+                      stroke="#fb7185"
+                      strokeWidth={1.5}
+                      className={
+                        activeTool === "select"
+                          ? "cursor-move pointer-events-auto"
+                          : "pointer-events-none"
+                      }
+                      onMouseDown={(e) => {
+                        if (activeTool !== "select") return;
+                        e.stopPropagation();
+                        setSelectedId(shape.id);
+                        const pt = getChartPoint(e);
+                        if (pt) {
+                          setDragState({
+                            mode: "move_shape",
+                            shapeId: shape.id,
+                            startPoint: { time: pt.time, price: pt.price },
+                            initialShape: shape,
+                          });
+                        }
+                      }}
+                    />
+
+                    {/* Entry Line - Center */}
+                    <line
+                      x1={leftX}
+                      y1={pEntry.y}
+                      x2={leftX + width}
+                      y2={pEntry.y}
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      strokeDasharray="4 2"
+                      className="pointer-events-none"
+                    />
+
+                    {/* Center R:R Badge */}
+                    <g transform={`translate(${leftX + width / 2 - 45}, ${pEntry.y - 12})`}>
+                      <rect
+                        width={90}
+                        height={24}
+                        rx={6}
+                        fill="#0c0a17"
+                        stroke="#94a3b8"
+                        strokeWidth={1}
+                        className="pointer-events-none shadow-md"
+                      />
+                      <text
+                        x={45}
+                        y={16}
+                        textAnchor="middle"
+                        fill="#ffffff"
+                        fontSize={11}
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                        className="pointer-events-none"
+                      >
+                        R:R {rr}
+                      </text>
+                    </g>
+
+                    {/* Drag Handles when Selected */}
+                    {isSelected && activeTool === "select" && (
+                      <>
+                        <circle
+                          cx={leftX + width / 2}
+                          cy={pTP.y}
+                          r={6}
+                          fill="#ffffff"
+                          stroke="#34d399"
+                          strokeWidth={2}
+                          className="cursor-ns-resize pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "rr_handle",
+                              shapeId: shape.id,
+                              handle: "tp",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        <circle
+                          cx={leftX + width / 2}
+                          cy={pSL.y}
+                          r={6}
+                          fill="#ffffff"
+                          stroke="#fb7185"
+                          strokeWidth={2}
+                          className="cursor-ns-resize pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "rr_handle",
+                              shapeId: shape.id,
+                              handle: "sl",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                        <circle
+                          cx={rightX}
+                          cy={pEntry.y}
+                          r={6}
+                          fill="#ffffff"
+                          stroke="#94a3b8"
+                          strokeWidth={2}
+                          className="cursor-ew-resize pointer-events-auto shadow-md"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDragState({
+                              mode: "rr_handle",
+                              shapeId: shape.id,
+                              handle: "right",
+                              initialShape: shape,
+                            });
+                          }}
+                        />
+                      </>
+                    )}
                   </g>
                 );
               }
@@ -880,6 +2497,49 @@ export function InteractiveCandlestickChart({
                     strokeDasharray="3 3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                  />
+                );
+              })()
+            )}
+
+            {/* Render Drafting Trendline Preview */}
+            {activeTool === "trendline" && trendlineStart && mousePos && (
+              (() => {
+                const p1 = toPixelCoords(trendlineStart.time, trendlineStart.price);
+                const p2 = toPixelCoords(mousePos.time, mousePos.price);
+                if (!p1 || !p2) return null;
+
+                return (
+                  <line
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={p2.x}
+                    y2={p2.y}
+                    stroke={drawingColor}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    strokeLinecap="round"
+                  />
+                );
+              })()
+            )}
+
+            {/* Render Drafting Fibonacci Preview */}
+            {activeTool === "fibonacci" && fibStart && mousePos && (
+              (() => {
+                const p1 = toPixelCoords(fibStart.time, fibStart.price);
+                const p2 = toPixelCoords(mousePos.time, mousePos.price);
+                if (!p1 || !p2) return null;
+
+                return (
+                  <line
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={p2.x}
+                    y2={p2.y}
+                    stroke="#facc15"
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
                   />
                 );
               })()

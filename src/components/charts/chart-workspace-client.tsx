@@ -39,7 +39,7 @@ export function ChartWorkspaceClient({ symbol }: Props) {
   const isUp = (ticker?.riseFallRate || 0) >= 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="w-full space-y-6 animate-in fade-in duration-300">
       {/* Navigation Top Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-panel/80 backdrop-blur-md border border-line p-4 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
@@ -153,7 +153,7 @@ export function ChartWorkspaceClient({ symbol }: Props) {
       {/* Main Full-Screen Interactive Candlestick Chart Workspace */}
       <InteractiveCandlestickChart
         symbol={symbol}
-        height={560}
+        height={700}
         showOverlayToggle={true}
       />
     </div>

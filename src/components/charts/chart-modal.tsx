@@ -153,7 +153,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
           <InteractiveCandlestickChart
             symbol={symbol}
             setup={setup}
-            height={isMaximized ? 660 : 540}
+            height={isMaximized ? 700 : 520}
             showOverlayToggle={true}
           />
         </div>

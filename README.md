@@ -67,6 +67,16 @@ MOCHEX is a high-performance personal trading journal and real-time futures watc
 - **Sticky Token Headers**: Coin icons and tickers remain pinned to the left (`sticky left-0`) when scrolling wide tables horizontally on phones and tablets.
 - **Compact Modal Architecture**: Optimized dialog padding and internal vertical scrolling ensuring zero button cutoffs on small mobile viewports.
 
+### 8. Interactive Candlestick Chart & Technical Analysis Station
+- **Multi-Period EMAs (20, 50, 100, 200)**: Color-coded from thin to thickest (White, Blue, Yellow, Orange) with independent toggle buttons.
+- **Live Candle Close Countdown Timer**: Real-time ticker badge (`⏱️ 04:32`) on the active timeframe bar.
+- **1-Click Chart Snapshot (PNG Camera)**: High-resolution PNG image download for sharing setups and journaling.
+- **TradingView-Style Drawing Suite**: Fibonacci Retracement, Long/Short Risk-to-Reward Position Box, Angled Trendline, Horizontal Ray, Rectangle Zones, and Multi-Point Paths.
+- **In-Chart Modification & Future Projections**: Interactive corner/vertex drag handles, whole-shape moving, floating quick toolbar, and projection past current price.
+- **Watchlist Modal Zoom & Dedicated Page**: Smooth `ResizeObserver` zooming in modal, and full-width `max-w-screen-2xl` dedicated workspace (`/chart/[symbol]`).
+
+> 📖 **Full Chart Documentation**: See [`CHART.md`](CHART.md) for indicator calculations, drawing tool capabilities, and architectural details.
+
 ---
 
 ## 🛠 Getting Started
