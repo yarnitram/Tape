@@ -121,7 +121,7 @@ export function AudioAlarmNotifier() {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto bg-slate-900/95 border border-amber-500/50 shadow-2xl shadow-amber-500/10 p-4 rounded-2xl text-white flex items-start justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300 backdrop-blur-md"
+            className="pointer-events-auto bg-panel/95 border border-amber-500/50 shadow-2xl shadow-amber-500/10 p-4 rounded-2xl text-text flex items-start justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300 backdrop-blur-md"
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-lg font-bold shrink-0 animate-pulse">
@@ -129,22 +129,22 @@ export function AudioAlarmNotifier() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-extrabold text-sm font-mono text-amber-300">
+                  <h4 className="font-extrabold text-sm font-mono text-amber-400">
                     {cleanSym} / USDT
                   </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800/40 font-mono">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono">
                     {toast.distancePct.toFixed(2)}% Away
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 mt-1">
-                  Near Trigger: <strong>{fmtPx(toast.triggerPrice)}</strong> (Last: {fmtPx(toast.lastPrice)})
+                <p className="text-xs text-text mt-1">
+                  Near Trigger: <strong className="text-amber-400">{fmtPx(toast.triggerPrice)}</strong> (Last: {fmtPx(toast.lastPrice)})
                 </p>
               </div>
             </div>
 
             <button
               onClick={() => removeToast(toast.id)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              className="p-1 text-muted hover:text-text rounded-lg hover:bg-panel-soft transition-colors cursor-pointer"
               title="Dismiss Alarm Toast"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

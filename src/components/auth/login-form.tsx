@@ -76,86 +76,88 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="surface rounded-xl p-8 shadow-sm">
-        <h1 className="brand text-4xl mb-1">MOCHEX</h1>
-        <p className="text-muted mb-6">Crypto trading setup journal</p>
+      <div className="card-base rounded-2xl p-8 shadow-2xl">
+        <h1 className="brand-gradient text-4xl font-extrabold tracking-tight mb-1">MOCHEX</h1>
+        <p className="text-muted text-xs mb-6">Crypto trading setup journal</p>
 
-        <div className="flex gap-0 hairline-b mb-6 w-full">
-        <button
-          type="button"
-          onClick={() => toggleMode("signin")}
-          className={`px-4 py-2 text-sm cursor-pointer ${
-            mode === "signin"
-              ? "text-accent border-b-2 border-accent"
-              : "text-muted"
-          }`}
-        >
-          Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => toggleMode("signup")}
-          className={`px-4 py-2 text-sm cursor-pointer ${
-            mode === "signup"
-              ? "text-accent border-b-2 border-accent"
-              : "text-muted"
-          }`}
-        >
-          Create account
-        </button>
-      </div>
-
-      {error ? (
-        <div className="hairline border-loss text-loss px-3 py-2 mb-4 text-sm">
-          {error}
+        <div className="flex gap-0 border-b border-line mb-6 w-full">
+          <button
+            type="button"
+            onClick={() => toggleMode("signin")}
+            className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
+              mode === "signin"
+                ? "text-accent border-b-2 border-accent font-semibold"
+                : "text-muted hover:text-text"
+            }`}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleMode("signup")}
+            className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
+              mode === "signup"
+                ? "text-accent border-b-2 border-accent font-semibold"
+                : "text-muted hover:text-text"
+            }`}
+          >
+            Create account
+          </button>
         </div>
-      ) : null}
-      {notice ? (
-        <div className="hairline px-3 py-2 mb-4 text-sm">{notice}</div>
-      ) : null}
 
-      <form
-        onSubmit={isSignup ? handleSignUp : handleSignIn}
-        className="flex flex-col gap-3"
-      >
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Email</span>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="hairline bg-panel-soft px-3 py-2 text-sm outline-none focus:border-accent rounded-md"
-            placeholder="you@example.com"
-          />
-        </label>
+        {error ? (
+          <div className="rounded-xl bg-loss/10 border border-loss/20 text-loss px-3 py-2 mb-4 text-xs">
+            {error}
+          </div>
+        ) : null}
+        {notice ? (
+          <div className="rounded-xl bg-accent/10 border border-accent/20 text-text px-3 py-2 mb-4 text-xs">
+            {notice}
+          </div>
+        ) : null}
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Password</span>
-          <input
-            type="password"
-            required
-            minLength={isSignup ? 6 : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="hairline bg-panel-soft px-3 py-2 text-sm outline-none focus:border-accent rounded-md"
-          />
-        </label>
-
-        {isSignup && (
-          <p className="text-xs text-muted">
-            Anyone can create an account — no email confirmation required.
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="accent-btn mt-2 px-4 py-2 text-sm font-semibold rounded-md cursor-pointer disabled:opacity-60"
+        <form
+          onSubmit={isSignup ? handleSignUp : handleSignIn}
+          className="flex flex-col gap-3.5"
         >
-          {submitLabel}
-        </button>
-      </form>
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            <span>Email</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input-base w-full"
+              placeholder="you@example.com"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            <span>Password</span>
+            <input
+              type="password"
+              required
+              minLength={isSignup ? 6 : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-base w-full"
+            />
+          </label>
+
+          {isSignup && (
+            <p className="text-xs text-muted">
+              Anyone can create an account — no email confirmation required.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="accent-btn mt-2 py-2.5 w-full text-sm font-bold disabled:opacity-60"
+          >
+            {submitLabel}
+          </button>
+        </form>
       </div>
     </div>
   );

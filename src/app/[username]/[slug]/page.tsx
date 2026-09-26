@@ -126,16 +126,16 @@ export default async function PublicSharePage({ params }: PageProps) {
 
   if (!share.is_active) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6 font-sans">
-        <div className="max-w-md w-full text-center border border-zinc-800 bg-zinc-900/60 rounded-2xl p-8 backdrop-blur">
+      <div className="min-h-screen bg-paper text-text flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full text-center border border-line bg-panel/70 rounded-2xl p-8 backdrop-blur shadow-xl">
           <span className="text-4xl mb-3 block">🔒</span>
-          <h1 className="text-xl font-bold mb-2">Private or Paused Page</h1>
-          <p className="text-xs text-zinc-400 mb-6">
+          <h1 className="text-xl font-bold mb-2 text-text">Private or Paused Page</h1>
+          <p className="text-xs text-muted mb-6">
             The owner of this page (@{username}) has set it to private or paused visibility.
           </p>
           <a
             href="/"
-            className="inline-block px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs transition-colors"
+            className="accent-btn inline-block px-4 py-2 text-xs font-semibold"
           >
             Go to MOCHEX Home
           </a>
@@ -197,23 +197,23 @@ export default async function PublicSharePage({ params }: PageProps) {
   const isWatchlist = share.share_type === "watchlist";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-start p-4 sm:p-8 font-sans selection:bg-emerald-500 selection:text-zinc-950">
+    <div className="min-h-screen bg-paper text-text flex flex-col items-center justify-start p-4 sm:p-8 font-sans selection:bg-accent selection:text-white">
       <div className="w-full max-w-3xl flex flex-col gap-6 my-auto">
         {/* Header Branding */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+            <span className="text-xl font-bold tracking-tight brand-gradient">
               MOCHEX
             </span>
-            <span className="text-zinc-600 font-mono">/</span>
-            <span className="text-xs text-zinc-400 font-mono">@{username}</span>
+            <span className="text-muted font-mono">/</span>
+            <span className="text-xs text-muted font-mono">@{username}</span>
           </div>
 
           <span
             className={`text-[11px] px-3 py-1 rounded-full border font-mono font-medium flex items-center gap-1.5 ${
               isWatchlist
-                ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
-                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                : "bg-accent/15 border-accent/30 text-accent"
             }`}
           >
             <span>{isWatchlist ? "📡 Public Watchlist" : "🎯 Public Trade Setups"}</span>
@@ -223,10 +223,10 @@ export default async function PublicSharePage({ params }: PageProps) {
         </div>
 
         {/* Page Title & Overall Thesis */}
-        <div className="flex flex-col gap-1.5 border-b border-zinc-800/80 pb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">{share.title}</h1>
+        <div className="flex flex-col gap-1.5 border-b border-line pb-4">
+          <h1 className="text-2xl font-bold tracking-tight text-text">{share.title}</h1>
           {share.notes && (
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl whitespace-pre-wrap">{share.notes}</p>
+            <p className="text-xs text-muted leading-relaxed max-w-2xl whitespace-pre-wrap">{share.notes}</p>
           )}
         </div>
 
@@ -273,8 +273,8 @@ export default async function PublicSharePage({ params }: PageProps) {
                   key={item.id}
                   className={`relative overflow-hidden rounded-2xl border ${
                     isTriggered
-                      ? "border-amber-400/50 bg-gradient-to-b from-amber-500/15 via-zinc-900/90 to-zinc-900/70"
-                      : "border-zinc-800 bg-zinc-900/70"
+                      ? "border-amber-400/50 bg-gradient-to-b from-amber-500/15 via-panel/90 to-panel/70"
+                      : "border-line bg-panel/70"
                   } p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4`}
                 >
                   <div
@@ -286,22 +286,22 @@ export default async function PublicSharePage({ params }: PageProps) {
                   {/* Watchlist Header Row */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xl font-bold text-zinc-100">{sym}</span>
-                      <span className="text-xs font-mono text-zinc-500">USDT</span>
+                      <span className="text-xl font-bold text-text">{sym}</span>
+                      <span className="text-xs font-mono text-muted">USDT</span>
                       
                       {/* Position Side (LONG/SHORT) */}
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase font-mono ${
                           trigDir === "below"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            ? "bg-gain/15 text-gain border-gain/30"
+                            : "bg-loss/15 text-loss border-loss/30"
                         }`}
                       >
                         {trigDir === "below" ? "LONG" : "SHORT"}
                       </span>
 
                       {/* Order Type Badge */}
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-300 font-mono uppercase">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-line bg-panel text-text font-mono uppercase">
                         {(item.order_type || "LIMIT").replace("_", " ")}
                       </span>
 
@@ -310,7 +310,7 @@ export default async function PublicSharePage({ params }: PageProps) {
                           <span>🔥</span> ALERT FIRED & TRIGGERED
                         </span>
                       ) : (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-amber-400 font-mono uppercase">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-amber-500/20 bg-amber-500/10 text-amber-400 font-mono uppercase">
                           Radar Ongoing
                         </span>
                       )}
@@ -318,13 +318,13 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                     {lastPrice != null && (
                       <div className="flex flex-col items-end">
-                        <span className="text-base font-mono font-bold text-zinc-100 tabular-nums">
+                        <span className="text-base font-mono font-bold text-text tabular-nums">
                           ${lastPrice}
                         </span>
                         {riseFallRate != null && (
                           <span
                             className={`text-[11px] font-mono tabular-nums ${
-                              riseFallRate >= 0 ? "text-emerald-400" : "text-rose-400"
+                              riseFallRate >= 0 ? "text-gain" : "text-loss"
                             }`}
                           >
                             {riseFallRate >= 0 ? "+" : ""}
@@ -351,9 +351,9 @@ export default async function PublicSharePage({ params }: PageProps) {
                       >
                         {isTriggered ? "🎯 TARGET LEVEL HIT & FIRED" : "Alert Trigger Level"}
                       </span>
-                      <span className="text-sm font-mono font-bold text-zinc-100">
+                      <span className="text-sm font-mono font-bold text-text">
                         Alert when price goes{" "}
-                        <span className="text-amber-300 font-extrabold uppercase">
+                        <span className="text-amber-400 font-extrabold uppercase">
                           {trigDir}
                         </span>{" "}
                         ${trigPrice != null ? fmtPlanPx(trigPrice) : "N/A"}
@@ -362,12 +362,12 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                     {distText && (
                       <div className="flex flex-col items-start sm:items-end">
-                        <span className="text-[10px] uppercase font-medium text-zinc-400">
+                        <span className="text-[10px] uppercase font-medium text-muted">
                           {isTriggered ? "Accuracy Status" : "Distance to Alert"}
                         </span>
                         <span
                           className={`text-xs font-mono font-bold ${
-                            isTriggered ? "text-amber-300 font-extrabold" : "text-amber-300"
+                            isTriggered ? "text-amber-300 font-extrabold" : "text-amber-400"
                           }`}
                         >
                           {isTriggered ? "🔥 ALERT FIRED!" : distText}
@@ -378,24 +378,24 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                   {/* Optional Planned Setup Targets (EP / SL / TP) */}
                   {(item.entry_price != null || item.stop_loss != null || item.take_profit != null) && (
-                    <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                    <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-panel-soft/60 border border-line">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Planned Entry</span>
-                        <span className="font-mono text-xs font-bold text-zinc-100">
+                        <span className="text-[10px] uppercase font-semibold text-muted">Planned Entry</span>
+                        <span className="font-mono text-xs font-bold text-text">
                           {fmtPlanPx(item.entry_price)}
                         </span>
                       </div>
 
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Stop Loss</span>
-                        <span className="font-mono text-xs font-bold text-rose-400">
+                        <span className="text-[10px] uppercase font-semibold text-muted">Stop Loss</span>
+                        <span className="font-mono text-xs font-bold text-loss">
                           {fmtPlanPx(item.stop_loss)}
                         </span>
                       </div>
 
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-zinc-500">Take Profit</span>
-                        <span className="font-mono text-xs font-bold text-emerald-400">
+                        <span className="text-[10px] uppercase font-semibold text-muted">Take Profit</span>
+                        <span className="font-mono text-xs font-bold text-gain">
                           {fmtPlanPx(item.take_profit)}
                         </span>
                       </div>
@@ -405,8 +405,8 @@ export default async function PublicSharePage({ params }: PageProps) {
                   {/* Pre-trade Thesis */}
                   {item.notes && (
                     <div className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-zinc-400">Pre-Trade Thesis & Key Levels</span>
-                      <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/50 whitespace-pre-wrap">
+                      <span className="text-[11px] font-semibold text-muted">Pre-Trade Thesis & Key Levels</span>
+                      <p className="text-xs text-text leading-relaxed bg-panel-soft/40 p-2.5 rounded-lg border border-line whitespace-pre-wrap">
                         {item.notes}
                       </p>
                     </div>
@@ -455,38 +455,38 @@ export default async function PublicSharePage({ params }: PageProps) {
               return (
                 <div
                   key={item.id}
-                  className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
+                  className="relative overflow-hidden rounded-2xl border border-line bg-panel/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
                 >
-                  <div className="absolute -right-16 -top-16 w-44 h-44 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute -right-16 -top-16 w-44 h-44 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
 
                   {/* Header Row */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xl font-bold text-zinc-100">{sym}</span>
-                      <span className="text-xs font-mono text-zinc-500">USDT</span>
+                      <span className="text-xl font-bold text-text">{sym}</span>
+                      <span className="text-xs font-mono text-muted">USDT</span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
                           side === "LONG"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            ? "bg-gain/15 text-gain border-gain/30"
+                            : "bg-loss/15 text-loss border-loss/30"
                         }`}
                       >
                         {side}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-300 font-mono uppercase">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-line bg-panel text-text font-mono uppercase">
                         {(item.order_type || "MARKET").replace("_", " ")}
                       </span>
                     </div>
 
                     {lastPrice != null && (
                       <div className="flex flex-col items-end">
-                        <span className="text-base font-mono font-bold text-zinc-100 tabular-nums">
+                        <span className="text-base font-mono font-bold text-text tabular-nums">
                           ${lastPrice}
                         </span>
                         {riseFallRate != null && (
                           <span
                             className={`text-[11px] font-mono tabular-nums ${
-                              riseFallRate >= 0 ? "text-emerald-400" : "text-rose-400"
+                              riseFallRate >= 0 ? "text-gain" : "text-loss"
                             }`}
                           >
                             {riseFallRate >= 0 ? "+" : ""}
@@ -502,34 +502,34 @@ export default async function PublicSharePage({ params }: PageProps) {
                     <div
                       className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between text-xs font-mono font-semibold ${
                         pnlPct >= 0
-                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                          : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                          ? "bg-gain/10 border-gain/20 text-gain"
+                          : "bg-loss/10 border-loss/20 text-loss"
                       }`}
                     >
-                      <span className="text-[11px] font-sans font-medium text-zinc-300">Live PnL vs Entry</span>
+                      <span className="text-[11px] font-sans font-medium text-muted">Live PnL vs Entry</span>
                       <span className="text-sm font-bold">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</span>
                     </div>
                   )}
 
                   {/* Executed Plan Targets Grid */}
-                  <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
+                  <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-xl bg-panel-soft/60 border border-line">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Entry Price</span>
-                      <span className="font-mono text-xs font-bold text-zinc-100">
+                      <span className="text-[10px] uppercase font-semibold text-muted">Entry Price</span>
+                      <span className="font-mono text-xs font-bold text-text">
                         {fmtPlanPx(item.entry_price)}
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Stop Loss</span>
-                      <span className="font-mono text-xs font-bold text-rose-400">
+                      <span className="text-[10px] uppercase font-semibold text-muted">Stop Loss</span>
+                      <span className="font-mono text-xs font-bold text-loss">
                         {fmtPlanPx(item.stop_loss)}
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] uppercase font-semibold text-zinc-500">Take Profit</span>
-                      <span className="font-mono text-xs font-bold text-emerald-400">
+                      <span className="text-[10px] uppercase font-semibold text-muted">Take Profit</span>
+                      <span className="font-mono text-xs font-bold text-gain">
                         {fmtPlanPx(item.take_profit)}
                       </span>
                     </div>
@@ -538,16 +538,16 @@ export default async function PublicSharePage({ params }: PageProps) {
                   {/* Post-entry Notes & Actions */}
                   {item.notes && (
                     <div className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-zinc-400">Trade Review & Analysis</span>
-                      <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/50 whitespace-pre-wrap">
+                      <span className="text-[11px] font-semibold text-muted">Trade Review & Analysis</span>
+                      <p className="text-xs text-text leading-relaxed bg-panel-soft/40 p-2.5 rounded-lg border border-line whitespace-pre-wrap">
                         {item.notes}
                       </p>
                     </div>
                   )}
 
                   {rrRatio && (
-                    <div className="text-[11px] font-mono text-zinc-400">
-                      R:R Ratio: <span className="text-emerald-400 font-bold">{rrRatio} : 1</span>
+                    <div className="text-[11px] font-mono text-muted">
+                      R:R Ratio: <span className="text-gain font-bold">{rrRatio} : 1</span>
                     </div>
                   )}
 
@@ -567,8 +567,8 @@ export default async function PublicSharePage({ params }: PageProps) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-zinc-800 text-[11px] text-zinc-500">
-          <span>Powered by <span className="font-bold text-zinc-400">MOCHEX</span></span>
+        <div className="flex items-center justify-between pt-4 border-t border-line text-[11px] text-muted">
+          <span>Powered by <span className="font-bold text-text">MOCHEX</span></span>
           <span className="font-mono">👁 {share.view_count + 1} views</span>
         </div>
       </div>

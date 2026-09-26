@@ -647,7 +647,7 @@ export function SettingsForm({ userEmail, initial }: Props) {
             </label>
 
             {proximityEnabled && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 bg-panel/60 p-3 rounded-lg border border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 bg-panel/60 p-3 rounded-xl border border-line">
                 <label className="flex flex-col gap-1 text-xs text-muted">
                   Proximity Threshold Distance
                   <select
@@ -676,12 +676,12 @@ export function SettingsForm({ userEmail, initial }: Props) {
                   </select>
                 </label>
 
-                <div className="sm:col-span-2 flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
-                  <span className="text-xs text-slate-400">Audition synthesized sound tone:</span>
+                <div className="sm:col-span-2 flex items-center justify-between gap-2 pt-1 border-t border-line">
+                  <span className="text-xs text-muted">Audition synthesized sound tone:</span>
                   <button
                     type="button"
                     onClick={() => playAlarmSound(alarmPreset)}
-                    className="px-3 py-1.5 text-xs font-bold bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/60 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-bold bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>🔊 Test Alarm Tone</span>
                   </button>

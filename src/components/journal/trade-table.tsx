@@ -37,10 +37,10 @@ export function TradeTable({
   }
 
   return (
-    <div className="hairline overflow-x-auto bg-panel/40">
+    <div className="hairline overflow-x-auto rounded-xl bg-panel/40">
       <table className="w-full text-sm border-collapse min-w-[820px]">
         <thead>
-          <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
+          <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
             <th className="px-3 py-2.5 w-8">
               <input
                 type="checkbox"
@@ -74,7 +74,7 @@ export function TradeTable({
               <tr
                 key={t.id}
                 onClick={() => onRowClick(t)}
-                className="cursor-pointer hover:bg-panel transition-colors hairline-b"
+                className="cursor-pointer hover:bg-panel-soft/50 transition-colors hairline-b"
               >
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <input

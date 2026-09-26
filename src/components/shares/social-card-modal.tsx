@@ -27,7 +27,7 @@ export function SocialCardModal({
   item,
   lastPrice,
 }: Props) {
-  const [theme, setTheme] = useState<"emerald" | "gold" | "space">("emerald");
+  const [theme, setTheme] = useState<"mochex" | "emerald" | "gold" | "space">("mochex");
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -116,6 +116,8 @@ export function SocialCardModal({
 
   const getThemeClass = () => {
     switch (theme) {
+      case "mochex":
+        return "bg-gradient-to-br from-zinc-950 via-zinc-900 to-purple-950/90 border-purple-500/50 text-zinc-100";
       case "gold":
         return "bg-gradient-to-br from-zinc-950 via-zinc-900 to-amber-950/80 border-amber-500/40 text-zinc-100";
       case "space":
@@ -130,16 +132,27 @@ export function SocialCardModal({
     <ModalShell title="📸 Export Social Setup Card" onClose={onClose} maxWidth="max-w-xl">
       <div className="flex flex-col gap-5 text-xs max-h-[80vh] overflow-y-auto pr-1">
         {/* Theme Selector */}
-        <div className="flex items-center justify-between p-2.5 rounded-lg bg-panel/60 border border-hairline">
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-panel-soft/60 border border-line">
           <span className="font-semibold text-text text-xs">Card Theme Preset</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setTheme("mochex")}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                theme === "mochex"
+                  ? "bg-accent/25 text-accent border border-accent/50 font-bold"
+                  : "bg-panel text-muted hover:text-text border border-line"
+              }`}
+            >
+              💜 MOCHEX Violet
+            </button>
             <button
               type="button"
               onClick={() => setTheme("emerald")}
-              className={`px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
                 theme === "emerald"
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                  : "bg-panel text-muted hover:text-text border border-hairline"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold"
+                  : "bg-panel text-muted hover:text-text border border-line"
               }`}
             >
               🟢 Cyber Emerald
@@ -147,10 +160,10 @@ export function SocialCardModal({
             <button
               type="button"
               onClick={() => setTheme("gold")}
-              className={`px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
                 theme === "gold"
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "bg-panel text-muted hover:text-text border border-hairline"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold"
+                  : "bg-panel text-muted hover:text-text border border-line"
               }`}
             >
               🟡 Radar Gold
@@ -158,10 +171,10 @@ export function SocialCardModal({
             <button
               type="button"
               onClick={() => setTheme("space")}
-              className={`px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
                 theme === "space"
-                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
-                  : "bg-panel text-muted hover:text-text border border-hairline"
+                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold"
+                  : "bg-panel text-muted hover:text-text border border-line"
               }`}
             >
               🔵 Deep Space
@@ -308,7 +321,7 @@ export function SocialCardModal({
             {/* Footer Footprint */}
             <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 text-[10px] text-zinc-400 font-mono">
               <span>View live setup:</span>
-              <span className="font-bold text-emerald-400">
+              <span className="font-bold text-accent">
                 mochex.io/{username || "handle"}/{slug}
               </span>
             </div>
@@ -316,11 +329,11 @@ export function SocialCardModal({
         </div>
 
         {/* Export Action Buttons */}
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-hairline">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 text-xs text-muted hover:text-text cursor-pointer"
+            className="px-3 py-1.5 text-xs text-muted hover:text-text cursor-pointer transition-colors"
           >
             Cancel
           </button>
@@ -329,7 +342,7 @@ export function SocialCardModal({
             type="button"
             onClick={handleCopyImage}
             disabled={exporting}
-            className="px-4 py-1.5 rounded bg-panel hover:bg-panel-soft text-text border border-hairline font-semibold text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            className="px-4 py-1.5 rounded-lg bg-panel hover:bg-panel-soft text-text border border-line font-semibold text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5 transition-colors"
           >
             <span>📋</span>
             <span>{copied ? "Copied PNG! ✓" : "Copy PNG"}</span>
@@ -339,7 +352,7 @@ export function SocialCardModal({
             type="button"
             onClick={handleDownloadImage}
             disabled={exporting}
-            className="accent-btn px-4 py-1.5 text-xs font-semibold rounded cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            className="accent-btn px-4 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
           >
             <span>⬇️</span>
             <span>{downloaded ? "Downloaded! ✓" : "Download PNG"}</span>

@@ -590,14 +590,14 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
           <button
             type="button"
             onClick={() => setCalcModalOpen(true)}
-            className="px-3.5 py-2 rounded-lg bg-panel hover:bg-panel-soft text-text text-xs font-semibold flex items-center gap-1.5 border border-hairline transition-colors cursor-pointer"
+            className="px-3.5 py-2 rounded-lg bg-panel hover:bg-panel-soft text-text text-xs font-semibold flex items-center gap-1.5 border border-line transition-colors cursor-pointer"
           >
             <span>🧮</span> Calculator
           </button>
           <button
             type="button"
             onClick={() => setManualModalOpen(true)}
-            className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="accent-btn px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
           >
             <span>+</span> Manual Trade
           </button>
@@ -605,39 +605,48 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+      <div className="flex items-center gap-1 border-b border-line pb-0 font-mono text-xs">
         <button
           type="button"
           onClick={() => setActiveTab("active")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+          className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "active"
-              ? "bg-zinc-800 text-zinc-100 font-semibold"
-              : "text-zinc-400 hover:text-zinc-200"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
-          Active Trades ({activeAlerts.length})
+          Active Trades
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
+            {activeAlerts.length}
+          </span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("closed")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+          className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "closed"
-              ? "bg-zinc-800 text-zinc-100 font-semibold"
-              : "text-zinc-400 hover:text-zinc-200"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
-          Closed History ({closedAlerts.length})
+          Closed History
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
+            {closedAlerts.length}
+          </span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("archive")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+          className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "archive"
-              ? "bg-zinc-800 text-zinc-100 font-semibold"
-              : "text-zinc-400 hover:text-zinc-200"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
-          Archive ({archivedAlerts.length})
+          Archive
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
+            {archivedAlerts.length}
+          </span>
         </button>
       </div>
 
@@ -758,7 +767,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
               <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
                 <table className="w-full text-sm border-collapse min-w-[1240px]">
                   <thead>
-                    <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
+                    <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
                       <th className="w-9 min-w-9 px-2 py-1.5" aria-hidden="true" />
                       <th className="px-2 py-1.5 text-left">Coin</th>
                       {colVisible("position") && <th className="px-2 py-1.5 text-left">Position</th>}
@@ -772,14 +781,14 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                       {colVisible("orderType") && <th className="px-2 py-1.5 text-left">Order type</th>}
                       {colVisible("notes") && <th className="px-2 py-1.5 text-left">Notes</th>}
                       {colVisible("firedAt") && <th className="px-2 py-1.5 text-left">Fired at</th>}
-                      <th className="w-44 min-w-44 px-2 py-1.5 text-right" aria-hidden="true" />
+                      <th className="py-2.5 px-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageAlerts.map((a) => {
                       const sym = a.symbol.toUpperCase();
                       return (
-                        <tr key={a.id} className="hairline-b hover:bg-paper transition-colors">
+                        <tr key={a.id} className="hairline-b hover:bg-panel-soft/50 transition-colors">
                           <td className="px-2 py-2.5">
                             <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
                               {details[sym]?.baseCoinIconUrl ? (
@@ -889,7 +898,13 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                           )}
                           {colVisible("orderType") && (
                             <td className="px-2 py-2.5 text-left">
-                              {a.order_type ? ORDER_TYPE_LABELS[a.order_type] ?? a.order_type : <span className="text-muted">—</span>}
+                              {a.order_type ? (
+                                <span className="px-1.5 py-0.5 rounded bg-panel-soft border border-line text-[10px] font-mono text-muted">
+                                  {ORDER_TYPE_LABELS[a.order_type] ?? a.order_type}
+                                </span>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
                             </td>
                           )}
                           {colVisible("notes") && (
@@ -908,49 +923,64 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
                               {fmtDateTime(a.fired_at)}
                             </td>
                           )}
-                          <td className="px-2 py-2.5 text-right whitespace-nowrap space-x-2">
-                            <a
-                              href={mexcChartUrl(a.symbol)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-accent hover:underline text-xs cursor-pointer inline-flex items-center gap-1"
-                              title={`Open ${cleanSymbol(a.symbol)} chart on MEXC`}
-                            >
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 3v18h18" />
-                                <path d="M18 17V9" />
-                                <path d="M13 17V5" />
-                                <path d="M8 17v-3" />
-                              </svg>
-                              Chart
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => setClosingAlert(a)}
-                              className="text-rose-400 hover:underline text-xs font-semibold cursor-pointer"
-                              title="Close trade"
-                            >
-                              Close
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditing(a);
-                                setEditingIsArchived(false);
-                              }}
-                              className="text-accent hover:underline text-xs cursor-pointer"
-                              title="Edit trade"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => archiveTradeAlert(a.id)}
-                              className="text-amber-400 hover:underline text-xs cursor-pointer"
-                              title="Archive trade"
-                            >
-                              Archive
-                            </button>
+                          <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <a
+                                href={mexcChartUrl(a.symbol)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 rounded text-[11px] font-mono font-medium text-accent hover:bg-accent/10 border border-accent/20 transition-colors flex items-center gap-1 cursor-pointer"
+                                title={`Open ${cleanSymbol(a.symbol)} chart on MEXC`}
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 3v18h18" />
+                                  <path d="M18 17V9" />
+                                  <path d="M13 17V5" />
+                                  <path d="M8 17v-3" />
+                                </svg>
+                                <span>Chart</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setClosingAlert(a)}
+                                className="px-2 py-1 rounded text-[11px] font-mono font-medium text-rose-400 hover:bg-rose-400/10 border border-rose-400/20 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Close trade"
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="15" y1="9" x2="9" y2="15" />
+                                  <line x1="9" y1="9" x2="15" y2="15" />
+                                </svg>
+                                <span>Close</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing(a);
+                                  setEditingIsArchived(false);
+                                }}
+                                className="px-2 py-1 rounded text-[11px] font-mono font-medium text-muted hover:text-text hover:bg-panel-soft border border-line transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Edit trade"
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => archiveTradeAlert(a.id)}
+                                className="p-1 rounded text-muted hover:text-amber-400 hover:bg-amber-400/10 transition-colors cursor-pointer"
+                                title="Archive trade"
+                              >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="21 8 21 21 3 21 3 8" />
+                                  <rect x="1" y="3" width="22" height="5" />
+                                  <line x1="10" y1="12" x2="14" y2="12" />
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1071,18 +1101,18 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
               </span>
               ? This action cannot be undone.
             </p>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
               <button
                 type="button"
                 onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="px-4 py-2 rounded-lg text-xs font-medium text-muted hover:text-text transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => deleteTrade(confirmDelete.id)}
-                className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-zinc-950 text-xs font-semibold transition-colors"
+                className="px-4 py-2 rounded-lg bg-loss hover:brightness-110 text-white text-xs font-semibold transition-all cursor-pointer"
               >
                 Delete
               </button>

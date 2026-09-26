@@ -31,7 +31,7 @@ export function AppNav() {
   return (
     <header className="hairline-b bg-paper/90 sticky top-0 z-20 backdrop-blur">
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 h-16 flex items-center gap-5">
-        <Link href="/watchlist" className="brand text-2xl shrink-0" aria-label="MOCHEX home">
+        <Link href="/watchlist" className="brand-gradient text-2xl shrink-0 font-extrabold tracking-tight" aria-label="MOCHEX home">
           MOCHEX
         </Link>
 
@@ -40,9 +40,9 @@ export function AppNav() {
             <Link
               key={l.href}
               href={l.href}
-              className={`px-3 py-1.5 text-sm whitespace-nowrap rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-sm whitespace-nowrap rounded-lg transition-colors ${
                 isActive(l.href)
-                  ? "text-accent bg-accent-weak font-medium"
+                  ? "text-accent bg-accent/15 font-semibold"
                   : "text-muted hover:text-text hover:bg-panel-soft"
               }`}
             >
@@ -58,8 +58,8 @@ export function AppNav() {
             href="/settings"
             aria-label="Settings"
             title="Settings"
-            className={`p-2 text-muted hover:text-text transition-colors rounded-lg hover:bg-panel ${
-              isActive("/settings") ? "text-accent" : ""
+            className={`p-2 text-muted hover:text-text transition-colors rounded-lg hover:bg-panel-soft ${
+              isActive("/settings") ? "text-accent bg-accent/15 font-semibold" : ""
             }`}
           >
             <svg

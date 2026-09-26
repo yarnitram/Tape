@@ -47,7 +47,7 @@ export function WatchlistTable({
       <div className="hairline overflow-x-auto rounded-xl bg-panel/40 striped">
         <table className="w-full text-sm border-collapse min-w-[1240px]">
           <thead>
-            <tr className="text-left text-xs text-muted uppercase tracking-wide hairline-b">
+            <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
               <th className="px-2 py-2.5 w-8" />
               <th className="px-2 py-2.5 w-10" />
               <th className="px-3 py-2.5">Coin</th>
@@ -70,15 +70,15 @@ export function WatchlistTable({
                 <th className="px-3 py-2.5 text-right">Order type</th>
               )}
               {colVisible("triggerAdded") && (
-                <th className="px-3 py-2.5">Trigger added</th>
+                <th className="px-3 py-2.5 text-center">Trigger added</th>
               )}
               {colVisible("firedAt") && (
-                <th className="px-3 py-2.5">Fired at</th>
+                <th className="px-3 py-2.5 text-center">Fired at</th>
               )}
               {colVisible("status") && (
                 <th className="px-3 py-2.5 text-center">Status</th>
               )}
-              <th className="px-3 py-2.5 w-16" />
+              <th className="py-2.5 px-3 text-right">Actions</th>
             </tr>
           </thead>
 

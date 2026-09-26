@@ -29,31 +29,32 @@ export function ModalShell({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 p-6 ${
+      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 sm:p-6 transition-all ${
         center ? "items-center" : "items-start"
       }`}
+      onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${maxWidth} bg-paper border border-line ${
-          center ? "my-8" : "mt-8"
+        className={`relative w-full ${maxWidth} bg-panel border border-line rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+          center ? "my-auto" : "mt-8 mb-8"
         }`}
       >
-        <div className="flex items-center justify-between hairline-b px-5 py-3">
-          <h2 className="text-base font-semibold">{title}</h2>
+        <div className="flex items-center justify-between hairline-b px-6 py-4 bg-panel-soft/40">
+          <h2 className="text-base font-semibold text-text">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-muted hover:text-text text-xl leading-none cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center text-muted hover:text-text rounded-lg hover:bg-panel-soft transition-colors text-lg leading-none cursor-pointer"
           >
             ×
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );

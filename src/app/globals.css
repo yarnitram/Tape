@@ -89,6 +89,14 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-accent-contrast: var(--accent-contrast);
+  --color-accent-weak: var(--accent-weak);
+
+  /* Semantic Compatibility Aliases */
+  --color-surface: var(--panel);
+  --color-surface-soft: var(--panel-soft);
+  --color-hairline: var(--line);
+  --color-foreground: var(--text);
+  --color-card: var(--panel);
 
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
@@ -181,22 +189,63 @@ textarea:focus-visible {
   font-style: italic;
 }
 
+.brand-gradient {
+  background-image: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6366f1 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .gain-bg { background: var(--gain); }
 .accent-btn {
   background: var(--accent-soft);
-  color: var(--accent-contrast);
+  color: #ffffff;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
 }
 .accent-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.12);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.28);
 }
 
 .btn-ghost {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text);
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
 }
 .btn-ghost:hover {
   border-color: var(--line-strong);
+  background: var(--panel-soft);
+}
+
+/* Standardized Form Input / Select */
+.input-base {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-base::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.input-base:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Standardized Card Container */
+.card-base {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
 }
 
 /* Themed table striping */

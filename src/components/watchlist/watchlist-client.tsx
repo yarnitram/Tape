@@ -527,18 +527,18 @@ export function WatchlistClient({
       )}
 
       {/* ---- Tab Navigation ---- */}
-      <div className="flex items-center gap-1 border-b border-hairline pb-0 font-mono text-xs">
+      <div className="flex items-center gap-1 border-b border-line pb-0 font-mono text-xs">
         <button
           type="button"
           onClick={() => setActiveTab("active")}
           className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "active"
-              ? "border-accent text-foreground font-semibold"
-              : "border-transparent text-muted hover:text-foreground"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
           Watchlist
-          <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface border border-hairline font-mono">
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
             {items.length}
           </span>
         </button>
@@ -548,12 +548,12 @@ export function WatchlistClient({
           onClick={() => setActiveTab("triggered")}
           className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "triggered"
-              ? "border-accent text-foreground font-semibold"
-              : "border-transparent text-muted hover:text-foreground"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
           Triggered
-          <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface border border-hairline font-mono">
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
             {triggeredItems.length}
           </span>
         </button>
@@ -563,12 +563,12 @@ export function WatchlistClient({
           onClick={() => setActiveTab("archive")}
           className={`px-3 py-2 border-b-2 font-medium transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "archive"
-              ? "border-accent text-foreground font-semibold"
-              : "border-transparent text-muted hover:text-foreground"
+              ? "border-accent text-accent font-semibold"
+              : "border-transparent text-muted hover:text-text"
           }`}
         >
           Archive
-          <span className="px-1.5 py-0.5 rounded text-[10px] bg-surface border border-hairline font-mono">
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-panel-soft border border-line font-mono">
             {archivedItems.length}
           </span>
         </button>

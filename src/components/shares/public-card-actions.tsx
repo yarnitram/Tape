@@ -32,12 +32,12 @@ export function PublicCardActions({
   const sym = cleanSymbol(item.symbol);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/60 w-full">
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line w-full">
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => setSocialModalOpen(true)}
-          className="px-3 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-panel hover:bg-panel-soft text-text border border-line font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
         >
           <span>📸 Export PNG Card</span>
         </button>
@@ -45,7 +45,7 @@ export function PublicCardActions({
         <button
           type="button"
           onClick={() => setHistoryModalOpen(true)}
-          className="px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
         >
           <span>📜 Audit Log</span>
         </button>
@@ -57,8 +57,8 @@ export function PublicCardActions({
           onClick={() => setChartModalOpen(true)}
           className={`px-3 py-1.5 rounded-lg border font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
             shareType === "watchlist"
-              ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/20"
-              : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+              ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border-amber-500/30"
+              : "accent-btn py-1.5 px-3"
           }`}
         >
           <span>📈 Interactive Chart</span>
@@ -69,7 +69,7 @@ export function PublicCardActions({
           target="_blank"
           rel="noopener noreferrer"
           title={`Open ${sym} on MEXC Exchange`}
-          className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg bg-panel hover:bg-panel-soft text-muted hover:text-text border border-line transition-colors cursor-pointer"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

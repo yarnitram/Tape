@@ -225,8 +225,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
     </div>
   );
 
-  const inputCls =
-    "hairline bg-panel px-2.5 py-1.5 text-sm outline-none focus:border-accent w-full";
+  const inputCls = "input-base w-full";
 
   return (
     <ModalShell
@@ -288,7 +287,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
               className={`pb-2 border-b-2 transition-colors cursor-pointer ${
                 activeTab === "plan"
                   ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-fg"
+                  : "border-transparent text-muted hover:text-text"
               }`}
             >
               Plan & Alert
@@ -299,7 +298,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
               className={`pb-2 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "history"
                   ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-fg"
+                  : "border-transparent text-muted hover:text-text"
               }`}
             >
               <span>📜 Setup Audit History</span>

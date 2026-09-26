@@ -30,9 +30,9 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
   const cleanSym = cleanSymbol(symbol);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className={`relative w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+        className={`relative w-full bg-panel border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
           isMaximized
             ? "max-w-[96vw] h-[94vh]"
             : "max-w-6xl max-h-[92vh]"
@@ -40,23 +40,23 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Header */}
-        <div className="px-6 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
+        <div className="px-6 py-3.5 bg-panel-soft/80 border-b border-line flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-cyan-950/50 border border-cyan-800/40 text-cyan-400 flex items-center justify-center text-lg font-bold">
+            <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 text-accent flex items-center justify-center text-lg font-bold">
               📈
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-extrabold text-white font-mono">
+                <h3 className="text-lg font-extrabold text-text font-mono">
                   {cleanSym} / USDT
                 </h3>
                 {setup?.order_type && (
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-panel text-text border border-line">
                     {setup.order_type}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 Interactive MEXC Candlestick Chart & Trade Plan Overlay
               </p>
             </div>
@@ -69,7 +69,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
               <Link
                 href={`/chart/${encodeURIComponent(cleanSym)}`}
                 target="_blank"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/50 rounded-xl transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 rounded-xl transition-colors"
                 title="Open dedicated full-screen chart page in new tab"
               >
                 <span>↗️ Dedicated Page</span>
@@ -81,7 +81,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
               href={mexcChartUrl(symbol)}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-panel hover:bg-panel-soft text-text border border-line rounded-xl transition-colors"
               title="View on MEXC Exchange"
             >
               <span>MEXC Chart</span>
@@ -90,7 +90,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
             {/* Maximize / Restore Toggle Button */}
             <button
               onClick={() => setIsMaximized((prev) => !prev)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 border border-slate-800 transition"
+              className="p-1.5 text-muted hover:text-text rounded-lg hover:bg-panel-soft border border-line transition-colors"
               title={isMaximized ? "Restore Modal Size" : "Maximize Modal to Full Screen"}
             >
               {isMaximized ? (
@@ -107,7 +107,7 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              className="p-1.5 text-muted hover:text-text rounded-lg hover:bg-panel-soft border border-line transition-colors"
               title="Close Modal"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,28 +119,28 @@ export function ChartModal({ isOpen, onClose, symbol, setup, isPublic = false }:
 
         {/* Setup Level Badges Bar if setup exists */}
         {setup && (
-          <div className="px-6 py-2 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center gap-3 text-xs font-mono">
-            <span className="text-slate-400 text-xs font-sans font-medium">Active Setup Levels:</span>
+          <div className="px-6 py-2 bg-panel-soft/40 border-b border-line flex flex-wrap items-center gap-3 text-xs font-mono">
+            <span className="text-muted text-xs font-sans font-medium">Active Setup Levels:</span>
             {setup.trigger_price && setup.trigger_price > 0 && (
-              <span className="px-2.5 py-1 rounded bg-amber-950/40 text-amber-300 border border-amber-800/40 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
                 <span>⚡ Trigger:</span>
                 <strong>{fmtPx(setup.trigger_price)}</strong>
               </span>
             )}
             {setup.entry_price && setup.entry_price > 0 && (
-              <span className="px-2.5 py-1 rounded bg-cyan-950/40 text-cyan-300 border border-cyan-800/40 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-md bg-accent/15 text-accent border border-accent/30 flex items-center gap-1">
                 <span>🎯 Entry:</span>
                 <strong>{fmtPx(setup.entry_price)}</strong>
               </span>
             )}
             {setup.stop_loss && setup.stop_loss > 0 && (
-              <span className="px-2.5 py-1 rounded bg-red-950/40 text-red-300 border border-red-800/40 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-md bg-loss/15 text-loss border border-loss/30 flex items-center gap-1">
                 <span>🛑 SL:</span>
                 <strong>{fmtPx(setup.stop_loss)}</strong>
               </span>
             )}
             {setup.take_profit && setup.take_profit > 0 && (
-              <span className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-md bg-gain/15 text-gain border border-gain/30 flex items-center gap-1">
                 <span>🏁 TP:</span>
                 <strong>{fmtPx(setup.take_profit)}</strong>
               </span>

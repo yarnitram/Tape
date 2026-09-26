@@ -63,11 +63,11 @@ const INTERVALS = [
 ];
 
 const DRAWING_COLORS = [
+  { label: "Violet", hex: "#8b5cf6" },
   { label: "Cyan", hex: "#06b6d4" },
   { label: "Emerald", hex: "#10b981" },
   { label: "Rose", hex: "#f43f5e" },
   { label: "Amber", hex: "#f59e0b" },
-  { label: "Purple", hex: "#a855f7" },
 ];
 
 export function InteractiveCandlestickChart({
@@ -91,7 +91,7 @@ export function InteractiveCandlestickChart({
 
   // Drawing tools state
   const [activeTool, setActiveTool] = useState<DrawingTool>("select");
-  const [drawingColor, setDrawingColor] = useState<string>("#06b6d4");
+  const [drawingColor, setDrawingColor] = useState<string>("#8b5cf6");
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [rectStart, setRectStart] = useState<{ time: number; price: number } | null>(null);
   const [pathPoints, setPathPoints] = useState<Array<{ time: number; price: number }>>([]);
@@ -209,39 +209,39 @@ export function InteractiveCandlestickChart({
     const chart = createChart(chartContainerRef.current, {
       height,
       layout: {
-        background: { type: ColorType.Solid, color: "#0b0e14" },
+        background: { type: ColorType.Solid, color: "#0c0a17" },
         textColor: "#94a3b8",
         fontSize: 12,
         fontFamily: "Inter, Roboto, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(30, 41, 59, 0.5)" },
-        horzLines: { color: "rgba(30, 41, 59, 0.5)" },
+        vertLines: { color: "rgba(139, 92, 246, 0.07)" },
+        horzLines: { color: "rgba(139, 92, 246, 0.07)" },
       },
       crosshair: {
         mode: 1, // Magnet mode
         vertLine: {
-          color: "#3b82f6",
+          color: "#8b5cf6",
           width: 1,
           style: LineStyle.Dashed,
-          labelBackgroundColor: "#1e293b",
+          labelBackgroundColor: "#1c1830",
         },
         horzLine: {
-          color: "#3b82f6",
+          color: "#8b5cf6",
           width: 1,
           style: LineStyle.Dashed,
-          labelBackgroundColor: "#1e293b",
+          labelBackgroundColor: "#1c1830",
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(30, 41, 59, 0.8)",
+        borderColor: "rgba(139, 92, 246, 0.15)",
         scaleMargins: {
           top: 0.1,
           bottom: 0.2, // Leave room for volume bars at bottom
         },
       },
       timeScale: {
-        borderColor: "rgba(30, 41, 59, 0.8)",
+        borderColor: "rgba(139, 92, 246, 0.15)",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -249,11 +249,11 @@ export function InteractiveCandlestickChart({
 
     // Add Candlestick Series
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#10b981",
-      downColor: "#ef4444",
+      upColor: "#34d399",
+      downColor: "#fb7185",
       borderVisible: false,
-      wickUpColor: "#10b981",
-      wickDownColor: "#ef4444",
+      wickUpColor: "#34d399",
+      wickDownColor: "#fb7185",
     });
 
     // Add Volume Histogram Series
@@ -365,7 +365,7 @@ export function InteractiveCandlestickChart({
       if (setup.entry_price && setup.entry_price > 0) {
         const line = series.createPriceLine({
           price: setup.entry_price,
-          color: "#06b6d4", // Cyan/Blue
+          color: "#8b5cf6", // Mochex Violet
           lineWidth: 2,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -386,7 +386,7 @@ export function InteractiveCandlestickChart({
 
         const line = series.createPriceLine({
           price: setup.stop_loss,
-          color: "#ef4444", // Red
+          color: "#fb7185", // Mochex Rose (Loss)
           lineWidth: 2,
           lineStyle: LineStyle.Solid,
           axisLabelVisible: true,
@@ -407,7 +407,7 @@ export function InteractiveCandlestickChart({
 
         const line = series.createPriceLine({
           price: setup.take_profit,
-          color: "#10b981", // Green
+          color: "#34d399", // Mochex Emerald (Gain)
           lineWidth: 2,
           lineStyle: LineStyle.Solid,
           axisLabelVisible: true,
@@ -500,24 +500,24 @@ export function InteractiveCandlestickChart({
   const activeCandle = hoverData || lastCandle;
 
   return (
-    <div className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
+    <div className="w-full bg-panel border border-line rounded-2xl overflow-hidden shadow-2xl flex flex-col">
       {/* Header Controls Bar */}
-      <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-2.5 bg-panel-soft/80 border-b border-line flex flex-wrap items-center justify-between gap-3">
         {/* Symbol & Price Display */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-base font-bold text-white tracking-wide">
+            <span className="font-mono text-base font-bold text-text tracking-wide">
               {cleanSym}
             </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-400 font-semibold border border-cyan-800/40">
+            <span className="text-xs px-2 py-0.5 rounded-md bg-accent/15 text-accent font-semibold border border-accent/30">
               MEXC Futures
             </span>
             {setup?.side && (
               <span
-                className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${
+                className={`text-xs px-2 py-0.5 rounded-md font-mono font-bold border ${
                   setup.side === "LONG"
-                    ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/40"
-                    : "bg-red-950/80 text-red-400 border border-red-800/40"
+                    ? "bg-gain/15 text-gain border-gain/30"
+                    : "bg-loss/15 text-loss border-loss/30"
                 }`}
               >
                 {setup.side}
@@ -526,23 +526,23 @@ export function InteractiveCandlestickChart({
           </div>
 
           {activeCandle && (
-            <div className="hidden lg:flex items-center gap-3 font-mono text-xs text-slate-400 border-l border-slate-800 pl-3">
+            <div className="hidden lg:flex items-center gap-3 font-mono text-xs text-muted border-l border-line pl-3">
               <span>
-                O: <strong className="text-slate-200">{fmtPx(activeCandle.open)}</strong>
+                O: <strong className="text-text">{fmtPx(activeCandle.open)}</strong>
               </span>
               <span>
-                H: <strong className="text-emerald-400">{fmtPx(activeCandle.high)}</strong>
+                H: <strong className="text-gain">{fmtPx(activeCandle.high)}</strong>
               </span>
               <span>
-                L: <strong className="text-red-400">{fmtPx(activeCandle.low)}</strong>
+                L: <strong className="text-loss">{fmtPx(activeCandle.low)}</strong>
               </span>
               <span>
                 C:{" "}
                 <strong
                   className={
                     activeCandle.close >= activeCandle.open
-                      ? "text-emerald-400"
-                      : "text-red-400"
+                      ? "text-gain"
+                      : "text-loss"
                   }
                 >
                   {fmtPx(activeCandle.close)}
@@ -555,17 +555,17 @@ export function InteractiveCandlestickChart({
         {/* Timeframe Selector & Drawing Tools */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Drawing Tools Selector Bar */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 gap-1">
+          <div className="flex items-center bg-panel p-1 rounded-lg border border-line gap-1">
             <button
               onClick={() => {
                 setActiveTool("select");
                 setRectStart(null);
                 setPathPoints([]);
               }}
-              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
                 activeTool === "select"
-                  ? "bg-slate-800 text-white font-bold"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
               }`}
               title="Select / Pan Mode"
             >
@@ -577,10 +577,10 @@ export function InteractiveCandlestickChart({
                 setActiveTool("rectangle");
                 setPathPoints([]);
               }}
-              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
                 activeTool === "rectangle"
-                  ? "bg-cyan-950 text-cyan-300 font-bold border border-cyan-800/60"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
               }`}
               title="Draw Rectangle Support/Demand Zone"
             >
@@ -592,10 +592,10 @@ export function InteractiveCandlestickChart({
                 setActiveTool("path");
                 setRectStart(null);
               }}
-              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+              className={`px-2 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
                 activeTool === "path"
-                  ? "bg-purple-950 text-purple-300 font-bold border border-purple-800/60"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-accent/20 text-accent font-bold border border-accent/40 shadow-xs"
+                  : "text-muted hover:text-text"
               }`}
               title="Draw Multi-Point Path / Wave Line"
             >
@@ -605,7 +605,7 @@ export function InteractiveCandlestickChart({
 
           {/* Drawing Colors Swatch */}
           {activeTool !== "select" && (
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <div className="flex items-center gap-1 bg-panel p-1 rounded-lg border border-line">
               {DRAWING_COLORS.map((c) => (
                 <button
                   key={c.hex}
@@ -624,7 +624,7 @@ export function InteractiveCandlestickChart({
           {pathPoints.length >= 2 && (
             <button
               onClick={finishPath}
-              className="px-2.5 py-1 text-xs font-bold bg-emerald-500 text-slate-950 rounded-lg hover:bg-emerald-400 transition shadow-sm"
+              className="accent-btn px-2.5 py-1 text-xs font-bold"
             >
               Finish Path ({pathPoints.length})
             </button>
@@ -634,7 +634,7 @@ export function InteractiveCandlestickChart({
           {drawings.length > 0 && (
             <button
               onClick={clearAllDrawings}
-              className="px-2 py-1 text-xs font-medium bg-slate-950 text-slate-400 hover:text-red-400 border border-slate-800 hover:border-red-900 rounded-lg transition"
+              className="px-2 py-1 text-xs font-medium bg-panel text-muted hover:text-loss border border-line hover:border-loss/40 rounded-lg transition-colors"
               title="Clear all drawing shapes for this symbol"
             >
               🗑️ Clear ({drawings.length})
@@ -642,19 +642,19 @@ export function InteractiveCandlestickChart({
           )}
 
           {showOverlayToggle && setup && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-800/60 px-2.5 py-1 rounded border border-slate-700/50 hover:bg-slate-800 transition">
+            <label className="flex items-center gap-1.5 text-xs text-text cursor-pointer bg-panel px-2.5 py-1 rounded-lg border border-line hover:bg-panel-soft transition-colors">
               <input
                 type="checkbox"
                 checked={showSetup}
                 onChange={(e) => setShowSetup(e.target.checked)}
-                className="rounded border-slate-700 text-cyan-500 focus:ring-cyan-500 bg-slate-900"
+                className="rounded border-line text-accent focus:ring-accent bg-panel-soft"
               />
-              <span className="font-medium text-slate-200">Setup Overlay</span>
+              <span className="font-medium text-text">Setup Overlay</span>
             </label>
           )}
 
           {/* Timeframe Buttons */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800">
+          <div className="flex items-center bg-panel p-1 rounded-lg border border-line">
             {INTERVALS.map((tf) => (
               <button
                 key={tf.value}
@@ -662,10 +662,10 @@ export function InteractiveCandlestickChart({
                   isFirstLoadRef.current = true;
                   setKlineInterval(tf.value);
                 }}
-                className={`px-2.5 py-1 text-xs font-mono font-medium rounded transition ${
+                className={`px-2.5 py-1 text-xs font-mono font-medium rounded-md transition-all ${
                   klineInterval === tf.value
-                    ? "bg-cyan-500 text-slate-950 font-bold shadow-sm"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    ? "bg-accent text-white font-bold shadow-xs"
+                    : "text-muted hover:text-text hover:bg-panel-soft"
                 }`}
               >
                 {tf.label}
@@ -677,10 +677,10 @@ export function InteractiveCandlestickChart({
             onClick={() => fetchCandles(false)}
             disabled={loading}
             title="Refresh Chart"
-            className="p-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-lg transition disabled:opacity-50"
+            className="p-1.5 text-muted hover:text-text bg-panel border border-line hover:bg-panel-soft rounded-lg transition-colors disabled:opacity-50"
           >
             <svg
-              className={`w-3.5 h-3.5 ${loading ? "animate-spin text-cyan-400" : ""}`}
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin text-accent" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -699,10 +699,10 @@ export function InteractiveCandlestickChart({
       {/* Chart Canvas Container */}
       <div className="relative w-full flex-1 min-h-[300px]">
         {loading && (
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs z-10 flex items-center justify-center">
-            <div className="flex items-center gap-3 bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-800 shadow-xl">
+          <div className="absolute inset-0 bg-paper/60 backdrop-blur-xs z-10 flex items-center justify-center">
+            <div className="flex items-center gap-3 bg-panel px-4 py-2.5 rounded-xl border border-line shadow-xl">
               <svg
-                className="w-5 h-5 animate-spin text-cyan-400"
+                className="w-5 h-5 animate-spin text-accent"
                 fill="none"
                 viewBox="0 0 24 24"
               >
@@ -720,7 +720,7 @@ export function InteractiveCandlestickChart({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span className="text-xs font-mono text-slate-300">
+              <span className="text-xs font-mono text-muted">
                 Loading {cleanSym} Candlesticks...
               </span>
             </div>
@@ -728,15 +728,15 @@ export function InteractiveCandlestickChart({
         )}
 
         {error && (
-          <div className="absolute inset-0 bg-slate-950/90 z-20 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-950/50 border border-red-800/40 text-red-400 flex items-center justify-center mb-3 text-xl">
+          <div className="absolute inset-0 bg-panel/95 z-20 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-loss/15 border border-loss/30 text-loss flex items-center justify-center mb-3 text-xl">
               ⚠️
             </div>
-            <h4 className="text-sm font-bold text-white mb-1">Chart Data Unavailable</h4>
-            <p className="text-xs text-slate-400 max-w-sm mb-4">{error}</p>
+            <h4 className="text-sm font-bold text-text mb-1">Chart Data Unavailable</h4>
+            <p className="text-xs text-muted max-w-sm mb-4">{error}</p>
             <button
               onClick={() => fetchCandles(false)}
-              className="px-4 py-1.5 text-xs font-semibold bg-slate-800 text-white hover:bg-slate-700 rounded-lg border border-slate-700 transition"
+              className="accent-btn px-4 py-1.5 text-xs font-semibold"
             >
               Retry Connection
             </button>

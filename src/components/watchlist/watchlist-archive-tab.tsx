@@ -77,7 +77,7 @@ export function WatchlistArchiveTab({
 
   if (archivedItems.length === 0) {
     return (
-      <div className="py-16 text-center border border-hairline rounded-lg bg-surface/20">
+      <div className="py-16 text-center border border-line rounded-xl bg-panel/30">
         <p className="text-sm font-mono text-muted uppercase tracking-wider mb-1">
           Archive is empty
         </p>
@@ -89,10 +89,10 @@ export function WatchlistArchiveTab({
   }
 
   return (
-    <div className="overflow-x-auto border border-hairline rounded-lg">
+    <div className="overflow-x-auto border border-line rounded-xl bg-panel/40">
       <table className="w-full text-left border-collapse text-xs">
         <thead>
-          <tr className="hairline-b bg-surface/50 font-mono text-[10px] uppercase text-muted tracking-wider">
+          <tr className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
             <th className="py-2.5 px-3">Coin</th>
             <th className="py-2.5 px-3">Source</th>
             <th className="py-2.5 px-3">Side</th>
@@ -105,7 +105,7 @@ export function WatchlistArchiveTab({
             <th className="py-2.5 px-3 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-hairline">
+        <tbody className="divide-y divide-line">
           {archivedItems.map((item) => {
             const sym = cleanSymbol(item.symbol);
             const side =
@@ -135,8 +135,8 @@ export function WatchlistArchiveTab({
             });
 
             return (
-              <tr key={item.id} className="hover:bg-surface/30 transition-colors">
-                <td className="py-3 px-3 font-semibold font-mono text-foreground">
+              <tr key={item.id} className="hover:bg-panel-soft/50 transition-colors">
+                <td className="py-3 px-3 font-semibold font-mono text-text">
                   {sym}
                   <span className="text-[10px] font-normal text-muted ml-1">USDT</span>
                 </td>
@@ -144,8 +144,8 @@ export function WatchlistArchiveTab({
                   <span
                     className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${
                       isFromTriggered
-                        ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                        : "bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                        ? "bg-accent/15 text-accent border border-accent/25"
+                        : "bg-panel-soft text-muted border border-line"
                     }`}
                   >
                     {isFromTriggered ? "Triggered" : "Watchlist"}
@@ -156,8 +156,8 @@ export function WatchlistArchiveTab({
                     <span
                       className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
                         isLong
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                          ? "bg-gain/15 text-gain border border-gain/20"
+                          : "bg-loss/15 text-loss border border-loss/20"
                       }`}
                     >
                       {isLong ? (
@@ -176,14 +176,14 @@ export function WatchlistArchiveTab({
                   )}
                 </td>
                 <td className="py-3 px-3 font-mono text-muted">
-                  <span className="px-1.5 py-0.5 rounded bg-hairline/40 text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded bg-panel-soft border border-line text-[10px]">
                     {orderTypeLabel}
                   </span>
                 </td>
-                <td className="py-3 px-3 text-right font-mono text-foreground font-medium">
+                <td className="py-3 px-3 text-right font-mono text-text font-medium">
                   {item.trigger_price != null ? fmtPlanPx(Number(item.trigger_price)) : "—"}
                 </td>
-                <td className="py-3 px-3 text-right font-mono text-emerald-400 font-medium">
+                <td className="py-3 px-3 text-right font-mono text-gain font-medium">
                   {item.fired_price != null ? fmtPx(Number(item.fired_price)) : "—"}
                 </td>
                 <td className="py-3 px-3 text-right font-mono text-muted text-[11px]">

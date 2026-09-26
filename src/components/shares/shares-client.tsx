@@ -252,33 +252,33 @@ export function SharesClient({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950">
-          <table className="w-full text-left text-xs text-zinc-300">
-            <thead className="bg-zinc-900/80 text-zinc-400 font-medium border-b border-zinc-800">
+        <div className="overflow-x-auto rounded-xl hairline bg-panel/40 striped">
+          <table className="w-full text-left text-xs text-text">
+            <thead className="hairline-b bg-panel-soft/60 font-mono text-[10px] uppercase text-muted tracking-wider">
               <tr>
-                <th className="py-3 px-4">Title & Slug</th>
-                <th className="py-3 px-4">Coin</th>
-                <th className="py-3 px-4">Plan / Setups</th>
-                <th className="py-3 px-4">Views</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-2.5 px-4">Title & Slug</th>
+                <th className="py-2.5 px-4">Coin</th>
+                <th className="py-2.5 px-4">Plan / Setups</th>
+                <th className="py-2.5 px-4">Views</th>
+                <th className="py-2.5 px-4">Status</th>
+                <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-line">
               {filtered.map((row) => {
                 const publicPath = `/${username || "handle"}/${row.slug}`;
 
                 return (
-                  <tr key={row.id} className="hover:bg-zinc-900/40 transition-colors">
+                  <tr key={row.id} className="hover:bg-panel-soft/50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex flex-col gap-0.5">
-                        <span className="font-semibold text-zinc-100">{row.title}</span>
+                        <span className="font-semibold text-text">{row.title}</span>
                         <span className="font-mono text-[11px] text-accent truncate max-w-xs">
                           /{username || "handle"}/{row.slug}
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-semibold text-zinc-100">
+                    <td className="py-3 px-4 font-semibold text-text">
                       {Array.isArray(row.items) && row.items.length > 1 ? (
                         <div className="flex flex-col gap-0.5">
                           <span className="inline-flex items-center gap-1.5">
@@ -286,20 +286,20 @@ export function SharesClient({
                               {row.items.length} Coins
                             </span>
                           </span>
-                          <span className="text-xs text-zinc-300 font-mono">
+                          <span className="text-xs text-muted font-mono">
                             {row.items.map((i) => cleanSymbol(i.symbol)).join(", ")}
                           </span>
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-1.5">
                           <span>{cleanSymbol(row.symbol)}</span>
-                          <span className="text-[10px] text-zinc-500 uppercase px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900">
+                          <span className="text-[10px] text-muted uppercase px-1.5 py-0.5 rounded border border-line bg-panel-soft">
                             {row.share_type}
                           </span>
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-zinc-400">
+                    <td className="py-3 px-4 font-mono text-[11px] text-muted">
                       {Array.isArray(row.items) && row.items.length > 1 ? (
                         <span>Multiple setups ({row.items.length})</span>
                       ) : (
@@ -308,7 +308,7 @@ export function SharesClient({
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 font-mono font-semibold text-zinc-300">
+                    <td className="py-3 px-4 font-mono font-semibold text-text">
                       👁 {row.view_count}
                     </td>
                     <td className="py-3 px-4">
@@ -316,95 +316,118 @@ export function SharesClient({
                         <span
                           className={`inline-block px-2 py-0.5 rounded border text-[11px] font-medium ${
                             row.is_active
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                              : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                              ? "bg-gain/15 text-gain border-gain/20"
+                              : "bg-panel-soft text-muted border-line"
                           }`}
                         >
                           {row.is_active ? "Active" : "Paused"}
                         </span>
                       ) : (
-                        <span className="inline-block px-2 py-0.5 rounded border text-[11px] font-medium bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        <span className="inline-block px-2 py-0.5 rounded border text-[11px] font-medium bg-amber-400/10 text-amber-400 border-amber-400/20">
                           Archived
                         </span>
                       )}
                     </td>
 
-                    <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                      {tab === "active" ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(row)}
-                            title="Copy Public Link"
-                            className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/60 transition-colors font-medium text-[11px] cursor-pointer"
-                          >
-                            {copiedId === row.id ? "Copied! ✓" : "📋 Copy Link"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTwitterShare(row)}
-                            title="Share on X"
-                            className="p-1.5 rounded-lg text-sky-400 hover:bg-sky-500/10 transition-colors inline-block cursor-pointer"
-                          >
-                            🐦
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCardExportingShare(row)}
-                            title="Export Social Card PNG"
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors inline-block cursor-pointer"
-                          >
-                            📸
-                          </button>
-                          <a
-                            href={publicPath}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Preview Public Page"
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-accent hover:bg-accent/10 transition-colors inline-block"
-                          >
-                            👁
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => setEditingShare(row)}
-                            title="Edit Page"
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSoftDeletingShare(row)}
-                            title="Move to Trash / Archive"
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-400/10 transition-colors cursor-pointer"
-                          >
-                            🗑
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleRestore(row)}
-                            disabled={restoringId === row.id}
-                            title="Restore Share Page"
-                            className="px-3 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-colors font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <span>↺</span>
-                            <span>{restoringId === row.id ? "Restoring…" : "Restore"}</span>
-                          </button>
+                    <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {tab === "active" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(row)}
+                              title="Copy Public Link"
+                              className="px-2 py-1 rounded text-[11px] font-mono font-medium text-accent hover:bg-accent/10 border border-accent/20 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                              <span>{copiedId === row.id ? "Copied! ✓" : "Copy Link"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTwitterShare(row)}
+                              title="Share on X"
+                              className="p-1 rounded text-muted hover:text-sky-400 hover:bg-sky-400/10 transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCardExportingShare(row)}
+                              title="Export Social Card PNG"
+                              className="p-1 rounded text-muted hover:text-amber-300 hover:bg-amber-400/10 transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <circle cx="12" cy="13" r="4" />
+                              </svg>
+                            </button>
+                            <a
+                              href={publicPath}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Preview Public Page"
+                              className="p-1 rounded text-muted hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer inline-flex items-center"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setEditingShare(row)}
+                              title="Edit Page"
+                              className="p-1 rounded text-muted hover:text-text hover:bg-panel-soft transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSoftDeletingShare(row)}
+                              title="Move to Trash / Archive"
+                              className="p-1 rounded text-muted hover:text-rose-400 hover:bg-rose-400/10 transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                              </svg>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleRestore(row)}
+                              disabled={restoringId === row.id}
+                              title="Restore Share Page"
+                              className="px-2 py-1 rounded text-[11px] font-mono font-medium text-amber-400 hover:bg-amber-400/10 border border-amber-400/20 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 7L3 12L8 17M3 12H21M16 7L21 12L16 17" />
+                              </svg>
+                              <span>{restoringId === row.id ? "Restoring…" : "Restore"}</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => setPermDeletingShare(row)}
-                            title="Permanently Delete Page"
-                            className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors font-semibold text-[11px] cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <span>🗑 Delete Permanently</span>
-                          </button>
-                        </>
-                      )}
+                            <button
+                              type="button"
+                              onClick={() => setPermDeletingShare(row)}
+                              title="Permanently Delete Page"
+                              className="p-1 rounded text-muted hover:text-rose-400 hover:bg-rose-400/10 transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

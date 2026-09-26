@@ -85,27 +85,27 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
     <ModalShell onClose={onClose} title={`Close Trade — ${alert.symbol.replace(/_USDT$/i, "")}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-xs text-rose-400">
+          <div className="rounded-lg bg-loss/10 border border-loss/20 p-3 text-xs text-loss">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 p-3 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs">
+        <div className="grid grid-cols-2 gap-3 p-3 bg-panel-soft/70 border border-line rounded-xl text-xs">
           <div>
-            <span className="text-zinc-500 block">Position Side</span>
-            <span className={`font-semibold ${side === "long" ? "text-emerald-400" : "text-rose-400"}`}>
+            <span className="text-muted block">Position Side</span>
+            <span className={`font-semibold ${side === "long" ? "text-gain" : "text-loss"}`}>
               {side.toUpperCase()}
             </span>
           </div>
           <div>
-            <span className="text-zinc-500 block">Entry Price</span>
-            <span className="font-mono text-zinc-200">{entry ?? "—"}</span>
+            <span className="text-muted block">Entry Price</span>
+            <span className="font-mono text-text">{entry ?? "—"}</span>
           </div>
         </div>
 
         <div>
-          <label className="block text-xs text-zinc-400 font-medium mb-1">
-            Exit Price <span className="text-rose-400">*</span>
+          <label className="block text-xs text-muted font-medium mb-1">
+            Exit Price <span className="text-loss">*</span>
           </label>
           <div className="relative">
             <input
@@ -113,14 +113,14 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
               step="any"
               value={exitPrice}
               onChange={(e) => setExitPrice(e.target.value)}
-              className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+              className="input-base w-full font-mono pr-24"
               required
             />
             {livePrice != null && (
               <button
                 type="button"
                 onClick={() => setExitPrice(livePrice.toString())}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-panel hover:bg-panel-soft border border-line text-text px-2 py-1 rounded-md transition-colors"
               >
                 Use Live ({livePrice})
               </button>
@@ -131,10 +131,10 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
         {/* Live PnL Preview */}
         {pnl.realizedPnlUsd != null && pnl.realizedPnlPct != null && (
           <div
-            className={`p-3 rounded-lg border flex items-center justify-between text-xs font-semibold ${
+            className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold ${
               isProfit
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                ? "bg-gain/10 border-gain/25 text-gain"
+                : "bg-loss/10 border-loss/25 text-loss"
             }`}
           >
             <span>Estimated Realized PnL:</span>
@@ -147,13 +147,13 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
         )}
 
         <div>
-          <label className="block text-xs text-zinc-400 font-medium mb-1">
+          <label className="block text-xs text-muted font-medium mb-1">
             Close Reason
           </label>
           <select
             value={closedReason}
             onChange={(e) => setClosedReason(e.target.value as "manual_close" | "tp_hit" | "sl_hit")}
-            className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-700"
+            className="input-base w-full"
           >
             <option value="manual_close">Manual Close</option>
             <option value="tp_hit">Take Profit (TP Hit)</option>
@@ -162,7 +162,7 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
         </div>
 
         <div>
-          <label className="block text-xs text-zinc-400 font-medium mb-1">
+          <label className="block text-xs text-muted font-medium mb-1">
             Notes / Review
           </label>
           <textarea
@@ -170,22 +170,22 @@ export function CloseTradeModal({ alert, livePrice, open, onClose, onSuccess }: 
             placeholder="Post-trade notes or review..."
             value={closeNotes}
             onChange={(e) => setCloseNotes(e.target.value)}
-            className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+            className="input-base w-full text-xs"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="px-4 py-2 rounded-lg text-xs font-medium text-muted hover:text-text transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-zinc-950 text-xs font-semibold transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-loss hover:opacity-90 text-white text-xs font-semibold transition-all shadow-md shadow-loss/20 disabled:opacity-50"
           >
             {submitting ? "Closing..." : "Close Trade & Log"}
           </button>

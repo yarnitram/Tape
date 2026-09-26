@@ -55,12 +55,12 @@ export function SetupRevisionTimeline({
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="flex items-center gap-3 bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-800">
-          <svg className="w-5 h-5 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 bg-panel px-4 py-2.5 rounded-xl border border-line">
+          <svg className="w-5 h-5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <span className="text-xs font-mono text-slate-300">
+          <span className="text-xs font-mono text-muted">
             Loading Setup Audit Trail...
           </span>
         </div>
@@ -70,7 +70,7 @@ export function SetupRevisionTimeline({
 
   if (error) {
     return (
-      <div className="p-4 bg-red-950/40 border border-red-800/40 rounded-xl text-center text-xs text-red-300">
+      <div className="p-4 bg-loss/10 border border-loss/20 rounded-xl text-center text-xs text-loss">
         ⚠️ {error}
       </div>
     );
@@ -78,10 +78,10 @@ export function SetupRevisionTimeline({
 
   if (revisions.length === 0) {
     return (
-      <div className="p-8 text-center bg-slate-950/40 border border-slate-800/60 rounded-xl">
+      <div className="p-8 text-center bg-panel-soft/40 border border-line rounded-xl">
         <div className="text-2xl mb-2">📜</div>
-        <h4 className="text-sm font-bold text-slate-200 mb-1">No Revisions Logged Yet</h4>
-        <p className="text-xs text-slate-400 max-w-xs mx-auto">
+        <h4 className="text-sm font-bold text-text mb-1">No Revisions Logged Yet</h4>
+        <p className="text-xs text-muted max-w-xs mx-auto">
           Setup modifications (SL adjustments, breakeven moves, thesis updates) will appear here in chronological order.
         </p>
       </div>
@@ -92,14 +92,14 @@ export function SetupRevisionTimeline({
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-white">📜 Setup Revision History</span>
-          <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-bold">
+          <span className="text-sm font-bold text-text">📜 Setup Revision History</span>
+          <span className="text-xs px-2 py-0.5 rounded-md bg-panel-soft text-muted border border-line font-mono font-bold">
             {revisions.length} Events
           </span>
         </div>
       </div>
 
-      <div className="relative border-l-2 border-slate-800 ml-4 pl-6 space-y-6">
+      <div className="relative border-l-2 border-line ml-4 pl-6 space-y-6">
         {revisions.map((rev) => {
           const badge = getRevisionBadge(rev.revision_type);
           const dateStr = formatSGT(rev.created_at);
@@ -114,35 +114,35 @@ export function SetupRevisionTimeline({
               </div>
 
               {/* Event Content Card */}
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md space-y-2">
+              <div className="bg-panel border border-line p-4 rounded-xl shadow-md space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2.5 py-0.5 rounded font-mono font-bold border ${badge.badgeBorder} ${badge.badgeBg} ${badge.textColor}`}>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-md font-mono font-bold border ${badge.badgeBorder} ${badge.badgeBg} ${badge.textColor}`}>
                       {badge.label}
                     </span>
-                    <h5 className="text-sm font-bold text-white font-mono">{rev.title}</h5>
+                    <h5 className="text-sm font-bold text-text font-mono">{rev.title}</h5>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-400">{dateStr}</span>
+                  <span className="text-[11px] font-mono text-muted">{dateStr}</span>
                 </div>
 
                 {rev.description && (
-                  <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                  <p className="text-xs text-text leading-relaxed font-sans">
                     {rev.description}
                   </p>
                 )}
 
                 {/* Diff Box if old vs new values exist */}
                 {(rev.old_value || rev.new_value) && (
-                  <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-3 text-xs font-mono">
+                  <div className="pt-2 border-t border-line flex flex-wrap items-center gap-3 text-xs font-mono">
                     {rev.old_value && (
-                      <span className="text-slate-400">
-                        Before: <strong className="text-slate-300">{formatValDiff(rev.old_value)}</strong>
+                      <span className="text-muted">
+                        Before: <strong className="text-text">{formatValDiff(rev.old_value)}</strong>
                       </span>
                     )}
-                    {rev.old_value && rev.new_value && <span className="text-slate-500">➔</span>}
+                    {rev.old_value && rev.new_value && <span className="text-muted">➔</span>}
                     {rev.new_value && (
-                      <span className="text-emerald-400">
-                        Updated: <strong className="text-emerald-300">{formatValDiff(rev.new_value)}</strong>
+                      <span className="text-gain">
+                        Updated: <strong className="text-gain">{formatValDiff(rev.new_value)}</strong>
                       </span>
                     )}
                   </div>
@@ -162,50 +162,50 @@ function getRevisionBadge(type: SetupRevisionType | string) {
       return {
         icon: "🛡️",
         label: "Risk Eliminated (Breakeven)",
-        badgeBg: "bg-emerald-950/80",
-        badgeBorder: "border-emerald-800/60",
-        textColor: "text-emerald-300",
+        badgeBg: "bg-gain/15",
+        badgeBorder: "border-gain/30",
+        textColor: "text-gain",
       };
     case "SL_ADJUSTED":
       return {
         icon: "🛑",
         label: "Stop Loss Adjusted",
-        badgeBg: "bg-red-950/80",
-        badgeBorder: "border-red-800/60",
-        textColor: "text-red-300",
+        badgeBg: "bg-loss/15",
+        badgeBorder: "border-loss/30",
+        textColor: "text-loss",
       };
     case "TP_ADJUSTED":
       return {
         icon: "🏁",
         label: "Take Profit Adjusted",
-        badgeBg: "bg-cyan-950/80",
-        badgeBorder: "border-cyan-800/60",
-        textColor: "text-cyan-300",
+        badgeBg: "bg-accent/15",
+        badgeBorder: "border-accent/30",
+        textColor: "text-accent",
       };
     case "NOTE_UPDATED":
       return {
         icon: "📝",
         label: "Thesis Commentary Updated",
-        badgeBg: "bg-purple-950/80",
-        badgeBorder: "border-purple-800/60",
-        textColor: "text-purple-300",
+        badgeBg: "bg-panel-soft",
+        badgeBorder: "border-line",
+        textColor: "text-text",
       };
     case "TRIGGER_FIRED":
       return {
         icon: "🔥",
         label: "Alert Fired",
-        badgeBg: "bg-amber-950/80",
-        badgeBorder: "border-amber-800/60",
-        textColor: "text-amber-300",
+        badgeBg: "bg-amber-500/15",
+        badgeBorder: "border-amber-500/30",
+        textColor: "text-amber-400",
       };
     case "CREATED":
     default:
       return {
         icon: "🚀",
         label: "Initial Trade Plan Published",
-        badgeBg: "bg-blue-950/80",
-        badgeBorder: "border-blue-800/60",
-        textColor: "text-blue-300",
+        badgeBg: "bg-accent/15",
+        badgeBorder: "border-accent/30",
+        textColor: "text-accent",
       };
   }
 }
