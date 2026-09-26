@@ -62,6 +62,42 @@ export async function POST(request: Request) {
     const price = prices[row.symbol.toUpperCase()];
     if (price == null) continue;
 
+    // ---- Multi-TP1 & Auto-Breakeven SL Engine ----
+    if (
+      row.tp1_price != null &&
+      !row.tp1_hit &&
+      row.entry_price != null
+    ) {
+      const side = sideForTrigger(row.trigger_direction);
+      const hitTp1 =
+        side === "long" ? price >= row.tp1_price : price <= row.tp1_price;
+
+      if (hitTp1) {
+        const updateObj: Record<string, unknown> = { tp1_hit: true };
+        if (row.auto_be_on_tp1 !== false) {
+          updateObj.stop_loss = row.entry_price;
+        }
+        await supabase.from("trade_alerts").update(updateObj).eq("id", row.id);
+
+        const sym = row.symbol.replace(/_USDT$/i, "");
+        fetch(new URL("/api/alerts/fire", new URL(request.url).origin), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            cookie: request.headers.get("cookie") ?? "",
+          },
+          body: JSON.stringify({
+            type: "tp1_hit",
+            title: `${sym} TP1 Hit!`,
+            message: `Price ${price} reached TP1 (${row.tp1_price}). ${
+              row.auto_be_on_tp1 !== false ? "Stop loss automatically moved to Breakeven (EP)." : ""
+            }`,
+            link: "/trades",
+          }),
+        }).catch(() => {});
+      }
+    }
+
     for (const { level } of detectHits(row, price)) {
       const column = level === "sl" ? "sl_fired_at" : "tp_fired_at";
       const closedReason = level === "sl" ? "sl_hit" : "tp_hit";

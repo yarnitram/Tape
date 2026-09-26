@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { TelegramDestination } from "@/lib/types";
+import {
+  isAudioEnabled,
+  setAudioEnabled as saveAudioEnabled,
+  getAudioVolume,
+  setAudioVolume as saveAudioVolume,
+  playTriggerSound,
+  playTpSound,
+  playSlSound,
+} from "@/lib/audio";
 
 interface Props {
   userEmail: string;
@@ -32,6 +41,15 @@ export function SettingsForm({ userEmail, initial }: Props) {
   const [refreshInterval, setRefreshInterval] = useState(
     String(initial.refresh_interval_sec)
   );
+
+  // ---- Audio Sound FX State ----
+  const [audioEnabled, setAudioStateEnabled] = useState(true);
+  const [audioVolume, setAudioStateVolume] = useState(0.5);
+
+  useEffect(() => {
+    setAudioStateEnabled(isAudioEnabled());
+    setAudioStateVolume(getAudioVolume());
+  }, []);
 
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -437,6 +455,72 @@ export function SettingsForm({ userEmail, initial }: Props) {
                 Frequency at which the Watchlist polls MEXC futures API for live prices (3 to 3600 sec).
               </span>
             </label>
+          </div>
+        </fieldset>
+
+        {/* ---- Audio Sound FX Section ---- */}
+        <fieldset className="hairline p-5 flex flex-col gap-4 rounded-lg bg-panel/40">
+          <legend className="px-1 text-sm font-semibold flex items-center gap-2">
+            <span>🔊 Audio FX & Alerts</span>
+          </legend>
+
+          <label className="flex items-center justify-between gap-3 cursor-pointer hairline-b pb-3">
+            <span className="text-sm font-medium">Enable Sound Effects</span>
+            <input
+              type="checkbox"
+              checked={audioEnabled}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setAudioStateEnabled(next);
+                saveAudioEnabled(next);
+                if (next) playTriggerSound();
+              }}
+              className="accent-accent h-4 w-4 cursor-pointer"
+            />
+          </label>
+
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-xs text-muted">
+              Sound Volume ({(audioVolume * 100).toFixed(0)}%)
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={audioVolume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setAudioStateVolume(val);
+                  saveAudioVolume(val);
+                }}
+                className="w-full accent-accent cursor-pointer"
+              />
+            </label>
+
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <span className="text-xs text-muted">Test Sound FX:</span>
+              <button
+                type="button"
+                onClick={playTriggerSound}
+                className="px-2.5 py-1 text-xs btn-ghost cursor-pointer"
+              >
+                🔔 Trigger Chime
+              </button>
+              <button
+                type="button"
+                onClick={playTpSound}
+                className="px-2.5 py-1 text-xs btn-ghost cursor-pointer text-gain"
+              >
+                🎯 Take Profit Hit
+              </button>
+              <button
+                type="button"
+                onClick={playSlSound}
+                className="px-2.5 py-1 text-xs btn-ghost cursor-pointer text-loss"
+              >
+                🛑 Stop Loss Hit
+              </button>
+            </div>
           </div>
         </fieldset>
 

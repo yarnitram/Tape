@@ -102,6 +102,11 @@ export interface WatchlistItem {
   trigger_created_at: string | null;
   // Intended order type when the trigger fires (added by migration 006).
   order_type: OrderType | null;
+  // Multi-TP & Auto-Breakeven fields (added by migration 016).
+  tp1_price?: number | null;
+  tp2_price?: number | null;
+  tp3_price?: number | null;
+  auto_be_on_tp1?: boolean;
 }
 
 /** The order type the user intends to place (aligns with MEXC order types). */
@@ -143,6 +148,12 @@ export interface TradeAlert {
   close_notes?: string | null;
   realized_pnl_usd?: number | null;
   realized_pnl_pct?: number | null;
+  // Multi-TP & Auto-Breakeven fields (added by migration 016).
+  tp1_price?: number | null;
+  tp2_price?: number | null;
+  tp3_price?: number | null;
+  tp1_hit?: boolean;
+  auto_be_on_tp1?: boolean;
 }
 
 export interface ArchivedTradeAlert {
@@ -172,6 +183,10 @@ export interface ArchivedTradeAlert {
   realized_pnl_usd: number | null;
   realized_pnl_pct: number | null;
   archived_at: string;
+  tp1_price?: number | null;
+  tp2_price?: number | null;
+  tp3_price?: number | null;
+  auto_be_on_tp1?: boolean;
 }
 
 export interface TriggeredWatchlistItem {

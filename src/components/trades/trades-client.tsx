@@ -10,6 +10,7 @@ import { ClosedTradesTab } from "./closed-trades-tab";
 import { ArchivedTradesTab } from "./archived-trades-tab";
 import { useLivePrices, formatLastRefreshed } from "./use-live-prices";
 import { mexcChartUrl } from "@/lib/format";
+import { PositionCalculatorModal } from "@/components/calculator/position-calculator-modal";
 
 interface Props {
   initialAlerts: TradeAlert[];
@@ -275,6 +276,7 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
   const [editingIsArchived, setEditingIsArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<TradeAlert | null>(null);
   const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [calcModalOpen, setCalcModalOpen] = useState(false);
   const [closingAlert, setClosingAlert] = useState<TradeAlert | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -584,13 +586,22 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
             Manage active position alerts, view closed trade history, or archive trades.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setManualModalOpen(true)}
-          className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <span>+</span> Manual Trade
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCalcModalOpen(true)}
+            className="px-3.5 py-2 rounded-lg bg-panel hover:bg-panel-soft text-text text-xs font-semibold flex items-center gap-1.5 border border-hairline transition-colors cursor-pointer"
+          >
+            <span>🧮</span> Calculator
+          </button>
+          <button
+            type="button"
+            onClick={() => setManualModalOpen(true)}
+            className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span>+</span> Manual Trade
+          </button>
+        </div>
       </div>
 
       {/* Tabs Bar */}
@@ -1078,6 +1089,16 @@ export function TradesClient({ initialAlerts, refreshIntervalSec = 10 }: Props) 
             </div>
           </div>
         </ModalShell>
+      )}
+
+      {calcModalOpen && (
+        <PositionCalculatorModal
+          open={calcModalOpen}
+          onClose={() => setCalcModalOpen(false)}
+          onApply={() => {
+            setManualModalOpen(true);
+          }}
+        />
       )}
     </div>
   );

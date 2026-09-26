@@ -7,6 +7,9 @@ import { TradeFormModal } from "./trade-form-modal";
 import { TradeDetailModal } from "./trade-detail-modal";
 import { ExportBar } from "./export-bar";
 import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
+import { PnlCalendar } from "@/components/analytics/pnl-calendar";
+import { EquityCurveChart } from "@/components/analytics/equity-curve-chart";
+import type { TradeAlert } from "@/lib/types";
 
 interface Props {
   accounts: Account[];
@@ -141,6 +144,32 @@ export function TradeJournal({
     [trades]
   );
 
+  const closedTradeAlerts = useMemo(() => {
+    return trades
+      .filter((t) => t.status === "closed" || t.exit_price != null)
+      .map((t) => ({
+        id: t.id,
+        user_id: "",
+        symbol: t.symbol,
+        trigger_direction: (t.direction === "long" ? "below" : "above") as "above" | "below",
+        trigger_price: t.entry_price,
+        fired_price: t.entry_price,
+        entry_price: t.entry_price,
+        stop_loss: t.stop_price ?? null,
+        take_profit: null,
+        margin_usd: t.size ?? 1,
+        leverage: 1,
+        order_type: "market" as const,
+        status: "closed" as const,
+        closed_reason: "manual_close" as const,
+        exit_price: t.exit_price,
+        closed_at: t.exit_time || t.created_at,
+        realized_pnl_usd: t.pnl_dollars ?? null,
+        realized_pnl_pct: t.pnl_pct ?? null,
+        fired_at: t.entry_time || t.created_at,
+      })) as TradeAlert[];
+  }, [trades]);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -175,6 +204,11 @@ export function TradeJournal({
           riskSettings={riskSettings}
           accountName={activeAccount?.name ?? "No account"}
         />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          <PnlCalendar closedTrades={closedTradeAlerts} />
+          <EquityCurveChart closedTrades={closedTradeAlerts} />
+        </div>
       </section>
 
       <section aria-labelledby="ledger-heading">

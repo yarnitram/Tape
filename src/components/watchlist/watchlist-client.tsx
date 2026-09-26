@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { WatchlistItem, TriggeredWatchlistItem, ArchivedWatchlistItem } from "@/lib/types";
 import { cleanSymbol, fmtPx, fmtPct, fmtPlanPx } from "@/lib/format";
 import { useMexcMarketData } from "@/hooks/use-mexc-market-data";
+import { playTriggerSound } from "@/lib/audio";
 import { CoinDetailModal } from "./coin-detail-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { WatchlistToolbar } from "./watchlist-toolbar";
@@ -228,6 +229,7 @@ export function WatchlistClient({
             .catch(() => false);
 
           if (claimed) {
+            playTriggerSound();
             // 1. Move to triggered archive table
             const trigRes = await fetch("/api/triggered-watchlist", {
               method: "POST",

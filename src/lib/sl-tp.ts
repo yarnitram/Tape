@@ -28,6 +28,9 @@ export interface SlTpCandidate {
   entry_price: number | null;
   stop_loss: number | null;
   take_profit: number | null;
+  tp1_price?: number | null;
+  tp1_hit?: boolean;
+  auto_be_on_tp1?: boolean;
   /** Watchlist trigger direction; decides the side (see sideForTrigger). */
   trigger_direction: "above" | "below" | null;
   /** Set once the level has already fired — it must never fire twice. */
