@@ -32,10 +32,9 @@ export function SharesClient({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-
-  const buildShareUrl = (slug: string) => {
-    return `${baseUrl}/${username || "handle"}/${slug}`;
+  const getFullShareUrl = (slug: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/${username || "handle"}/${slug}`;
   };
 
   const showNotification = (msg: string) => {
@@ -44,7 +43,7 @@ export function SharesClient({
   };
 
   const handleCopy = (share: PublicShareLink) => {
-    const url = buildShareUrl(share.slug);
+    const url = getFullShareUrl(share.slug);
     navigator.clipboard.writeText(url);
     setCopiedId(share.id);
     setTimeout(() => setCopiedId(null), 3000);
@@ -55,7 +54,7 @@ export function SharesClient({
     const ep = share.entry_price ? fmtPlanPx(share.entry_price) : "";
     const sl = share.stop_loss ? fmtPlanPx(share.stop_loss) : "";
     const tp = share.take_profit ? fmtPlanPx(share.take_profit) : "";
-    const url = buildShareUrl(share.slug);
+    const url = getFullShareUrl(share.slug);
 
     const text = `$${sym} Trade Setup on Tape 🚀\nTitle: ${share.title}${ep ? `\nEP: ${ep}` : ""}${sl ? ` · SL: ${sl}` : ""}${tp ? ` · TP: ${tp}` : ""}\nView live setup:`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
@@ -265,7 +264,7 @@ export function SharesClient({
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
               {filtered.map((row) => {
-                const publicUrl = buildShareUrl(row.slug);
+                const publicPath = `/${username || "handle"}/${row.slug}`;
 
                 return (
                   <tr key={row.id} className="hover:bg-zinc-900/40 transition-colors">
@@ -348,7 +347,7 @@ export function SharesClient({
                             🐦
                           </button>
                           <a
-                            href={publicUrl}
+                            href={publicPath}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Preview Public Page"
