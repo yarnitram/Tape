@@ -24,6 +24,27 @@ export interface TradeSetupOverlay {
   order_type?: string | null;
 }
 
+export interface RectangleShape {
+  id: string;
+  type: "rectangle";
+  time1: number;
+  price1: number;
+  time2: number;
+  price2: number;
+  color: string;
+}
+
+export interface PathShape {
+  id: string;
+  type: "path";
+  points: Array<{ time: number; price: number }>;
+  color: string;
+}
+
+export type ChartDrawing = RectangleShape | PathShape;
+
+export type DrawingTool = "select" | "rectangle" | "path";
+
 interface Props {
   symbol: string;
   setup?: TradeSetupOverlay | null;
@@ -39,6 +60,14 @@ const INTERVALS = [
   { label: "1h", value: "1h" },
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
+];
+
+const DRAWING_COLORS = [
+  { label: "Cyan", hex: "#06b6d4" },
+  { label: "Emerald", hex: "#10b981" },
+  { label: "Rose", hex: "#f43f5e" },
+  { label: "Amber", hex: "#f59e0b" },
+  { label: "Purple", hex: "#a855f7" },
 ];
 
 export function InteractiveCandlestickChart({
@@ -60,9 +89,51 @@ export function InteractiveCandlestickChart({
   const [lastCandle, setLastCandle] = useState<CandleData | null>(null);
   const [hoverData, setHoverData] = useState<CandleData | null>(null);
 
-  const isFirstLoadRef = useRef<boolean>(true);
+  // Drawing tools state
+  const [activeTool, setActiveTool] = useState<DrawingTool>("select");
+  const [drawingColor, setDrawingColor] = useState<string>("#06b6d4");
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [rectStart, setRectStart] = useState<{ time: number; price: number } | null>(null);
+  const [pathPoints, setPathPoints] = useState<Array<{ time: number; price: number }>>([]);
+  const [mousePos, setMousePos] = useState<{ time: number; price: number } | null>(null);
+  const [, setRenderTick] = useState<number>(0);
 
+  const isFirstLoadRef = useRef<boolean>(true);
   const cleanSym = cleanSymbol(symbol);
+  const storageKey = `tape_drawings_${cleanSym}`;
+
+  // Load saved drawings from LocalStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        setDrawings(JSON.parse(saved));
+      } else {
+        setDrawings([]);
+      }
+    } catch {
+      setDrawings([]);
+    }
+  }, [storageKey]);
+
+  // Save drawings to LocalStorage
+  const saveDrawings = useCallback(
+    (newDrawings: ChartDrawing[]) => {
+      setDrawings(newDrawings);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(newDrawings));
+      } catch (err) {
+        console.error("Failed to save drawings:", err);
+      }
+    },
+    [storageKey]
+  );
+
+  const clearAllDrawings = () => {
+    saveDrawings([]);
+    setRectStart(null);
+    setPathPoints([]);
+  };
 
   // Fetch Kline candles from API proxy
   const fetchCandles = useCallback(
@@ -202,6 +273,11 @@ export function InteractiveCandlestickChart({
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    // Re-render SVG drawing overlays whenever chart pans or zooms
+    chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+      setRenderTick((t) => t + 1);
+    });
+
     // Crosshair move handler for legend tooltip
     chart.subscribeCrosshairMove((param) => {
       if (
@@ -241,6 +317,7 @@ export function InteractiveCandlestickChart({
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
         });
+        setRenderTick((t) => t + 1);
       }
     };
 
@@ -263,22 +340,11 @@ export function InteractiveCandlestickChart({
     return () => clearInterval(timer);
   }, [fetchCandles]);
 
-  // Update Trade Overlay Lines when setup or showSetup changes
-  useEffect(() => {
-    const series = candlestickSeriesRef.current;
-    if (!series) return;
-
-    // Remove old price lines if any exist
-    // Note: lightweight-charts price lines can be removed by priceLine instance
-    // To cleanly update, we re-apply setup lines
-  }, [setup, showSetup]);
-
   // Handle drawing trade overlay lines on candlestick series
   useEffect(() => {
     const series = candlestickSeriesRef.current;
     if (!series) return;
 
-    // Store active price line instances to remove on cleanup
     const lines: Array<{ remove: () => void }> = [];
 
     if (showSetup && setup) {
@@ -358,12 +424,85 @@ export function InteractiveCandlestickChart({
     };
   }, [setup, showSetup, loading]);
 
+  // Coordinate conversion helper: Pixel (x, y) -> Chart (time, price)
+  const getChartPoint = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!chartRef.current || !candlestickSeriesRef.current || !chartContainerRef.current) return null;
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const time = chartRef.current.timeScale().coordinateToTime(x);
+    const price = candlestickSeriesRef.current.coordinateToPrice(y);
+
+    if (time == null || price == null) return null;
+    return { time: Number(time), price, x, y };
+  };
+
+  // Convert chart point (time, price) -> screen pixel (x, y)
+  const toPixelCoords = (
+    time: number,
+    price: number
+  ): { x: number; y: number } | null => {
+    if (!chartRef.current || !candlestickSeriesRef.current) return null;
+    const x = chartRef.current.timeScale().timeToCoordinate(time as Time);
+    const y = candlestickSeriesRef.current.priceToCoordinate(price);
+    if (x === null || y === null) return null;
+    return { x: Number(x), y: Number(y) };
+  };
+
+  // Mouse interaction handlers for drawing tool SVG canvas
+  const handleSVGClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const pt = getChartPoint(e);
+    if (!pt) return;
+
+    if (activeTool === "rectangle") {
+      if (!rectStart) {
+        setRectStart({ time: pt.time, price: pt.price });
+      } else {
+        // Complete rectangle
+        const newRect: RectangleShape = {
+          id: `rect_${Date.now()}`,
+          type: "rectangle",
+          time1: rectStart.time,
+          price1: rectStart.price,
+          time2: pt.time,
+          price2: pt.price,
+          color: drawingColor,
+        };
+        saveDrawings([...drawings, newRect]);
+        setRectStart(null);
+      }
+    } else if (activeTool === "path") {
+      setPathPoints((prev) => [...prev, { time: pt.time, price: pt.price }]);
+    }
+  };
+
+  const handleSVGMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const pt = getChartPoint(e);
+    if (pt) {
+      setMousePos({ time: pt.time, price: pt.price });
+    }
+  };
+
+  const finishPath = () => {
+    if (pathPoints.length >= 2) {
+      const newPath: PathShape = {
+        id: `path_${Date.now()}`,
+        type: "path",
+        points: pathPoints,
+        color: drawingColor,
+      };
+      saveDrawings([...drawings, newPath]);
+    }
+    setPathPoints([]);
+  };
+
   const activeCandle = hoverData || lastCandle;
 
   return (
     <div className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
       {/* Header Controls Bar */}
-      <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
         {/* Symbol & Price Display */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -387,7 +526,7 @@ export function InteractiveCandlestickChart({
           </div>
 
           {activeCandle && (
-            <div className="hidden sm:flex items-center gap-3 font-mono text-xs text-slate-400 border-l border-slate-800 pl-3">
+            <div className="hidden lg:flex items-center gap-3 font-mono text-xs text-slate-400 border-l border-slate-800 pl-3">
               <span>
                 O: <strong className="text-slate-200">{fmtPx(activeCandle.open)}</strong>
               </span>
@@ -413,10 +552,97 @@ export function InteractiveCandlestickChart({
           )}
         </div>
 
-        {/* Timeframe Selector & Overlay Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Timeframe Selector & Drawing Tools */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Drawing Tools Selector Bar */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 gap-1">
+            <button
+              onClick={() => {
+                setActiveTool("select");
+                setRectStart(null);
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+                activeTool === "select"
+                  ? "bg-slate-800 text-white font-bold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="Select / Pan Mode"
+            >
+              <span>🖐️ Pan</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("rectangle");
+                setPathPoints([]);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+                activeTool === "rectangle"
+                  ? "bg-cyan-950 text-cyan-300 font-bold border border-cyan-800/60"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="Draw Rectangle Support/Demand Zone"
+            >
+              <span>⬛ Rectangle</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTool("path");
+                setRectStart(null);
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded transition flex items-center gap-1 ${
+                activeTool === "path"
+                  ? "bg-purple-950 text-purple-300 font-bold border border-purple-800/60"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="Draw Multi-Point Path / Wave Line"
+            >
+              <span>✏️ Path</span>
+            </button>
+          </div>
+
+          {/* Drawing Colors Swatch */}
+          {activeTool !== "select" && (
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+              {DRAWING_COLORS.map((c) => (
+                <button
+                  key={c.hex}
+                  onClick={() => setDrawingColor(c.hex)}
+                  className={`w-4 h-4 rounded-full transition-transform ${
+                    drawingColor === c.hex ? "scale-125 ring-2 ring-white" : "opacity-70 hover:opacity-100"
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.label}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Finish Path button when drafting path */}
+          {pathPoints.length >= 2 && (
+            <button
+              onClick={finishPath}
+              className="px-2.5 py-1 text-xs font-bold bg-emerald-500 text-slate-950 rounded-lg hover:bg-emerald-400 transition shadow-sm"
+            >
+              Finish Path ({pathPoints.length})
+            </button>
+          )}
+
+          {/* Clear Drawings Button */}
+          {drawings.length > 0 && (
+            <button
+              onClick={clearAllDrawings}
+              className="px-2 py-1 text-xs font-medium bg-slate-950 text-slate-400 hover:text-red-400 border border-slate-800 hover:border-red-900 rounded-lg transition"
+              title="Clear all drawing shapes for this symbol"
+            >
+              🗑️ Clear ({drawings.length})
+            </button>
+          )}
+
           {showOverlayToggle && setup && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer mr-2 bg-slate-800/60 px-2.5 py-1 rounded border border-slate-700/50 hover:bg-slate-800 transition">
+            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-800/60 px-2.5 py-1 rounded border border-slate-700/50 hover:bg-slate-800 transition">
               <input
                 type="checkbox"
                 checked={showSetup}
@@ -517,7 +743,149 @@ export function InteractiveCandlestickChart({
           </div>
         )}
 
+        {/* Lightweight-charts Canvas Container */}
         <div ref={chartContainerRef} className="w-full h-full" />
+
+        {/* SVG Drawing Overlay Layer */}
+        <div
+          onClick={handleSVGClick}
+          onMouseMove={handleSVGMouseMove}
+          onDoubleClick={finishPath}
+          className={`absolute inset-0 z-10 overflow-hidden ${
+            activeTool !== "select" ? "cursor-crosshair pointer-events-auto" : "pointer-events-none"
+          }`}
+        >
+          <svg className="w-full h-full">
+            {/* Render Saved Rectangle & Path Drawings */}
+            {drawings.map((shape) => {
+              if (shape.type === "rectangle") {
+                const p1 = toPixelCoords(shape.time1, shape.price1);
+                const p2 = toPixelCoords(shape.time2, shape.price2);
+                if (!p1 || !p2) return null;
+
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+                const width = Math.max(maxX - minX, 4);
+                const height = Math.max(maxY - minY, 4);
+
+                return (
+                  <g key={shape.id}>
+                    <rect
+                      x={minX}
+                      y={minY}
+                      width={width}
+                      height={height}
+                      fill={shape.color}
+                      fillOpacity={0.2}
+                      stroke={shape.color}
+                      strokeWidth={1.5}
+                      strokeDasharray="4 2"
+                      rx={3}
+                    />
+                  </g>
+                );
+              }
+
+              if (shape.type === "path") {
+                const rawPx = shape.points.map((pt) => toPixelCoords(pt.time, pt.price));
+                const pxPoints = rawPx.filter(
+                  (p): p is { x: number; y: number } => p !== null
+                );
+
+                if (pxPoints.length < 2) return null;
+
+                const pointsStr = pxPoints.map((p) => `${p.x},${p.y}`).join(" ");
+
+                return (
+                  <g key={shape.id}>
+                    <polyline
+                      points={pointsStr}
+                      fill="none"
+                      stroke={shape.color}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {pxPoints.map((p, idx) => (
+                      <circle
+                        key={idx}
+                        cx={p.x}
+                        cy={p.y}
+                        r={3}
+                        fill={shape.color}
+                        stroke="#0b0e14"
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </g>
+                );
+              }
+
+              return null;
+            })}
+
+            {/* Render Drafting Rectangle Preview */}
+            {activeTool === "rectangle" && rectStart && mousePos && (
+              (() => {
+                const p1 = toPixelCoords(rectStart.time, rectStart.price);
+                const p2 = toPixelCoords(mousePos.time, mousePos.price);
+                if (!p1 || !p2) return null;
+
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+
+                return (
+                  <rect
+                    x={minX}
+                    y={minY}
+                    width={Math.max(maxX - minX, 4)}
+                    height={Math.max(maxY - minY, 4)}
+                    fill={drawingColor}
+                    fillOpacity={0.25}
+                    stroke={drawingColor}
+                    strokeWidth={1.5}
+                    strokeDasharray="4 2"
+                  />
+                );
+              })()
+            )}
+
+            {/* Render Drafting Path Preview */}
+            {activeTool === "path" && pathPoints.length > 0 && (
+              (() => {
+                const rawPx = pathPoints.map((pt) => toPixelCoords(pt.time, pt.price));
+                const pxPoints = rawPx.filter(
+                  (p): p is { x: number; y: number } => p !== null
+                );
+
+                if (mousePos) {
+                  const mPx = toPixelCoords(mousePos.time, mousePos.price);
+                  if (mPx) pxPoints.push(mPx);
+                }
+
+                if (pxPoints.length < 2) return null;
+
+                const pointsStr = pxPoints.map((p) => `${p.x},${p.y}`).join(" ");
+
+                return (
+                  <polyline
+                    points={pointsStr}
+                    fill="none"
+                    stroke={drawingColor}
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                );
+              })()
+            )}
+          </svg>
+        </div>
       </div>
     </div>
   );
