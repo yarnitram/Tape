@@ -129,7 +129,7 @@ export async function POST(request: Request) {
 
   // 2) Log to trade_alerts table if token data is included
   if (symbol) {
-    let { error: tradeLogError } = await supabase.from("trade_alerts").insert({
+    const tradePayload: Record<string, unknown> = {
       user_id: user.id,
       symbol,
       trigger_price: numOrNull(b.trigger_price),
@@ -141,6 +141,8 @@ export async function POST(request: Request) {
       entry_price: numOrNull(b.entry_price),
       stop_loss: numOrNull(b.stop_loss),
       take_profit: numOrNull(b.take_profit),
+      margin_usd: numOrNull(b.margin_usd),
+      leverage: numOrNull(b.leverage),
       order_type:
         b.order_type === "limit" ||
         b.order_type === "trigger_limit" ||
@@ -156,34 +158,15 @@ export async function POST(request: Request) {
           ? String(b.watchlist_item_id).trim()
           : null,
       fired_at: new Date().toISOString(),
-    });
+    };
+
+    let { error: tradeLogError } = await supabase.from("trade_alerts").insert(tradePayload);
 
     // Fallback: If foreign key error occurred (e.g. watchlist item was deleted before insert), retry with null watchlist_item_id
     if (tradeLogError && (tradeLogError.code === "23503" || tradeLogError.message?.includes("foreign key"))) {
       const retryRes = await supabase.from("trade_alerts").insert({
-        user_id: user.id,
-        symbol,
-        trigger_price: numOrNull(b.trigger_price),
-        trigger_direction:
-          b.trigger_direction === "above" || b.trigger_direction === "below"
-            ? b.trigger_direction
-            : null,
-        fired_price: numOrNull(b.fired_price),
-        entry_price: numOrNull(b.entry_price),
-        stop_loss: numOrNull(b.stop_loss),
-        take_profit: numOrNull(b.take_profit),
-        order_type:
-          b.order_type === "limit" ||
-          b.order_type === "trigger_limit" ||
-          b.order_type === "market"
-            ? b.order_type
-            : null,
-        notes:
-          b.notes != null && String(b.notes).trim() !== ""
-            ? String(b.notes).trim()
-            : null,
+        ...tradePayload,
         watchlist_item_id: null,
-        fired_at: new Date().toISOString(),
       });
       tradeLogError = retryRes.error;
     }
