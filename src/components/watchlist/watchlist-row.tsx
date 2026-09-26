@@ -27,8 +27,6 @@ export interface WatchlistRowProps {
   onModify: () => void;
   /** Open the remove-confirmation for this row. */
   onRemove: () => void;
-  /** Open the share modal for this row. */
-  onShare?: () => void;
 }
 
 // ---- JSX render helpers (return ReactNode — kept local to this component) ----
@@ -75,7 +73,6 @@ export function WatchlistRow({
   cols,
   onModify,
   onRemove,
-  onShare,
 }: WatchlistRowProps) {
   const sym = item.symbol.toUpperCase();
   const label = cleanSymbol(sym);
@@ -240,16 +237,6 @@ export function WatchlistRow({
           </svg>
           <span>Chart</span>
         </a>
-        {onShare && (
-          <button
-            type="button"
-            onClick={onShare}
-            className="text-accent hover:underline text-xs mr-3 cursor-pointer"
-            title="Share setup link"
-          >
-            Share
-          </button>
-        )}
         <button
           type="button"
           onClick={onModify}

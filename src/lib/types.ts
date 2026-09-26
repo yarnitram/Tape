@@ -74,6 +74,7 @@ export interface TelegramDestination {
 
 export interface UserSettings {
   user_id: string;
+  username?: string | null;
   discord_webhook_url?: string | null;
   discord_webhooks: string[];
   notify_discord: boolean;
@@ -81,6 +82,27 @@ export interface UserSettings {
   notify_telegram: boolean;
   notify_desktop: boolean;
   refresh_interval_sec: number;
+}
+
+export interface PublicShareLink {
+  id: string;
+  user_id: string;
+  title: string;
+  slug: string;
+  share_type: "watchlist" | "trade";
+  symbol: string;
+  watchlist_item_id?: string | null;
+  trade_alert_id?: string | null;
+  entry_price?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  trigger_direction?: "above" | "below" | null;
+  notes?: string | null;
+  is_active: boolean;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+  username?: string | null;
 }
 
 export interface WatchlistItem {

@@ -58,7 +58,8 @@ export function fmtPx(p: number): string {
  * trailing zeros after the decimal point trimmed.
  * e.g. 0.5000000 → "0.5"
  */
-export function fmtPlanPx(p: number): string {
+export function fmtPlanPx(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return "—";
   const s = p.toLocaleString("en-US", { maximumFractionDigits: 7 });
   return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
 }

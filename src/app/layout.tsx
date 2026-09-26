@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "A single-user trading journal to log trades, review analytics, track risk, and export history.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"

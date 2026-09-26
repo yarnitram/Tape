@@ -11,7 +11,6 @@ import { WatchlistToolbar } from "./watchlist-toolbar";
 import { WatchlistTable } from "./watchlist-table";
 import { WatchlistTriggeredTab } from "./watchlist-triggered-tab";
 import { WatchlistArchiveTab } from "./watchlist-archive-tab";
-import { ShareModal } from "@/components/share/share-modal";
 import type { ColKey, SortConfig, Ticker } from "./watchlist-types";
 import {
   DEFAULT_COLS,
@@ -78,7 +77,6 @@ export function WatchlistClient({
     item: WatchlistItem | null;
   } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  const [sharingItem, setSharingItem] = useState<WatchlistItem | null>(null);
 
   // ---- Pagination ----
   const [page, setPage] = useState(0);
@@ -648,7 +646,6 @@ export function WatchlistClient({
                 setDetails({ symbol: item.symbol.toUpperCase(), item })
               }
               onRemove={(id) => setConfirmRemove(id)}
-              onShare={(item) => setSharingItem(item)}
               hasPaging={hasPaging}
               safePage={safePage}
               pageCount={pageCount}
@@ -716,30 +713,6 @@ export function WatchlistClient({
             </ModalShell>
           );
         })()}
-
-      {sharingItem && (
-        <ShareModal
-          open={Boolean(sharingItem)}
-          onClose={() => setSharingItem(null)}
-          item={{
-            id: sharingItem.id,
-            symbol: sharingItem.symbol,
-            type: "watchlist",
-            is_public: sharingItem.is_public,
-            share_token: sharingItem.share_token,
-            entry_price: sharingItem.entry_price,
-            stop_loss: sharingItem.stop_loss,
-            take_profit: sharingItem.take_profit,
-          }}
-          onUpdate={({ is_public, share_token }) => {
-            setItems((prev) =>
-              prev.map((i) =>
-                i.id === sharingItem.id ? { ...i, is_public, share_token } : i
-              )
-            );
-          }}
-        />
-      )}
     </div>
   );
 }

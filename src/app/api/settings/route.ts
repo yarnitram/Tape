@@ -31,6 +31,7 @@ export async function GET() {
   return NextResponse.json({
     settings: {
       user_id: user.id,
+      username: data?.username ?? null,
       discord_webhook_url: data?.discord_webhook_url ?? null,
       discord_webhooks: discordWebhooks,
       notify_discord: data?.notify_discord ?? true,
@@ -57,6 +58,44 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const b = body as Record<string, unknown>;
+
+  // Process username handle
+  let username: string | null = null;
+  if (typeof b.username === "string" && b.username.trim().length > 0) {
+    username = b.username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (username.length < 3 || username.length > 20) {
+      return NextResponse.json(
+        { error: "Username must be between 3 and 20 characters (alphanumeric, underscores, hyphens)." },
+        { status: 400 }
+      );
+    }
+    // Check reserved names
+    const reserved = [
+      "watchlist", "trades", "journal", "settings", "analytics", "risk",
+      "notifications", "shares", "login", "auth", "api", "public", "share"
+    ];
+    if (reserved.includes(username)) {
+      return NextResponse.json(
+        { error: `The username "${username}" is reserved. Please choose another.` },
+        { status: 400 }
+      );
+    }
+
+    // Check availability
+    const { data: existing } = await supabase
+      .from("user_settings")
+      .select("user_id")
+      .eq("username", username)
+      .neq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: `Username "${username}" is already taken by another trader.` },
+        { status: 400 }
+      );
+    }
+  }
 
   // Process discord_webhooks array
   const rawWebhooks = Array.isArray(b.discord_webhooks)
@@ -93,6 +132,7 @@ export async function PUT(request: Request) {
   const { error } = await supabase.from("user_settings").upsert(
     {
       user_id: user.id,
+      username: username,
       discord_webhook_url: rawWebhooks[0] || null,
       discord_webhooks: rawWebhooks,
       notify_discord: b.notify_discord !== false,

@@ -23,6 +23,7 @@ export default async function SettingsPage() {
     .maybeSingle();
 
   const d = (data as {
+    username?: string | null;
     discord_webhook_url?: string | null;
     discord_webhooks?: string[] | null;
     notify_discord?: boolean;
@@ -54,6 +55,7 @@ export default async function SettingsPage() {
       <SettingsForm
         userEmail={user.email ?? ""}
         initial={{
+          username: d?.username ?? "",
           discord_webhooks: discordWebhooks,
           notify_discord: d?.notify_discord ?? true,
           telegram_destinations: telegramDestinations,

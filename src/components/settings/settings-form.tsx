@@ -15,6 +15,7 @@ import {
 interface Props {
   userEmail: string;
   initial: {
+    username?: string;
     discord_webhooks: string[];
     notify_discord: boolean;
     telegram_destinations: TelegramDestination[];
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function SettingsForm({ userEmail, initial }: Props) {
+  const [username, setUsername] = useState(initial.username || "");
   const [discordWebhooks, setDiscordWebhooks] = useState<string[]>(
     initial.discord_webhooks.length > 0 ? initial.discord_webhooks : [""]
   );
@@ -204,6 +206,7 @@ export function SettingsForm({ userEmail, initial }: Props) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          username: username.trim() || null,
           discord_webhooks: filteredWebhooks,
           notify_discord: notifyDiscord,
           telegram_destinations: filteredTelegram,
@@ -235,6 +238,35 @@ export function SettingsForm({ userEmail, initial }: Props) {
       </div>
 
       <form onSubmit={handleSave} className="flex flex-col gap-6">
+        {/* ---- Public Trader Profile & Handle ---- */}
+        <fieldset className="hairline p-5 flex flex-col gap-4 rounded-lg bg-panel/40">
+          <legend className="px-1 text-sm font-semibold flex items-center gap-2">
+            <span>👤 Public Trader Profile & Handle</span>
+          </legend>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-text flex flex-col gap-1">
+              Username / Handle
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted font-mono select-none">/</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  placeholder="e.g. matt or crypto_trader"
+                  className={`${inputCls} font-mono`}
+                  maxLength={20}
+                />
+              </div>
+            </label>
+            <span className="text-[11px] text-muted">
+              Used as your vanity brand for shareable setup URLs:{" "}
+              <span className="font-mono text-accent">
+                {typeof window !== "undefined" ? window.location.origin : ""}/{username || "your-handle"}/[slug]
+              </span>
+            </span>
+          </div>
+        </fieldset>
+
         {/* ---- Discord Webhooks Section ---- */}
         <fieldset className="hairline p-5 flex flex-col gap-4 rounded-lg bg-panel/40">
           <legend className="px-1 text-sm font-semibold flex items-center gap-2">
