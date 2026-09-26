@@ -239,38 +239,8 @@ export function WatchlistClient({
 
           if (claimed) {
             playTriggerSound();
-            // 1. Move to triggered archive table
-            const trigRes = await fetch("/api/triggered-watchlist", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                source_item_id: item.id,
-                symbol: sym,
-                trigger_price: triggerPrice,
-                trigger_direction: item.trigger_direction,
-                fired_price: lastPrice,
-                entry_price: item.entry_price,
-                stop_loss: item.stop_loss,
-                take_profit: item.take_profit,
-                order_type: item.order_type,
-                notes: item.notes,
-                fired_at: nowIso,
-              }),
-            });
 
-            if (trigRes.ok) {
-              const { item: trigItem } = await trigRes.json();
-              setTriggeredItems((prev) => [
-                trigItem,
-                ...prev.filter((x) => x.id !== trigItem.id),
-              ]);
-            }
-
-            // 2. Remove from active watchlist
-            await fetch(`/api/watchlist/${item.id}`, { method: "DELETE" });
-            setItems((prev) => prev.filter((x) => x.id !== item.id));
-
-            // 3. Handle Order Type branching
+            // 1. Send notification + log trade alert for /trades page FIRST while watchlist item still exists
             if (item.order_type === "trigger_limit") {
               // Trigger Limit: spawn new watchlist item with trigger = EP, order_type = Limit
               if (item.entry_price != null) {
@@ -327,6 +297,37 @@ export function WatchlistClient({
                 }),
               }).catch(() => {});
             }
+
+            // 2. Move to triggered archive table
+            const trigRes = await fetch("/api/triggered-watchlist", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                source_item_id: item.id,
+                symbol: sym,
+                trigger_price: triggerPrice,
+                trigger_direction: item.trigger_direction,
+                fired_price: lastPrice,
+                entry_price: item.entry_price,
+                stop_loss: item.stop_loss,
+                take_profit: item.take_profit,
+                order_type: item.order_type,
+                notes: item.notes,
+                fired_at: nowIso,
+              }),
+            });
+
+            if (trigRes.ok) {
+              const { item: trigItem } = await trigRes.json();
+              setTriggeredItems((prev) => [
+                trigItem,
+                ...prev.filter((x) => x.id !== trigItem.id),
+              ]);
+            }
+
+            // 3. Remove from active watchlist after trade log and triggered archive have completed
+            await fetch(`/api/watchlist/${item.id}`, { method: "DELETE" });
+            setItems((prev) => prev.filter((x) => x.id !== item.id));
           }
         } catch {
           // ignore per-item failures
