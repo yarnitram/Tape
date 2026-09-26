@@ -311,6 +311,30 @@ export interface Notification {
   created_at: string;
 }
 
+/** Setup Revision History Audit Log types. */
+export type SetupRevisionType =
+  | "CREATED"
+  | "SL_ADJUSTED"
+  | "SL_BREAKEVEN"
+  | "TP_ADJUSTED"
+  | "NOTE_UPDATED"
+  | "TRIGGER_FIRED"
+  | "STATUS_CHANGED";
+
+export interface SetupRevision {
+  id: string;
+  user_id: string;
+  item_type: "watchlist" | "trade" | "share";
+  item_id: string;
+  symbol: string;
+  revision_type: SetupRevisionType;
+  title: string;
+  description: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  created_at: string;
+}
+
 /** Shape used when creating/updating a trade from the form. */
 export interface TradeInput {
   account_id: string;

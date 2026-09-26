@@ -78,11 +78,68 @@ export async function PATCH(request: Request, { params }: Ctx) {
         : new Date().toISOString();
   }
 
+  // Fetch existing item to compare diffs for audit log
+  const { data: oldItem } = await supabase
+    .from("watchlist_items")
+    .select("*")
+    .eq("id", id)
+    .single();
+
   let query = supabase.from("watchlist_items").update(updates).eq("id", id);
   if (firing) query = query.eq("alert_fired", false);
 
   const { data, error } = await query.select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Log setup revision audit trail
+  if (oldItem) {
+    const symbol = oldItem.symbol;
+    const oldSL = oldItem.stop_loss;
+    const newSL = updates.stop_loss !== undefined ? (updates.stop_loss as number | null) : oldSL;
+    const oldTP = oldItem.take_profit;
+    const newTP = updates.take_profit !== undefined ? (updates.take_profit as number | null) : oldTP;
+    const ep = updates.entry_price !== undefined ? (updates.entry_price as number | null) : oldItem.entry_price;
+
+    let revType: string | null = null;
+    let revTitle = "";
+    let revDesc = "";
+
+    if (firing) {
+      revType = "TRIGGER_FIRED";
+      revTitle = `Price Alert Level Hit & Fired`;
+      revDesc = `Trigger price level $${oldItem.trigger_price} reached on MEXC.`;
+    } else if (newSL != null && ep != null && newSL >= ep && (oldSL == null || oldSL < ep)) {
+      revType = "SL_BREAKEVEN";
+      revTitle = `Stop Loss Moved to Breakeven`;
+      revDesc = `Risk eliminated! SL moved from ${oldSL != null ? `$${oldSL}` : "unset"} to entry price $${newSL}.`;
+    } else if (newSL !== oldSL) {
+      revType = "SL_ADJUSTED";
+      revTitle = `Stop Loss Level Updated`;
+      revDesc = `Stop Loss adjusted from ${oldSL != null ? `$${oldSL}` : "unset"} to $${newSL}.`;
+    } else if (newTP !== oldTP) {
+      revType = "TP_ADJUSTED";
+      revTitle = `Take Profit Target Updated`;
+      revDesc = `Take Profit adjusted from ${oldTP != null ? `$${oldTP}` : "unset"} to $${newTP}.`;
+    } else if (b.notes !== undefined && b.notes !== oldItem.notes) {
+      revType = "NOTE_UPDATED";
+      revTitle = `Pre-Trade Thesis Updated`;
+      revDesc = `Thesis commentary updated.`;
+    }
+
+    if (revType) {
+      await supabase.from("setup_revisions").insert({
+        user_id: user.id,
+        item_type: "watchlist",
+        item_id: id,
+        symbol: symbol,
+        revision_type: revType,
+        title: revTitle,
+        description: revDesc,
+        old_value: { stop_loss: oldSL, take_profit: oldTP, notes: oldItem.notes },
+        new_value: { stop_loss: newSL, take_profit: newTP, notes: b.notes },
+      });
+    }
+  }
 
   return NextResponse.json({ ok: true, claimed: !firing || (data?.length ?? 0) > 0 });
 }

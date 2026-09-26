@@ -5,6 +5,8 @@ import { mexcChartUrl, cleanSymbol } from "@/lib/format";
 import type { PublicShareItem } from "@/lib/types";
 import { SocialCardModal } from "./social-card-modal";
 import { ChartModal } from "@/components/charts/chart-modal";
+import { SetupRevisionTimeline } from "@/components/revisions/setup-revision-timeline";
+import { ModalShell } from "@/components/ui/modal-shell";
 
 interface Props {
   username: string;
@@ -25,18 +27,29 @@ export function PublicCardActions({
 }: Props) {
   const [socialModalOpen, setSocialModalOpen] = useState(false);
   const [chartModalOpen, setChartModalOpen] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   const sym = cleanSymbol(item.symbol);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/60 w-full">
-      <button
-        type="button"
-        onClick={() => setSocialModalOpen(true)}
-        className="px-3 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-      >
-        <span>📸 Export PNG Card</span>
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSocialModalOpen(true)}
+          className="px-3 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>📸 Export PNG Card</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setHistoryModalOpen(true)}
+          className="px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>📜 Audit Log</span>
+        </button>
+      </div>
 
       <div className="flex items-center gap-2">
         <button
@@ -93,6 +106,16 @@ export function PublicCardActions({
             order_type: item.order_type,
           }}
         />
+      )}
+
+      {historyModalOpen && (
+        <ModalShell
+          title={`📜 ${sym} Setup Audit Log`}
+          onClose={() => setHistoryModalOpen(false)}
+          maxWidth="max-w-xl"
+        >
+          <SetupRevisionTimeline symbol={item.symbol} />
+        </ModalShell>
       )}
     </div>
   );

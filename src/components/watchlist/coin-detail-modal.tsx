@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { WatchlistItem, OrderType } from "@/lib/types";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { SetupRevisionTimeline } from "@/components/revisions/setup-revision-timeline";
 
 interface Props {
   symbol: string;
@@ -71,6 +72,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"plan" | "history">("plan");
 
   useEffect(() => {
     let cancelled = false;
@@ -278,8 +280,39 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
             )}
           </div>
 
-          {/* Trade alert / plan */}
-          <form onSubmit={handleSave} className="flex flex-col gap-4">
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-line gap-6 text-xs font-semibold pt-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("plan")}
+              className={`pb-2 border-b-2 transition-colors cursor-pointer ${
+                activeTab === "plan"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted hover:text-fg"
+              }`}
+            >
+              Plan & Alert
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className={`pb-2 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "history"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted hover:text-fg"
+              }`}
+            >
+              <span>📜 Setup Audit History</span>
+            </button>
+          </div>
+
+          {activeTab === "history" ? (
+            <div className="pt-2">
+              <SetupRevisionTimeline itemId={item?.id} symbol={symbol} />
+            </div>
+          ) : (
+            /* Trade alert / plan */
+            <form onSubmit={handleSave} className="flex flex-col gap-4">
             <div>
               <div className="text-xs text-muted uppercase tracking-wide mb-3">
                 Price alert
@@ -391,6 +424,7 @@ export function CoinDetailModal({ symbol, item, onClose, onSaved }: Props) {
               </button>
             </div>
           </form>
+          )}
         </div>
       )}
     </ModalShell>
