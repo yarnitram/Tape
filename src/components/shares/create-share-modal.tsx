@@ -42,8 +42,11 @@ export function CreateShareModal({
 
   if (!open) return null;
 
-  // Filter Watchlist items to ONLY ONGOING (untriggered, alert_fired !== true)
-  const ongoingWatchlistItems = watchlistItems.filter((w) => !w.alert_fired);
+  // Filter Watchlist items to ONLY ONGOING (untriggered, alert_fired !== true) AND HAVE A TRIGGER PRICE
+  const ongoingWatchlistItems = watchlistItems.filter((w) => {
+    const hasTriggerPrice = w.trigger_price != null || w.alert_price != null;
+    return !w.alert_fired && hasTriggerPrice;
+  });
 
   const handleShareTypeChange = (type: "watchlist" | "trade") => {
     setShareType(type);
@@ -313,7 +316,9 @@ export function CreateShareModal({
             {shareType === "watchlist" ? (
               ongoingWatchlistItems.length === 0 ? (
                 <span className="text-[11px] text-muted p-2 text-center">
-                  No active ongoing (untriggered) watchlist coins available. Add coins to your Watchlist first!
+                  {watchlistItems.length > 0
+                    ? "No ongoing watchlist tokens with a Trigger Price set. Please set a Trigger Price on your watchlist items to include them!"
+                    : "No active ongoing watchlist coins available. Add coins to your Watchlist first!"}
                 </span>
               ) : (
                 ongoingWatchlistItems.map((w) => {

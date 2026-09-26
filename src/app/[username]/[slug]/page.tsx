@@ -241,40 +241,60 @@ export default async function PublicSharePage({ params }: PageProps) {
               const trigPrice = item.trigger_price;
               const trigDir = (item.trigger_direction || "above").toLowerCase();
 
-              // Calculate Distance to Trigger (% away)
+              // Calculate Distance to Trigger (% away) and check if alert triggered
               let distText: string | null = null;
               let distPctVal: number | null = null;
+              let isTriggered = false;
+
               if (lastPrice != null && trigPrice != null && trigPrice > 0) {
                 if (trigDir === "above") {
                   distPctVal = ((trigPrice - lastPrice) / lastPrice) * 100;
-                  distText =
-                    distPctVal <= 0
-                      ? "Trigger reached! 🔥"
-                      : `${distPctVal.toFixed(2)}% above current price`;
+                  if (lastPrice >= trigPrice || distPctVal <= 0) {
+                    isTriggered = true;
+                    distText = "Target Level Hit! 🔥";
+                  } else {
+                    distText = `${distPctVal.toFixed(2)}% above current price`;
+                  }
                 } else {
                   distPctVal = ((lastPrice - trigPrice) / lastPrice) * 100;
-                  distText =
-                    distPctVal <= 0
-                      ? "Trigger reached! 🔥"
-                      : `${distPctVal.toFixed(2)}% below current price`;
+                  if (lastPrice <= trigPrice || distPctVal <= 0) {
+                    isTriggered = true;
+                    distText = "Target Level Hit! 🔥";
+                  } else {
+                    distText = `${distPctVal.toFixed(2)}% below current price`;
+                  }
                 }
               }
 
               return (
                 <div
                   key={item.id}
-                  className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4"
+                  className={`relative overflow-hidden rounded-2xl border ${
+                    isTriggered
+                      ? "border-amber-400/50 bg-gradient-to-b from-amber-500/15 via-zinc-900/90 to-zinc-900/70"
+                      : "border-zinc-800 bg-zinc-900/70"
+                  } p-5 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col gap-4`}
                 >
-                  <div className="absolute -right-16 -top-16 w-44 h-44 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+                  <div
+                    className={`absolute -right-16 -top-16 w-44 h-44 rounded-full blur-2xl pointer-events-none ${
+                      isTriggered ? "bg-amber-400/25" : "bg-amber-500/5"
+                    }`}
+                  />
 
                   {/* Watchlist Header Row */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xl font-bold text-zinc-100">{sym}</span>
                       <span className="text-xs font-mono text-zinc-500">USDT</span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-amber-400 font-mono uppercase">
-                        Radar Ongoing
-                      </span>
+                      {isTriggered ? (
+                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-amber-400/40 bg-amber-500/20 text-amber-300 font-mono uppercase tracking-wider animate-pulse flex items-center gap-1">
+                          <span>🔥</span> ALERT FIRED & TRIGGERED
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/10 text-amber-400 font-mono uppercase">
+                          Radar Ongoing
+                        </span>
+                      )}
                     </div>
 
                     {lastPrice != null && (
@@ -297,10 +317,20 @@ export default async function PublicSharePage({ params }: PageProps) {
                   </div>
 
                   {/* Trigger Radar Level Box */}
-                  <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div
+                    className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                      isTriggered
+                        ? "border-amber-400/50 bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-amber-500/20 text-amber-200"
+                        : "border-amber-500/20 bg-amber-500/5"
+                    }`}
+                  >
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
-                        Alert Trigger Level
+                      <span
+                        className={`text-[10px] uppercase font-bold tracking-wider ${
+                          isTriggered ? "text-amber-300 flex items-center gap-1" : "text-amber-400"
+                        }`}
+                      >
+                        {isTriggered ? "🎯 TARGET LEVEL HIT & FIRED" : "Alert Trigger Level"}
                       </span>
                       <span className="text-sm font-mono font-bold text-zinc-100">
                         Alert when price goes{" "}
@@ -313,9 +343,15 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                     {distText && (
                       <div className="flex flex-col items-start sm:items-end">
-                        <span className="text-[10px] uppercase font-medium text-zinc-400">Distance to Alert</span>
-                        <span className="text-xs font-mono font-bold text-amber-300">
-                          {distText}
+                        <span className="text-[10px] uppercase font-medium text-zinc-400">
+                          {isTriggered ? "Accuracy Status" : "Distance to Alert"}
+                        </span>
+                        <span
+                          className={`text-xs font-mono font-bold ${
+                            isTriggered ? "text-amber-300 font-extrabold" : "text-amber-300"
+                          }`}
+                        >
+                          {isTriggered ? "🔥 ALERT FIRED!" : distText}
                         </span>
                       </div>
                     )}
