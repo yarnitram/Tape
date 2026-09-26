@@ -12,6 +12,7 @@ import {
   playSlSound,
 } from "@/lib/audio";
 import { playAlarmSound, AlarmSoundPreset } from "@/lib/audio-alarm-engine";
+import { TipModal } from "@/components/ui/tip-modal";
 
 interface Props {
   userEmail: string;
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function SettingsForm({ userEmail, initial }: Props) {
+  const [tipModalOpen, setTipModalOpen] = useState(false);
   const [username, setUsername] = useState(initial.username || "");
   const [displayName, setDisplayName] = useState(initial.display_name || "");
   const [bio, setBio] = useState(initial.bio || "");
@@ -1091,6 +1093,29 @@ export function SettingsForm({ userEmail, initial }: Props) {
           </div>
         </fieldset>
 
+        {/* Support Server Hosting & Tip Jar Card */}
+        <fieldset className="border border-line rounded-lg p-4 sm:p-5 flex flex-col gap-3 bg-panel-soft/30">
+          <legend className="px-1 text-xs uppercase tracking-wider font-semibold text-text font-mono flex items-center gap-1.5">
+            <span>💖</span>
+            <span>Support MOCHEX Server Hosting</span>
+          </legend>
+
+          <p className="text-xs text-muted leading-relaxed">
+            MOCHEX is 100% free and open for the trading community. If this terminal helps your execution and you would like to help cover server hosting and live market data costs, tips via Solana, Base/EVM, Bitcoin, or zero-cost exchange discounts are warmly appreciated.
+          </p>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setTipModalOpen(true)}
+              className="accent-btn px-4 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              <span>☕</span>
+              <span>Open Crypto Tip Jar & Hosting Support</span>
+            </button>
+          </div>
+        </fieldset>
+
         {error && <div className="text-sm text-rose-400 font-mono">{error}</div>}
         {status && <div className="text-sm text-emerald-400 font-mono">{status}</div>}
 
@@ -1102,6 +1127,9 @@ export function SettingsForm({ userEmail, initial }: Props) {
           {saving ? "Saving settings…" : "Save Settings"}
         </button>
       </form>
+
+      {/* Crypto Tip Jar & Server Hosting Support Modal */}
+      <TipModal isOpen={tipModalOpen} onClose={() => setTipModalOpen(false)} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { TipModal } from "@/components/ui/tip-modal";
 
 interface Props {
   user: { email: string } | null;
@@ -10,6 +11,7 @@ interface Props {
 
 export function LandingNav({ user }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-paper/85 backdrop-blur-md hairline-b transition-colors">
@@ -71,6 +73,17 @@ export function LandingNav({ user }: Props) {
         {/* Right Action Buttons */}
         <div className="flex items-center gap-2.5">
           <ThemeToggle />
+
+          {/* Tip / Support Server Hosting */}
+          <button
+            type="button"
+            onClick={() => setTipModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg text-muted hover:text-accent hover:bg-panel-soft transition-colors cursor-pointer border border-line"
+            title="Support Server Hosting"
+          >
+            <span>☕</span>
+            <span className="hidden sm:inline">Tip</span>
+          </button>
 
           {user ? (
             <div className="flex items-center gap-2">
@@ -179,6 +192,17 @@ export function LandingNav({ user }: Props) {
             >
               ❓ FAQ
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setTipModalOpen(true);
+              }}
+              className="px-2 py-1.5 rounded-lg hover:bg-panel-soft hover:text-text transition-colors flex items-center gap-2 text-left cursor-pointer"
+            >
+              <span>☕</span>
+              <span>Support Hosting (Tip Jar)</span>
+            </button>
           </div>
 
           <div className="pt-2 hairline-t flex flex-col gap-2">
@@ -211,6 +235,9 @@ export function LandingNav({ user }: Props) {
           </div>
         </div>
       )}
+
+      {/* Crypto Tip Jar & Hosting Support Modal */}
+      <TipModal isOpen={tipModalOpen} onClose={() => setTipModalOpen(false)} />
     </header>
   );
 }

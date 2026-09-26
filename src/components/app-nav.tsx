@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { TipModal } from "@/components/ui/tip-modal";
 
 const LINKS = [
   { href: "/watchlist", label: "Watchlist", icon: "🪙" },
@@ -18,6 +19,7 @@ export function AppNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -107,6 +109,17 @@ export function AppNav() {
 
           <ThemeToggle />
 
+          {/* Tip / Support Server Hosting */}
+          <button
+            type="button"
+            onClick={() => setTipModalOpen(true)}
+            title="Support Server Hosting (Tip Jar)"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg text-muted hover:text-accent hover:bg-panel-soft transition-colors cursor-pointer border border-line"
+          >
+            <span>☕</span>
+            <span className="hidden lg:inline">Tip</span>
+          </button>
+
           {/* Desktop Sign Out */}
           <button
             type="button"
@@ -176,6 +189,18 @@ export function AppNav() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setTipModalOpen(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-text hover:bg-panel-soft bg-panel-soft/40 border border-line transition-colors cursor-pointer text-left"
+              >
+                <span>☕</span>
+                <span>Support MOCHEX Hosting</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-loss hover:bg-loss/15 bg-loss/5 border border-loss/20 transition-colors cursor-pointer text-left"
               >
@@ -193,6 +218,9 @@ export function AppNav() {
           />
         </div>
       )}
+
+      {/* Crypto Tip Jar & Server Support Modal */}
+      <TipModal isOpen={tipModalOpen} onClose={() => setTipModalOpen(false)} />
     </header>
   );
 }

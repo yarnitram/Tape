@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { TipModal } from "@/components/ui/tip-modal";
 
 export function LandingFooter() {
+  const [tipModalOpen, setTipModalOpen] = useState(false);
   return (
     <footer className="hairline-t bg-panel-soft/60 pt-16 pb-12 text-xs text-muted">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -105,6 +108,16 @@ export function LandingFooter() {
                 </Link>
               </li>
               <li>
+                <button
+                  type="button"
+                  onClick={() => setTipModalOpen(true)}
+                  className="hover:text-text transition-colors text-left flex items-center gap-1.5 cursor-pointer text-accent"
+                >
+                  <span>☕</span>
+                  <span>Support Hosting (Tip Jar)</span>
+                </button>
+              </li>
+              <li>
                 <a href="#faq" className="hover:text-text transition-colors">
                   ❓ FAQ & Support
                 </a>
@@ -127,6 +140,9 @@ export function LandingFooter() {
           </div>
         </div>
       </div>
+
+      {/* Tip Jar Modal */}
+      <TipModal isOpen={tipModalOpen} onClose={() => setTipModalOpen(false)} />
     </footer>
   );
 }
