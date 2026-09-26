@@ -58,7 +58,7 @@ export function SharesClient({
     const tp = share.take_profit ? fmtPlanPx(share.take_profit) : "";
     const url = getFullShareUrl(share.slug);
 
-    const text = `$${sym} Trade Setup on Tape 🚀\nTitle: ${share.title}${ep ? `\nEP: ${ep}` : ""}${sl ? ` · SL: ${sl}` : ""}${tp ? ` · TP: ${tp}` : ""}\nView live setup:`;
+    const text = `$${sym} Trade Setup on MOCHEX 🚀\nTitle: ${share.title}${ep ? `\nEP: ${ep}` : ""}${sl ? ` · SL: ${sl}` : ""}${tp ? ` · TP: ${tp}` : ""}\nView live setup:`;
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
     window.open(twitterUrl, "_blank", "noopener,noreferrer");
   };

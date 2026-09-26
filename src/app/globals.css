@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Tape — Personal Trading Journal
+   MOCHEX — Crypto Trading Setup Journal
    Design tokens — indigo/violet aesthetic, light + dark modes.
    All colors are CSS variables; Tailwind utilities map to them
    via @theme inline. Mode is controlled by a `.dark` class on

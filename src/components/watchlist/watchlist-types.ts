@@ -104,10 +104,10 @@ export const ORDER_TYPE_LABELS: Record<string, string> = {
 
 // ---- localStorage helpers ----
 
-const SORT_KEY = "tape:watchlist-sort";
+const SORT_KEY = "mochex:watchlist-sort";
 /** Legacy single-toggle key; read during migration only. */
-const DETAILS_COLS_KEY = "tape:watchlist-details-cols";
-const COLS_KEY = "tape:watchlist-cols";
+const DETAILS_COLS_KEY = "mochex:watchlist-details-cols";
+const COLS_KEY = "mochex:watchlist-cols";
 
 export function loadSort(): SortConfig {
   try {

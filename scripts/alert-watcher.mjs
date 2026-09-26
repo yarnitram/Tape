@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Tape — Alert Watcher (always-on)
+ * MOCHEX — Alert Watcher (always-on)
  * =================================
  * Polls the MEXC futures API, checks every saved watchlist coin against its
  * price trigger, and notifies the user (Discord + desktop) when a trigger
@@ -72,7 +72,7 @@ function fireDiscord(webhook, content) {
   return fetch(webhook, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "Tape", content }),
+    body: JSON.stringify({ username: "MOCHEX", content }),
   });
 }
 
@@ -327,7 +327,7 @@ function hitLevels(row, price) {
 }
 
 console.log(
-  `Tape alert watcher started (poll every ${POLL_MS / 1000}s). Ctrl+C to stop.`
+  `MOCHEX alert watcher started (poll every ${POLL_MS / 1000}s). Ctrl+C to stop.`
 );
 
 async function loop() {

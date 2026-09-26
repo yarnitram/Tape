@@ -1,5 +1,5 @@
 /**
- * Risk Management & Position Sizing Calculator Utilities for Tape.
+ * Risk Management & Position Sizing Calculator Utilities for MOCHEX.
  */
 
 export interface RiskCalcParams {

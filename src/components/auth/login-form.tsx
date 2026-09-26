@@ -77,8 +77,8 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="surface rounded-xl p-8 shadow-sm">
-        <h1 className="brand text-4xl mb-1">Tape</h1>
-        <p className="text-muted mb-6">Personal trading journal</p>
+        <h1 className="brand text-4xl mb-1">MOCHEX</h1>
+        <p className="text-muted mb-6">Crypto trading setup journal</p>
 
         <div className="flex gap-0 hairline-b mb-6 w-full">
         <button

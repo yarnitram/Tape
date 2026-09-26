@@ -83,7 +83,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!data || !data.share.is_active) {
     return {
-      title: "Private Page | Tape",
+      title: "Private Page | MOCHEX",
       description: "This shared page is private or no longer available.",
     };
   }
@@ -94,8 +94,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     : `$${cleanSymbol(share.symbol)}`;
 
   const pageCategory = share.share_type === "watchlist" ? "Watchlist Radar" : "Trade Setups";
-  const title = `📡 ${symbols} ${pageCategory} | @${username} on Tape`;
-  const description = `${share.title} — Public ${share.share_type} page on Tape.`;
+  const title = `📡 ${symbols} ${pageCategory} | @${username} on MOCHEX`;
+  const description = `${share.title} — Public ${share.share_type} page on MOCHEX.`;
 
   return {
     title,
@@ -104,7 +104,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       type: "website",
-      siteName: "Tape Trading Setup Journal",
+      siteName: "MOCHEX Trading Setup Journal",
     },
     twitter: {
       card: "summary_large_image",
@@ -137,7 +137,7 @@ export default async function PublicSharePage({ params }: PageProps) {
             href="/"
             className="inline-block px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs transition-colors"
           >
-            Go to Tape Home
+            Go to MOCHEX Home
           </a>
         </div>
       </div>
@@ -203,7 +203,7 @@ export default async function PublicSharePage({ params }: PageProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
-              Tape
+              MOCHEX
             </span>
             <span className="text-zinc-600 font-mono">/</span>
             <span className="text-xs text-zinc-400 font-mono">@{username}</span>
@@ -568,7 +568,7 @@ export default async function PublicSharePage({ params }: PageProps) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-zinc-800 text-[11px] text-zinc-500">
-          <span>Powered by <span className="font-bold text-zinc-400">Tape Setup Journal</span></span>
+          <span>Powered by <span className="font-bold text-zinc-400">MOCHEX</span></span>
           <span className="font-mono">👁 {share.view_count + 1} views</span>
         </div>
       </div>

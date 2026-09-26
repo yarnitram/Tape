@@ -96,14 +96,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (!data) {
     return {
-      title: "Trader Not Found | Tape",
+      title: "Trader Not Found | MOCHEX",
       description: "This public trader profile is unavailable or private.",
     };
   }
 
   const name = data.displayName || `@${data.username}`;
-  const title = `👤 ${name} — Public Trader Setup Profile | Tape`;
-  const description = data.bio || `Explore public Watchlist Radars and Trade Setups by @${data.username} on Tape.`;
+  const title = `👤 ${name} — Public Trader Setup Profile | MOCHEX`;
+  const description = data.bio || `Explore public Watchlist Radars and Trade Setups by @${data.username} on MOCHEX.`;
 
   return {
     title,
@@ -112,7 +112,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       type: "profile",
-      siteName: "Tape Trading Setup Journal",
+      siteName: "MOCHEX Trading Setup Journal",
     },
     twitter: {
       card: "summary_large_image",

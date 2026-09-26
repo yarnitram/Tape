@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: "🎉 <b>Tape test notification</b> — your Telegram alert notifications are connected!",
+        text: "🎉 <b>MOCHEX test notification</b> — your Telegram alert notifications are connected!",
         parse_mode: "HTML",
       }),
     });

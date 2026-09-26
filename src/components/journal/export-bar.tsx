@@ -35,16 +35,16 @@ export function ExportBar({ trades, selectedIds, symbolOptions, onDeleteSelected
   }, [trades, selectedIds]);
 
   function handleExportAll() {
-    downloadXlsx(filtered, `tape-trades-${stamp()}.xlsx`);
+    downloadXlsx(filtered, `mochex-trades-${stamp()}.xlsx`);
   }
 
   function handleExportSelected() {
-    downloadXlsx(selected, `tape-selected-${stamp()}.xlsx`);
+    downloadXlsx(selected, `mochex-selected-${stamp()}.xlsx`);
   }
 
   function handleExportRange() {
     // Export "range" = the currently filtered set, same as all but scoped.
-    downloadXlsx(filtered, `tape-range-${stamp()}.xlsx`);
+    downloadXlsx(filtered, `mochex-range-${stamp()}.xlsx`);
   }
 
   async function handleConfirmDelete() {

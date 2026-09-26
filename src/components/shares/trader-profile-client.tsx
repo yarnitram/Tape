@@ -68,7 +68,7 @@ export function TraderProfileClient({
               href="/"
               className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent hover:opacity-90 transition-opacity"
             >
-              Tape
+              MOCHEX
             </Link>
             <span className="text-zinc-600 font-mono">/</span>
             <span className="text-xs text-zinc-400 font-mono">@{username}</span>
@@ -78,7 +78,7 @@ export function TraderProfileClient({
             href="/"
             className="px-3.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-xs font-semibold transition-colors"
           >
-            Tape Home 🚀
+            MOCHEX Home 🚀
           </Link>
         </div>
 
@@ -297,7 +297,7 @@ export function TraderProfileClient({
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-6 border-t border-zinc-800 text-[11px] text-zinc-500">
-          <span>Powered by <span className="font-bold text-zinc-400">Tape Setup Journal</span></span>
+          <span>Powered by <span className="font-bold text-zinc-400">MOCHEX</span></span>
           <span className="font-mono">@{username}</span>
         </div>
       </div>

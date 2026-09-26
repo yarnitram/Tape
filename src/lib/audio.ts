@@ -1,10 +1,10 @@
 /**
- * Web Audio API Sound Synthesizer Engine for Tape.
+ * Web Audio API Sound Synthesizer Engine for MOCHEX.
  * Zero external audio files required — synthesizes clean audio chimes in-browser.
  */
 
-const AUDIO_ENABLED_KEY = "tape:audio-enabled";
-const AUDIO_VOLUME_KEY = "tape:audio-volume";
+const AUDIO_ENABLED_KEY = "mochex:audio-enabled";
+const AUDIO_VOLUME_KEY = "mochex:audio-volume";
 
 export function isAudioEnabled(): boolean {
   if (typeof window === "undefined") return true;

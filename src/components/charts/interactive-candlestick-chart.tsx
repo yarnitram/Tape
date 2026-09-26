@@ -100,7 +100,7 @@ export function InteractiveCandlestickChart({
 
   const isFirstLoadRef = useRef<boolean>(true);
   const cleanSym = cleanSymbol(symbol);
-  const storageKey = `tape_drawings_${cleanSym}`;
+  const storageKey = `mochex_drawings_${cleanSym}`;
 
   // Load saved drawings from LocalStorage
   useEffect(() => {
@@ -205,7 +205,7 @@ export function InteractiveCandlestickChart({
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Create lightweight-chart instance with Tape dark aesthetic
+    // Create lightweight-chart instance with MOCHEX dark aesthetic
     const chart = createChart(chartContainerRef.current, {
       height,
       layout: {

@@ -47,8 +47,8 @@ export async function POST(request: Request) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      username: "Tape",
-      content: "🎉 **Tape test notification** — your price-alert notifications are connected!",
+      username: "MOCHEX",
+      content: "🎉 **MOCHEX test notification** — your price-alert notifications are connected!",
     }),
   });
   if (!res.ok) {

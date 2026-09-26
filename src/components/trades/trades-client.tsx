@@ -17,8 +17,8 @@ interface Props {
   refreshIntervalSec?: number;
 }
 
-const SORT_KEY = "tape:trades-sort";
-const COLS_KEY = "tape:trades-cols";
+const SORT_KEY = "mochex:trades-sort";
+const COLS_KEY = "mochex:trades-cols";
 
 type SortField =
   | "firedAt"

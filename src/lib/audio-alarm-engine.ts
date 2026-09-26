@@ -1,5 +1,5 @@
 /**
- * Web Audio Sound Synthesizer Engine for Tape Price Proximity Alarms.
+ * Web Audio Sound Synthesizer Engine for MOCHEX Price Proximity Alarms.
  * Uses pure Web Audio API (AudioContext) for zero-dependency, crystal-clear audio chimes.
  */
 

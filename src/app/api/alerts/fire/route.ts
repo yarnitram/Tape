@@ -194,7 +194,7 @@ async function sendDiscord(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: "Tape",
+        username: "MOCHEX",
         content: `🔔 **${title}**\n${message}${linkPart}`,
       }),
     });

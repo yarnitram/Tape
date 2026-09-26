@@ -31,8 +31,8 @@ export function AppNav() {
   return (
     <header className="hairline-b bg-paper/90 sticky top-0 z-20 backdrop-blur">
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 h-16 flex items-center gap-5">
-        <Link href="/watchlist" className="brand text-2xl shrink-0" aria-label="Tape home">
-          Tape
+        <Link href="/watchlist" className="brand text-2xl shrink-0" aria-label="MOCHEX home">
+          MOCHEX
         </Link>
 
         <nav aria-label="Primary navigation" className="flex items-center gap-1 h-full min-w-0 overflow-x-auto">

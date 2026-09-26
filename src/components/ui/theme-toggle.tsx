@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "tape-theme";
+const STORAGE_KEY = "mochex-theme";
 
 // The <html> element's class list is our source of truth (kept in sync
 // pre-paint by the inline script in layout.tsx). Subscribing via

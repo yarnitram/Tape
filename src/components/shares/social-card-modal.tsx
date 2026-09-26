@@ -102,7 +102,7 @@ export function SocialCardModal({
         cacheBust: true,
       });
       const link = document.createElement("a");
-      link.download = `${sym}-${shareType}-setup-${username || "tape"}.png`;
+      link.download = `${sym}-${shareType}-setup-${username || "mochex"}.png`;
       link.href = dataUrl;
       link.click();
       setDownloaded(true);
@@ -182,7 +182,7 @@ export function SocialCardModal({
             <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
-                  Tape
+                  MOCHEX
                 </span>
                 <span className="text-zinc-600 font-mono">/</span>
                 <span className="text-xs text-zinc-300 font-mono font-bold">
@@ -309,7 +309,7 @@ export function SocialCardModal({
             <div className="flex items-center justify-between pt-2 border-t border-zinc-800/60 text-[10px] text-zinc-400 font-mono">
               <span>View live setup:</span>
               <span className="font-bold text-emerald-400">
-                tape.app/{username || "handle"}/{slug}
+                mochex.io/{username || "handle"}/{slug}
               </span>
             </div>
           </div>

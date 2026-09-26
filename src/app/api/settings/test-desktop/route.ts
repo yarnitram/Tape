@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 
 /** POST /api/settings/test-desktop — fire a local desktop notification toast. */
 export async function POST() {
-  const title = "Tape";
+  const title = "MOCHEX";
   const body = "Desktop notifications are working! 🎉";
 
   const ps = [

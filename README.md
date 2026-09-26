@@ -1,6 +1,6 @@
-# Tape — Personal Trading Journal & Futures Watchlist
+# MOCHEX — Crypto Trading Setup Journal & Futures Watchlist
 
-Tape is a high-performance personal trading journal and real-time futures watchlist app built with **Next.js 15**, **Supabase**, and **Tailwind CSS**, featuring live data feeds from **MEXC USDT-Perpetual Futures**.
+MOCHEX is a high-performance personal trading journal and real-time futures watchlist app built with **Next.js 15**, **Supabase**, and **Tailwind CSS**, featuring live data feeds from **MEXC USDT-Perpetual Futures**.
 
 ---
 
@@ -31,7 +31,7 @@ Tape is a high-performance personal trading journal and real-time futures watchl
   - **📡 Watchlist Radar**: Ongoing market condition radar, trigger levels, distance to trigger (%), planned EP/SL/TP, pre-trade thesis, Position side (`LONG`/`SHORT`), Order Type (`LIMIT`, `TRIGGER LIMIT`, `MARKET`), and **"🔥 ALERT FIRED & TRIGGERED"** proof-of-accuracy badges.
   - **🎯 Trade Setups**: Position side, Order Type, live PnL % banner vs Entry Price, executed targets, R:R ratio, and post-entry review notes.
 - **Soft-Delete Archive & Restore Tab**: Soft-delete public share pages with instant **Restore (↺)** and **Permanent Delete (🗑)** options.
-- **Dedicated 404 Error Page**: Custom dark-mode page (`Tape / 404`) for invalid or soft-deleted share links.
+- **Dedicated 404 Error Page**: Custom dark-mode page (`MOCHEX / 404`) for invalid or soft-deleted share links.
 
 > 📖 **Full Public Sharing Documentation**: See [`SHARES.md`](SHARES.md) for vanity URL routing, card templates, diagrams, and database schemas.
 
@@ -66,4 +66,4 @@ Apply all SQL migrations located in `supabase/migrations/` (migrations `001` thr
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view Tape.
+Open [http://localhost:3000](http://localhost:3000) to view MOCHEX.

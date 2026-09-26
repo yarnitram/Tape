@@ -49,7 +49,7 @@ export function tradesToRows(trades: TradeWithExtras[]): TradeRowData[] {
 /** Generate an .xlsx workbook and trigger a browser download. */
 export function downloadXlsx(
   trades: TradeWithExtras[],
-  filename = "tape-trades.xlsx"
+  filename = "mochex-trades.xlsx"
 ): void {
   const rows = tradesToRows(trades);
   const ws = XLSX.utils.json_to_sheet(rows);

@@ -9,7 +9,7 @@ export default function PublicShareNotFound() {
         {/* Branding */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
-            Tape
+            MOCHEX
           </span>
           <span className="text-zinc-600 font-mono">/</span>
           <span className="text-xs text-zinc-400 font-mono font-bold">404</span>
@@ -33,7 +33,7 @@ export default function PublicShareNotFound() {
             href="/"
             className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10 cursor-pointer"
           >
-            <span>🚀 Go to Tape Home</span>
+            <span>🚀 Go to MOCHEX Home</span>
           </Link>
           <Link
             href="/shares"

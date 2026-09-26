@@ -8,7 +8,7 @@ The **Public Sharing Hub** (`/shares`) enables traders to publish real-time, int
 
 1. **Custom Vanity Handle URLs (`/[username]/[slug]`)**:
    - Every trader can set a unique handle (username) in Settings (e.g., `@matt`).
-   - Share URLs follow clean, social-ready routes: `https://tape.app/matt/solana-watchlist-radar`.
+   - Share URLs follow clean, social-ready routes: `https://mochex.io/matt/solana-watchlist-radar`.
 
 2. **Multi-Token Support**:
    - Each public page can display single or **multiple coin setups** on a single unified page.
@@ -28,7 +28,7 @@ The **Public Sharing Hub** (`/shares`) enables traders to publish real-time, int
    - **Partial Unique Index**: Slugs are unique per user among active pages (`WHERE deleted_at IS NULL`), permitting slug reuse after soft-deleting.
 
 5. **Dedicated 404 Error Handling (`not-found.tsx`)**:
-   - Visiting a non-existent username, invalid slug, or soft-deleted link renders a dedicated dark-mode 404 page (`Tape / 404`) with quick navigation back to Tape.
+   - Visiting a non-existent username, invalid slug, or soft-deleted link renders a dedicated dark-mode 404 page (`MOCHEX / 404`) with quick navigation back to MOCHEX.
 
 ---
 

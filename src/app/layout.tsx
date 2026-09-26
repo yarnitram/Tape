@@ -24,7 +24,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tape — Personal Trading Journal",
+  title: "MOCHEX — Crypto Trading Setup Journal",
   description:
     "A single-user trading journal to log trades, review analytics, track risk, and export history.",
 };
@@ -41,14 +41,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             wrong mode. Reads the stored preference, else system preference. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("tape-theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem("mochex-theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`,
           }}
         />
       </head>
       <body className="min-h-full flex flex-col bg-paper text-text">
         <div className="flex-1 flex flex-col w-full">{children}</div>
         <footer className="hairline-t py-6 text-center text-xs text-muted">
-          <span className="brand">Tape</span> — personal trading journal
+          <span className="brand">MOCHEX</span> — crypto trading setup journal
         </footer>
       </body>
     </html>

@@ -1,5 +1,5 @@
 -- ============================================================
--- Tape — Personal Trading Journal
+-- MOCHEX — Crypto Trading Setup Journal
 -- Supabase / Postgres schema
 --
 -- Run this in the Supabase SQL editor (or via migrations).
