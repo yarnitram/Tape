@@ -252,6 +252,17 @@ export function EditShareModal({
                         {item.trigger_direction === "below" ? "SHORT" : "LONG"}
                       </button>
                     )}
+
+                    {/* Order Type Selector */}
+                    <select
+                      value={item.order_type || "limit"}
+                      onChange={(e) => handleUpdateItem(item.id, { order_type: e.target.value })}
+                      className="hairline bg-panel px-2 py-0.5 text-[10px] font-mono outline-none rounded text-muted focus:text-text cursor-pointer"
+                    >
+                      <option value="limit">LIMIT</option>
+                      <option value="trigger_limit">TRIGGER LIMIT</option>
+                      <option value="market">MARKET</option>
+                    </select>
                   </div>
 
                   <button

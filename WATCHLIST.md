@@ -162,3 +162,13 @@ flowchart TD
 
 3. **Direct MEXC Futures Chart Links (`mexcChartUrl`)**:
    - Every row across Active Watchlist, Triggered, and Archive tabs includes a **Chart** action link to open `https://www.mexc.co/futures/SYMBOL_USDT` in a new browser tab.
+
+---
+
+## 📡 Public Watchlist Sharing Integration
+
+Traders can publish active, ongoing watchlist radar setups to public vanity URLs (`/[username]/[slug]`):
+- **Eligibility Rules**: Only ongoing (`!alert_fired`) watchlist tokens WITH a valid trigger price set can be selected.
+- **Card Highlights**: Renders Position direction (`LONG`/`SHORT`), Order Type (`LIMIT`, `TRIGGER LIMIT`, `MARKET`), live MEXC market price, distance to alert trigger (%), planned EP/SL/TP levels, and pre-trade thesis commentary.
+- **Fired Alert Proof-of-Accuracy**: When a watchlist trigger level is reached, the token displays a glowing **"🔥 ALERT FIRED & TRIGGERED"** badge on the public page as proof of accuracy.
+- See [`SHARES.md`](SHARES.md) for complete sharing architecture.

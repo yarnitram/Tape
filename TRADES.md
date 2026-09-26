@@ -114,3 +114,12 @@ flowchart TD
 
 3. **Direct MEXC Futures Chart Links (`mexcChartUrl`)**:
    - All trade rows across Active Trades, Closed History, and Archive tabs feature a **Chart** action link to open `https://www.mexc.co/futures/SYMBOL_USDT` in a new browser tab.
+
+---
+
+## 🎯 Public Trade Setup Sharing Integration
+
+Traders can publish trade positions to public vanity URLs (`/[username]/[slug]`):
+- **Card Highlights**: Renders Position side (`LONG`/`SHORT`), Order Type (`LIMIT`, `MARKET`), live PnL % banner vs Entry Price, executed target levels (EP, SL, TP), Risk-to-Reward ratio (e.g. `2.50 : 1`), and post-entry review notes.
+- **Privacy & Security**: Soft-deleted share pages in the Trash tab (`020_soft_delete_public_share_links.sql`) automatically return 404 to public visitors while allowing the owner to Restore (↺) or Delete Permanently (🗑) anytime.
+- See [`SHARES.md`](SHARES.md) for complete sharing architecture.

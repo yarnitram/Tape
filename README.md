@@ -24,7 +24,18 @@ Tape is a high-performance personal trading journal and real-time futures watchl
 
 > 📖 **Full Trades Documentation**: See [`TRADES.md`](TRADES.md) for trade lifecycles, PnL formulas, diagrams, and database schemas.
 
-### 3. Risk Management & Notifications
+### 3. Public Sharing Hub & Vanity Handle URLs
+- **Custom Vanity Handles**: Share setup URLs under clean vanity routes (`/[username]/[slug]`).
+- **Multi-Token Support**: Share single or multiple coin setups on a single unified page.
+- **Two Specialized Templates**:
+  - **📡 Watchlist Radar**: Ongoing market condition radar, trigger levels, distance to trigger (%), planned EP/SL/TP, pre-trade thesis, Position side (`LONG`/`SHORT`), Order Type (`LIMIT`, `TRIGGER LIMIT`, `MARKET`), and **"🔥 ALERT FIRED & TRIGGERED"** proof-of-accuracy badges.
+  - **🎯 Trade Setups**: Position side, Order Type, live PnL % banner vs Entry Price, executed targets, R:R ratio, and post-entry review notes.
+- **Soft-Delete Archive & Restore Tab**: Soft-delete public share pages with instant **Restore (↺)** and **Permanent Delete (🗑)** options.
+- **Dedicated 404 Error Page**: Custom dark-mode page (`Tape / 404`) for invalid or soft-deleted share links.
+
+> 📖 **Full Public Sharing Documentation**: See [`SHARES.md`](SHARES.md) for vanity URL routing, card templates, diagrams, and database schemas.
+
+### 4. Risk Management & Notifications
 - Account-wide risk parameters (Max Daily Loss, Position Risk %, Max Open Positions).
 - **Multi-Channel Alert Notifications**:
   - **Discord Webhooks**: Configure single or multiple Discord webhooks.
@@ -47,7 +58,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ### 2. Run Database Migrations
 
-Apply the SQL migrations located in `supabase/migrations/` (including `012_triggered_watchlist_items.sql`) in your Supabase SQL Editor.
+Apply all SQL migrations located in `supabase/migrations/` (migrations `001` through `020_soft_delete_public_share_links.sql`) in your Supabase SQL Editor.
 
 ### 3. Development Server
 

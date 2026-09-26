@@ -284,9 +284,26 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                   {/* Watchlist Header Row */}
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xl font-bold text-zinc-100">{sym}</span>
                       <span className="text-xs font-mono text-zinc-500">USDT</span>
+                      
+                      {/* Position Side (LONG/SHORT) */}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase font-mono ${
+                          trigDir === "below"
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                        }`}
+                      >
+                        {trigDir === "below" ? "LONG" : "SHORT"}
+                      </span>
+
+                      {/* Order Type Badge */}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-300 font-mono uppercase">
+                        {(item.order_type || "LIMIT").replace("_", " ")}
+                      </span>
+
                       {isTriggered ? (
                         <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-amber-400/40 bg-amber-500/20 text-amber-300 font-mono uppercase tracking-wider animate-pulse flex items-center gap-1">
                           <span>🔥</span> ALERT FIRED & TRIGGERED
@@ -445,7 +462,7 @@ export default async function PublicSharePage({ params }: PageProps) {
 
                   {/* Header Row */}
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xl font-bold text-zinc-100">{sym}</span>
                       <span className="text-xs font-mono text-zinc-500">USDT</span>
                       <span
@@ -456,6 +473,9 @@ export default async function PublicSharePage({ params }: PageProps) {
                         }`}
                       >
                         {side}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 text-zinc-300 font-mono uppercase">
+                        {(item.order_type || "MARKET").replace("_", " ")}
                       </span>
                     </div>
 
