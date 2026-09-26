@@ -9,6 +9,7 @@ import {
   formatTimeAgo,
   notificationIcon,
   notificationColor,
+  parseNotificationMetadata,
 } from "@/lib/notification-utils";
 
 interface NotificationBellProps {
@@ -80,8 +81,10 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
     if (!notification.read) {
       markAsRead([notification.id]);
     }
-    if (notification.link) {
-      router.push(notification.link);
+    const meta = parseNotificationMetadata(notification);
+    const target = notification.link || meta.chartUrl || meta.tradesUrl;
+    if (target) {
+      router.push(target);
       router.refresh();
     }
     setIsOpen(false);
@@ -102,12 +105,8 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
     }
   }
 
-  // Open the dropdown; if there are unread notifications, mark them all as
-  // read first (clears the badge) before showing the panel.
+  // Open the dropdown toggle
   function handleToggle() {
-    if (unreadCount > 0) {
-      handleMarkAllRead();
-    }
     setIsOpen((prev) => !prev);
   }
 
@@ -203,37 +202,50 @@ export function NotificationBell({ initialUnreadCount = 0 }: NotificationBellPro
               </div>
             ) : (
               <ul role="list" className="divide-y divide-line">
-                {notifications.map((notification) => (
-                  <li key={notification.id} role="menuitem">
-                    <button
-                      type="button"
-                      onClick={() => handleNotificationClick(notification)}
-                      className={`w-full px-4 py-3 text-left transition-colors ${
-                        !notification.read ? "bg-accent-weak" : "hover:bg-panel"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={`flex-shrink-0 mt-0.5 ${notificationColor(notification.type)}`}
-                          aria-hidden="true"
-                        >
-                          {notificationIcon(notification.type)}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm font-medium truncate ${!notification.read ? "font-semibold" : ""}`}>
-                              {notification.title}
-                            </p>
-                            <time className="flex-shrink-0 text-xs text-muted" dateTime={notification.created_at}>
-                              {formatTimeAgo(notification.created_at)}
-                            </time>
+                {notifications.map((notification) => {
+                  const meta = parseNotificationMetadata(notification);
+                  return (
+                    <li key={notification.id} role="menuitem">
+                      <button
+                        type="button"
+                        onClick={() => handleNotificationClick(notification)}
+                        className={`w-full px-4 py-3 text-left transition-colors ${
+                          !notification.read ? "bg-accent/10 hover:bg-accent/15" : "hover:bg-panel"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <span
+                            className={`flex-shrink-0 mt-0.5 ${notificationColor(notification.type)}`}
+                            aria-hidden="true"
+                          >
+                            {notificationIcon(notification.type)}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                {meta.symbol && (
+                                  <span className="px-1 py-0.2 rounded text-[10px] font-mono font-bold bg-panel border border-line text-text">
+                                    {meta.symbol}
+                                  </span>
+                                )}
+                                <span className={`px-1 py-0.2 rounded text-[9px] font-mono uppercase border ${meta.badgeColorClass}`}>
+                                  {meta.badgeLabel}
+                                </span>
+                                <p className={`text-xs truncate ${!notification.read ? "font-bold text-text" : "font-medium text-text/90"}`}>
+                                  {notification.title}
+                                </p>
+                              </div>
+                              <time className="flex-shrink-0 text-[10px] font-mono text-muted" dateTime={notification.created_at}>
+                                {formatTimeAgo(notification.created_at)}
+                              </time>
+                            </div>
+                            <p className="mt-1 text-xs text-muted line-clamp-2">{notification.message}</p>
                           </div>
-                          <p className="mt-1 text-sm text-muted line-clamp-2">{notification.message}</p>
                         </div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

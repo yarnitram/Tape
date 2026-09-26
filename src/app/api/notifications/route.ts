@@ -74,6 +74,7 @@ export async function PATCH(request: Request) {
   const b = body as Record<string, unknown>;
   const ids = Array.isArray(b.ids) ? (b.ids as string[]) : [];
   const markAll = b.all === true;
+  const targetRead = b.read !== undefined ? Boolean(b.read) : true;
 
   if (!markAll && ids.length === 0) {
     return NextResponse.json({ error: "ids array or all=true required" }, { status: 400 });
@@ -81,9 +82,9 @@ export async function PATCH(request: Request) {
 
   let query = supabase
     .from("notifications")
-    .update({ read: true })
+    .update({ read: targetRead })
     .eq("user_id", user.id)
-    .eq("read", false);
+    .eq("read", !targetRead);
 
   if (!markAll) {
     query = query.in("id", ids);
@@ -171,9 +172,14 @@ export async function DELETE(request: Request) {
 
   const b = body as Record<string, unknown>;
   const ids = Array.isArray(b.ids) ? (b.ids as string[]).filter(Boolean) : [];
+  const deleteAllRead = b.allRead === true;
+  const deleteAll = b.all === true;
 
-  if (b.ids !== undefined && ids.length === 0) {
-    return NextResponse.json({ error: "ids array required" }, { status: 400 });
+  if (!deleteAll && !deleteAllRead && ids.length === 0) {
+    return NextResponse.json(
+      { error: "ids array, allRead=true, or all=true required" },
+      { status: 400 }
+    );
   }
 
   let query = supabase
@@ -181,7 +187,9 @@ export async function DELETE(request: Request) {
     .delete()
     .eq("user_id", user.id);
 
-  if (ids.length > 0) {
+  if (deleteAllRead) {
+    query = query.eq("read", true);
+  } else if (!deleteAll && ids.length > 0) {
     query = query.in("id", ids);
   }
 

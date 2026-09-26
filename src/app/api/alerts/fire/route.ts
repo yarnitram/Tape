@@ -46,15 +46,36 @@ export async function POST(request: Request) {
   }
   const b = body as Record<string, unknown>;
 
-  const type = (String(b.type ?? "system") as NotificationType);
+  const rawType = String(b.type ?? "system").trim();
+  const validDbTypes: NotificationType[] = [
+    "trade_alert",
+    "risk_warning",
+    "system",
+    "watchlist_trigger",
+  ];
+  let type: NotificationType = "system";
+  if (validDbTypes.includes(rawType as NotificationType)) {
+    type = rawType as NotificationType;
+  } else if (rawType === "tp1_hit" || rawType === "sl_tp_hit") {
+    type = "trade_alert";
+  } else {
+    type = "system";
+  }
+
   const title = String(b.title ?? "").trim();
   const message = String(b.message ?? "").trim();
-  const link = b.link != null && String(b.link).trim() !== "" ? String(b.link).trim() : null;
+  let link = b.link != null && String(b.link).trim() !== "" ? String(b.link).trim() : null;
 
   const symbol =
     b.symbol != null && String(b.symbol).trim() !== ""
       ? String(b.symbol).trim().toUpperCase()
       : null;
+
+  // Prevent dead-end links: if a trigger fired and was given /watchlist (where it gets deleted),
+  // link directly to /trades or /chart instead so the user sees the active trade plan
+  if (link === "/watchlist" && symbol && (b.fired_price !== undefined || b.order_type !== undefined)) {
+    link = `/trades`;
+  }
 
   if (!title || !message) {
     return NextResponse.json({ error: "title and message required" }, { status: 400 });
