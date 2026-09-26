@@ -6,6 +6,7 @@ import type { PublicShareLink, WatchlistItem, TradeAlert } from "@/lib/types";
 import { cleanSymbol, fmtPlanPx } from "@/lib/format";
 import { CreateShareModal } from "./create-share-modal";
 import { EditShareModal } from "./edit-share-modal";
+import { SocialCardModal } from "./social-card-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 
 interface Props {
@@ -26,6 +27,7 @@ export function SharesClient({
   const [search, setSearch] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingShare, setEditingShare] = useState<PublicShareLink | null>(null);
+  const [cardExportingShare, setCardExportingShare] = useState<PublicShareLink | null>(null);
   const [softDeletingShare, setSoftDeletingShare] = useState<PublicShareLink | null>(null);
   const [permDeletingShare, setPermDeletingShare] = useState<PublicShareLink | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -346,6 +348,14 @@ export function SharesClient({
                           >
                             🐦
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setCardExportingShare(row)}
+                            title="Export Social Card PNG"
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-300 hover:bg-amber-400/10 transition-colors inline-block cursor-pointer"
+                          >
+                            📸
+                          </button>
                           <a
                             href={publicPath}
                             target="_blank"
@@ -423,6 +433,34 @@ export function SharesClient({
           username={username}
           onSaved={(updated) =>
             setShares((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+          }
+        />
+      )}
+
+      {/* Social Card PNG Export Modal */}
+      {cardExportingShare && (
+        <SocialCardModal
+          open={Boolean(cardExportingShare)}
+          onClose={() => setCardExportingShare(null)}
+          username={username}
+          title={cardExportingShare.title}
+          slug={cardExportingShare.slug}
+          shareType={cardExportingShare.share_type}
+          item={
+            Array.isArray(cardExportingShare.items) && cardExportingShare.items.length > 0
+              ? cardExportingShare.items[0]
+              : {
+                  id: "item-1",
+                  symbol: cardExportingShare.symbol,
+                  share_type: cardExportingShare.share_type,
+                  trigger_price: cardExportingShare.trigger_price,
+                  trigger_direction: cardExportingShare.trigger_direction,
+                  order_type: cardExportingShare.order_type,
+                  entry_price: cardExportingShare.entry_price,
+                  stop_loss: cardExportingShare.stop_loss,
+                  take_profit: cardExportingShare.take_profit,
+                  notes: cardExportingShare.notes,
+                }
           }
         />
       )}

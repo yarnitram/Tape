@@ -94,3 +94,18 @@ flowchart TD
 Every token card rendered on a public share page includes a direct chart launch button:
 `https://www.mexc.co/futures/SYMBOL_USDT`
 allowing public visitors to open the contract chart directly on MEXC in a new browser tab.
+
+---
+
+## 🗺️ 5-Feature Platform Roadmap
+
+1. **📸 One-Click Social Card PNG Generator** *(Implemented ✅)*:
+   - High-resolution 2x retina PNG exporter (`SocialCardModal`) with theme presets (`Cyber Emerald`, `Radar Gold`, `Deep Space`), one-click `📋 Copy PNG to Clipboard` and `⬇️ Download PNG`.
+2. **🌐 Public Trader Profile Showcase (`/[username]`)** *(Planned 🔮)*:
+   - Personal public profile landing page showcasing trader bio, social channels, total published setup directory, and verified prediction accuracy score.
+3. **📈 Interactive Candlestick Charts with Setup Overlay** *(Planned 🔮)*:
+   - Embedded TradingView Lightweight Candlestick Charts (`lightweight-charts`) with visual horizontal level overlays for Trigger Price, Entry Price, Stop Loss, and Take Profit.
+4. **🔊 Web Audio Price Proximity Alarms** *(Planned 🔮)*:
+   - Real-time browser audio engine with customizable sound chimes (Radar Ping, Breakout Bell) firing when live price gets within 0.5% of trigger levels.
+5. **📜 Trade Setup Revision History & Timeline Log** *(Planned 🔮)*:
+   - Audit log tracking setup adjustments (e.g. moving SL to Breakeven, TP1 hit), providing full public transparency on setup evolution.

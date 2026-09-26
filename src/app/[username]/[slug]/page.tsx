@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { cleanSymbol, mexcChartUrl, fmtPlanPx } from "@/lib/format";
+import { cleanSymbol, fmtPlanPx } from "@/lib/format";
 import type { PublicShareLink, PublicShareItem } from "@/lib/types";
+import { PublicCardActions } from "@/components/shares/public-card-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -411,17 +412,15 @@ export default async function PublicSharePage({ params }: PageProps) {
                     </div>
                   )}
 
-                  {/* Action Link */}
-                  <div className="flex items-center justify-end pt-1 border-t border-zinc-800/60">
-                    <a
-                      href={mexcChartUrl(item.symbol)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>📈 View {sym} Chart on MEXC</span>
-                    </a>
-                  </div>
+                  {/* Action Link & Social Export */}
+                  <PublicCardActions
+                    username={username}
+                    title={share.title}
+                    slug={share.slug}
+                    shareType="watchlist"
+                    item={item}
+                    lastPrice={lastPrice}
+                  />
                 </div>
               );
             })}
@@ -546,22 +545,21 @@ export default async function PublicSharePage({ params }: PageProps) {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
-                    {rrRatio ? (
-                      <span className="text-[11px] font-mono text-zinc-400">
-                        R:R Ratio: <span className="text-emerald-400 font-bold">{rrRatio} : 1</span>
-                      </span>
-                    ) : <div />}
+                  {rrRatio && (
+                    <div className="text-[11px] font-mono text-zinc-400">
+                      R:R Ratio: <span className="text-emerald-400 font-bold">{rrRatio} : 1</span>
+                    </div>
+                  )}
 
-                    <a
-                      href={mexcChartUrl(item.symbol)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold text-[11px] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>📈 View {sym} Chart on MEXC</span>
-                    </a>
-                  </div>
+                  {/* Action Link & Social Export */}
+                  <PublicCardActions
+                    username={username}
+                    title={share.title}
+                    slug={share.slug}
+                    shareType="trade"
+                    item={item}
+                    lastPrice={lastPrice}
+                  />
                 </div>
               );
             })}
