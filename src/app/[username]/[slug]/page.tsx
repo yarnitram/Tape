@@ -62,6 +62,7 @@ async function getPublicShareData(username: string, slug: string): Promise<{
     .select("*")
     .eq("user_id", settings.user_id)
     .eq("slug", slug.toLowerCase())
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!share) return null;

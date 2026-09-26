@@ -118,6 +118,7 @@ export interface PublicShareLink {
   notes?: string | null;
   is_active: boolean;
   view_count: number;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
   username?: string | null;

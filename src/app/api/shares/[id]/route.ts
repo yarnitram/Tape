@@ -111,24 +111,38 @@ export async function PUT(
   return NextResponse.json({ share: updated });
 }
 
-/** DELETE /api/shares/[id] — delete share link */
+/** DELETE /api/shares/[id] — soft delete (or permanent delete if ?permanent=true) */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const permanent = searchParams.get("permanent") === "true";
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { error } = await supabase
-    .from("public_share_links")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+  if (permanent) {
+    const { error } = await supabase
+      .from("public_share_links")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, permanent: true });
+  } else {
+    const { error } = await supabase
+      .from("public_share_links")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, permanent: false });
+  }
 }
